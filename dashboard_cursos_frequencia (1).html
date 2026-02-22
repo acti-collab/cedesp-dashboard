@@ -1,0 +1,1173 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Frequência por Curso — CEDESP Dom Bosco Itaquera · 1º Sem 2026</title>
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js"></script>
+<style>
+:root {
+  --bg: #f5f2ee;
+  --surface: #ffffff;
+  --surface2: #ede9e3;
+  --border: #d8d2c8;
+  --text: #1a1612;
+  --text-muted: #8a8279;
+  --accent: #c84b31;
+  --accent2: #2b5f8a;
+  --green: #2d7a4f;
+  --orange: #c97c1a;
+  --yellow: #e8c547;
+  --ink: #1a1612;
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: 'Poppins', sans-serif;
+  min-height: 100vh;
+}
+
+/* ── HEADER ── */
+header {
+  background: var(--ink);
+  color: #f5f2ee;
+  padding: 0 48px;
+  display: flex;
+  align-items: stretch;
+  justify-content: space-between;
+  height: 80px;
+  position: sticky;
+  top: 0;
+  z-index: 100;
+}
+
+.header-left {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+}
+
+.header-accent {
+  width: 4px;
+  height: 40px;
+  background: var(--accent);
+  border-radius: 2px;
+}
+
+.header-title {
+  font-family: 'Poppins', sans-serif;
+  font-weight: 800;
+  font-size: 17px;
+  letter-spacing: -0.3px;
+  line-height: 1.25;
+}
+
+.header-sub {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 10px;
+  color: rgba(245,242,238,0.45);
+  margin-top: 3px;
+  letter-spacing: 0.5px;
+}
+
+.header-right {
+  display: flex;
+  align-items: center;
+  gap: 32px;
+}
+
+.header-stat {
+  text-align: right;
+}
+
+.hs-val {
+  font-family: 'Poppins', sans-serif;
+  font-size: 22px;
+  font-weight: 700;
+  letter-spacing: -0.5px;
+  color: var(--yellow);
+}
+
+.hs-label {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 10px;
+  color: rgba(245,242,238,0.45);
+  letter-spacing: 0.5px;
+}
+
+/* ── CONTROLS ── */
+.controls {
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+  padding: 16px 48px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  position: sticky;
+  top: 80px;
+  z-index: 99;
+}
+
+.filter-group {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.filter-label {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 10px;
+  color: var(--text-muted);
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+}
+
+.filter-btn {
+  display: inline-flex;
+  align-items: center;
+  padding: 5px 14px;
+  border-radius: 2px;
+  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--text-muted);
+  font-family: 'Poppins', sans-serif;
+  font-size: 12px;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.filter-btn:hover { border-color: var(--ink); color: var(--ink); }
+.filter-btn.active { background: var(--ink); color: var(--bg); border-color: var(--ink); }
+
+.filter-btn.manha.active { background: var(--orange); border-color: var(--orange); color: white; }
+.filter-btn.tarde.active { background: var(--accent2); border-color: var(--accent2); color: white; }
+.filter-btn.noite.active { background: #4a3a7a; border-color: #4a3a7a; color: white; }
+
+.sort-select {
+  padding: 5px 12px;
+  border: 1px solid var(--border);
+  background: transparent;
+  font-family: 'Poppins', sans-serif;
+  font-size: 12px;
+  color: var(--text);
+  border-radius: 2px;
+  cursor: pointer;
+  appearance: none;
+  padding-right: 28px;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath d='M1 1l4 4 4-4' stroke='%238a8279' stroke-width='1.5' fill='none'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 8px center;
+}
+
+.controls-spacer { flex: 1; }
+
+.search-wrap {
+  position: relative;
+}
+
+.search-input {
+  padding: 6px 12px 6px 32px;
+  border: 1px solid var(--border);
+  background: var(--bg);
+  font-family: 'Poppins', sans-serif;
+  font-size: 12px;
+  color: var(--text);
+  border-radius: 2px;
+  width: 220px;
+  outline: none;
+}
+
+.search-input:focus { border-color: var(--ink); }
+
+.search-icon {
+  position: absolute;
+  left: 10px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--text-muted);
+  font-size: 12px;
+}
+
+/* ── MAIN ── */
+main {
+  padding: 32px 48px 60px;
+  max-width: 1440px;
+  margin: 0 auto;
+}
+
+/* ── SECTION ── */
+.section-row {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+  margin-bottom: 20px;
+  margin-top: 40px;
+}
+
+.section-row:first-child { margin-top: 0; }
+
+.section-title {
+  font-family: 'Poppins', sans-serif;
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 1.5px;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+.section-rule {
+  flex: 1;
+  height: 1px;
+  background: var(--border);
+}
+
+.section-count {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 10px;
+  color: var(--text-muted);
+}
+
+/* ── TOP KPIs ── */
+.kpi-row {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 1px;
+  background: var(--border);
+  border: 1px solid var(--border);
+  margin-bottom: 32px;
+}
+
+.kpi-cell {
+  background: var(--surface);
+  padding: 24px 28px;
+}
+
+.kpi-label {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 10px;
+  color: var(--text-muted);
+  letter-spacing: 0.8px;
+  text-transform: uppercase;
+  margin-bottom: 10px;
+}
+
+.kpi-val {
+  font-family: 'Poppins', sans-serif;
+  font-size: 40px;
+  font-weight: 800;
+  letter-spacing: -2px;
+  line-height: 1;
+  margin-bottom: 4px;
+  color: var(--ink);
+}
+
+.kpi-desc {
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+/* ── CHARTS GRID ── */
+.charts-grid {
+  display: grid;
+  grid-template-columns: 1.6fr 1fr;
+  gap: 20px;
+  margin-bottom: 20px;
+}
+
+.chart-box {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  padding: 24px;
+}
+
+.chart-box-title {
+  font-family: 'Poppins', sans-serif;
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: -0.2px;
+  margin-bottom: 3px;
+}
+
+.chart-box-sub {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 10px;
+  color: var(--text-muted);
+  margin-bottom: 20px;
+}
+
+/* ── COURSE TABLE ── */
+.course-table-wrap {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  overflow: hidden;
+}
+
+.table-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 24px;
+  border-bottom: 1px solid var(--border);
+}
+
+.table-toolbar-title {
+  font-family: 'Poppins', sans-serif;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.table-toolbar-sub {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 10px;
+  color: var(--text-muted);
+  margin-top: 2px;
+}
+
+#resultCount {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+thead th {
+  padding: 10px 16px;
+  text-align: left;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 10px;
+  letter-spacing: 0.8px;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  background: var(--surface2);
+  border-bottom: 1px solid var(--border);
+  cursor: pointer;
+  user-select: none;
+  white-space: nowrap;
+}
+
+thead th:hover { color: var(--ink); }
+thead th.sorted { color: var(--ink); }
+thead th.right { text-align: right; }
+
+tbody tr {
+  border-bottom: 1px solid var(--border);
+  transition: background 0.1s;
+}
+
+tbody tr:last-child { border-bottom: none; }
+tbody tr:hover { background: var(--surface2); }
+
+td {
+  padding: 11px 16px;
+  font-size: 12.5px;
+}
+
+td.mono {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 11.5px;
+}
+
+td.right { text-align: right; }
+
+.course-name-cell {
+  max-width: 240px;
+  font-weight: 700;
+  font-size: 12px;
+  line-height: 1.3;
+}
+
+.course-name-cell small {
+  display: block;
+  font-weight: 400;
+  font-size: 11px;
+  color: var(--text-muted);
+  margin-top: 2px;
+}
+
+.unit-chip {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 2px;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 10px;
+  font-weight: 500;
+  background: var(--surface2);
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+
+.period-dot {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  margin-right: 6px;
+}
+
+.period-dot.manhã { background: var(--orange); }
+.period-dot.tarde { background: var(--accent2); }
+.period-dot.noite { background: #4a3a7a; }
+
+/* Attendance rate bar */
+.rate-cell {
+  min-width: 140px;
+}
+
+.rate-wrap {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.rate-bar {
+  flex: 1;
+  height: 5px;
+  background: var(--surface2);
+  border-radius: 0;
+  overflow: hidden;
+  min-width: 60px;
+}
+
+.rate-fill {
+  height: 100%;
+  border-radius: 0;
+  transition: width 0.4s ease;
+}
+
+.rate-pct {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 11px;
+  min-width: 40px;
+  text-align: right;
+  font-weight: 500;
+}
+
+/* status dot */
+.status-flag {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 11px;
+  font-family: 'JetBrains Mono', monospace;
+  padding: 2px 8px;
+  border: 1px solid;
+  border-radius: 2px;
+}
+
+.status-flag.high { border-color: #2d7a4f; color: #2d7a4f; background: rgba(45,122,79,0.06); }
+.status-flag.mid  { border-color: #c97c1a; color: #c97c1a; background: rgba(201,124,26,0.06); }
+.status-flag.low  { border-color: var(--accent); color: var(--accent); background: rgba(200,75,49,0.06); }
+
+/* CEDESP section header rows */
+.unit-section-row td {
+  background: var(--ink);
+  color: #f5f2ee;
+  font-family: 'Poppins', sans-serif;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  padding: 8px 16px;
+  border-bottom: none;
+}
+
+/* Heatmap grid */
+.heatmap-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  gap: 1px;
+  background: var(--border);
+  border: 1px solid var(--border);
+  margin-bottom: 20px;
+}
+
+.heatmap-cell {
+  background: var(--surface);
+  padding: 14px 16px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.heatmap-bar-col {
+  flex: 1;
+}
+
+.heatmap-name {
+  font-size: 11.5px;
+  font-weight: 700;
+  line-height: 1.2;
+  margin-bottom: 6px;
+}
+
+.heatmap-sub {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 10px;
+  color: var(--text-muted);
+  margin-bottom: 6px;
+}
+
+.hm-bar {
+  height: 8px;
+  border-radius: 0;
+  width: 100%;
+  background: var(--surface2);
+  overflow: hidden;
+}
+
+.hm-fill {
+  height: 100%;
+}
+
+.heatmap-pct-col {
+  text-align: right;
+  min-width: 50px;
+}
+
+.heatmap-pct {
+  font-family: 'Poppins', sans-serif;
+  font-size: 20px;
+  font-weight: 800;
+  letter-spacing: -1px;
+  line-height: 1;
+}
+
+.heatmap-pct-label {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 9px;
+  color: var(--text-muted);
+}
+
+/* LEGEND */
+.legend-row {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  margin-bottom: 16px;
+}
+
+.legend-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+.legend-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 2px;
+}
+
+/* Empty state */
+.empty-state {
+  text-align: center;
+  padding: 48px;
+  color: var(--text-muted);
+  font-size: 13px;
+}
+
+@media (max-width: 900px) {
+  header, .controls, main { padding-left: 20px; padding-right: 20px; }
+  .charts-grid { grid-template-columns: 1fr; }
+  .kpi-row { grid-template-columns: 1fr 1fr; }
+}
+</style>
+</head>
+<body>
+
+<!-- HEADER -->
+<header>
+  <div class="header-left">
+    <div class="header-accent"></div>
+    <div>
+      <div class="header-title">Frequência por Curso</div>
+      <div class="header-sub">CEDESP DOM BOSCO ITAQUERA · 1º SEMESTRE 2026</div>
+    </div>
+  </div>
+  <div class="header-right">
+    <div class="header-stat">
+      <div class="hs-val" id="hdr-cursos">—</div>
+      <div class="hs-label">CURSOS</div>
+    </div>
+    <div class="header-stat">
+      <div class="hs-val" id="hdr-avg">—</div>
+      <div class="hs-label">FREQ. MÉDIA</div>
+    </div>
+    <div class="header-stat">
+      <div class="hs-val" id="hdr-matr">—</div>
+      <div class="hs-label">MATRÍCULAS</div>
+    </div>
+  </div>
+</header>
+
+<!-- CONTROLS -->
+<div class="controls">
+  <div class="filter-group">
+    <span class="filter-label">Unidade:</span>
+    <button class="filter-btn active" data-filter="unit" data-value="all">Todas</button>
+    <button class="filter-btn" data-filter="unit" data-value="CEDESP 1">C1</button>
+    <button class="filter-btn" data-filter="unit" data-value="CEDESP 2">C2</button>
+    <button class="filter-btn" data-filter="unit" data-value="CEDESP 3">C3</button>
+    <button class="filter-btn" data-filter="unit" data-value="CEDESP 4">C4</button>
+    <button class="filter-btn" data-filter="unit" data-value="CEDESP 5">C5</button>
+    <button class="filter-btn" data-filter="unit" data-value="CEDESP 6">C6</button>
+    <button class="filter-btn" data-filter="unit" data-value="CEDESP 7">C7</button>
+    <button class="filter-btn" data-filter="unit" data-value="CEDESP 8">C8</button>
+  </div>
+  <div class="filter-group">
+    <span class="filter-label">Horário:</span>
+    <button class="filter-btn active" data-filter="period" data-value="all">Todos</button>
+    <button class="filter-btn manha" data-filter="period" data-value="Manhã">☀ Manhã</button>
+    <button class="filter-btn tarde" data-filter="period" data-value="Tarde">🌤 Tarde</button>
+    <button class="filter-btn noite" data-filter="period" data-value="Noite">🌙 Noite</button>
+  </div>
+  <div class="controls-spacer"></div>
+  <div class="filter-group">
+    <span class="filter-label">Ordenar:</span>
+    <select class="sort-select" id="sortSelect">
+      <option value="rate-desc">Taxa freq. ↓</option>
+      <option value="rate-asc">Taxa freq. ↑</option>
+      <option value="matr-desc">Matrículas ↓</option>
+      <option value="avg-desc">Freq. média ↓</option>
+      <option value="unit">Unidade</option>
+    </select>
+  </div>
+  <div class="search-wrap">
+    <span class="search-icon">⌕</span>
+    <input type="text" class="search-input" id="searchInput" placeholder="Buscar curso...">
+  </div>
+</div>
+
+<main>
+
+  <!-- KPI STRIP -->
+  <div class="kpi-row">
+    <div class="kpi-cell">
+      <div class="kpi-label">Cursos ativos</div>
+      <div class="kpi-val" id="kpi-cursos">—</div>
+      <div class="kpi-desc">turmas com frequência registrada</div>
+    </div>
+    <div class="kpi-cell">
+      <div class="kpi-label">Taxa de frequência média</div>
+      <div class="kpi-val" id="kpi-rate" style="color:var(--accent2)">—</div>
+      <div class="kpi-desc">média ponderada por matrículas</div>
+    </div>
+    <div class="kpi-cell">
+      <div class="kpi-label">Freq. diária mais alta</div>
+      <div class="kpi-val" id="kpi-best" style="color:var(--green)">—</div>
+      <div class="kpi-desc" id="kpi-best-label">—</div>
+    </div>
+    <div class="kpi-cell">
+      <div class="kpi-label">Cursos com taxa &lt;70%</div>
+      <div class="kpi-val" id="kpi-low" style="color:var(--accent)">—</div>
+      <div class="kpi-desc">requerem atenção imediata</div>
+    </div>
+  </div>
+
+  <!-- CHARTS -->
+  <div class="section-row">
+    <div class="section-title">Visão Gráfica</div>
+    <div class="section-rule"></div>
+  </div>
+
+  <div class="charts-grid">
+    <div class="chart-box">
+      <div class="chart-box-title">Taxa de Frequência por Curso</div>
+      <div class="chart-box-sub">Frequência diária média ÷ matrículas — top 20 cursos</div>
+      <canvas id="courseBarChart" height="320"></canvas>
+    </div>
+    <div class="chart-box">
+      <div class="chart-box-title">Distribuição de Taxas</div>
+      <div class="chart-box-sub">Agrupamento por faixa de frequência</div>
+      <canvas id="distChart" height="320"></canvas>
+    </div>
+  </div>
+
+  <div class="charts-grid" style="grid-template-columns: 1fr 1fr;">
+    <div class="chart-box">
+      <div class="chart-box-title">Comparativo por Unidade</div>
+      <div class="chart-box-sub">Taxa média de frequência e número de turmas</div>
+      <canvas id="unitCompChart" height="240"></canvas>
+    </div>
+    <div class="chart-box">
+      <div class="chart-box-title">Frequência por Horário</div>
+      <div class="chart-box-sub">Taxa média por período do dia</div>
+      <canvas id="periodChart" height="240"></canvas>
+    </div>
+  </div>
+
+  <!-- TABLE -->
+  <div class="section-row">
+    <div class="section-title">Tabela Completa</div>
+    <div class="section-rule"></div>
+    <span class="section-count" id="resultCount">—</span>
+  </div>
+
+  <div class="course-table-wrap">
+    <table id="courseTable">
+      <thead>
+        <tr>
+          <th>Curso</th>
+          <th>Unidade</th>
+          <th>Período</th>
+          <th class="right">Matr.</th>
+          <th class="right">Freq. Média/dia</th>
+          <th class="right">Aulas</th>
+          <th class="rate-cell">Taxa Frequência</th>
+          <th>Status</th>
+        </tr>
+      </thead>
+      <tbody id="courseTableBody"></tbody>
+    </table>
+    <div class="empty-state" id="emptyState" style="display:none">Nenhum curso encontrado com os filtros selecionados.</div>
+  </div>
+
+</main>
+
+<script>
+// ── RAW DATA ──
+const RAW = [
+  {unit:"CEDESP 1",period:"Manhã",course:"CABELEIREIRO - Noções de Barbearia",matr:29,freq_avg:18.0,n_classes:13,attend_rate:62.1},
+  {unit:"CEDESP 1",period:"Manhã",course:"MANICURE E PEDICURE",matr:30,freq_avg:24.3,n_classes:11,attend_rate:81.0},
+  {unit:"CEDESP 1",period:"Manhã",course:"MONTADOR E REPARADOR DE COMPUTADORES",matr:30,freq_avg:21.9,n_classes:13,attend_rate:73.0},
+  {unit:"CEDESP 1",period:"Manhã",course:"OPERADOR DE COMPUTADOR",matr:25,freq_avg:22.8,n_classes:13,attend_rate:91.2},
+  {unit:"CEDESP 1",period:"Tarde",course:"CABELEIREIRO",matr:33,freq_avg:25.5,n_classes:13,attend_rate:77.3},
+  {unit:"CEDESP 1",period:"Tarde",course:"MANICURE E PEDICURE",matr:30,freq_avg:18.9,n_classes:13,attend_rate:63.0},
+  {unit:"CEDESP 1",period:"Tarde",course:"MONTADOR E REPARADOR DE COMPUTADORES",matr:25,freq_avg:19.2,n_classes:13,attend_rate:76.8},
+  {unit:"CEDESP 1",period:"Tarde",course:"OPERADOR DE COMPUTADOR",matr:23,freq_avg:20.5,n_classes:13,attend_rate:89.1},
+  {unit:"CEDESP 1",period:"Noite",course:"CABELEIREIRO",matr:34,freq_avg:19.5,n_classes:13,attend_rate:57.4},
+  {unit:"CEDESP 1",period:"Noite",course:"MANICURE E PEDICURE",matr:30,freq_avg:24.1,n_classes:13,attend_rate:80.3},
+  {unit:"CEDESP 1",period:"Noite",course:"MONTADOR E REPARADOR DE COMPUTADORES",matr:25,freq_avg:17.5,n_classes:13,attend_rate:70.0},
+  {unit:"CEDESP 1",period:"Noite",course:"OPERADOR DE COMPUTADOR",matr:27,freq_avg:23.0,n_classes:13,attend_rate:85.2},
+  {unit:"CEDESP 2",period:"Manhã",course:"COSTUREIRO INDUSTRIAL DO VESTUÁRIO",matr:28,freq_avg:21.5,n_classes:13,attend_rate:76.8},
+  {unit:"CEDESP 2",period:"Manhã",course:"ORGANIZADOR DE EVENTOS",matr:26,freq_avg:17.1,n_classes:13,attend_rate:65.8},
+  {unit:"CEDESP 2",period:"Tarde",course:"ALFAIATE",matr:25,freq_avg:17.6,n_classes:13,attend_rate:70.4},
+  {unit:"CEDESP 2",period:"Tarde",course:"COSTUREIRO INDUSTRIAL DO VESTUÁRIO",matr:29,freq_avg:18.8,n_classes:13,attend_rate:64.8},
+  {unit:"CEDESP 2",period:"Tarde",course:"DESENHISTA DE MODA",matr:14,freq_avg:15.8,n_classes:13,attend_rate:112.9},
+  {unit:"CEDESP 2",period:"Tarde",course:"INSTALADOR DE SISTEMAS ELETRÔNICOS DE SEGURANÇA",matr:11,freq_avg:10.7,n_classes:13,attend_rate:97.3},
+  {unit:"CEDESP 2",period:"Tarde",course:"ORGANIZADOR DE EVENTOS",matr:25,freq_avg:19.8,n_classes:13,attend_rate:79.2},
+  {unit:"CEDESP 2",period:"Noite",course:"ALFAIATE",matr:28,freq_avg:17.6,n_classes:13,attend_rate:62.9},
+  {unit:"CEDESP 2",period:"Noite",course:"COSTUREIRO INDUSTRIAL DO VESTUÁRIO",matr:28,freq_avg:21.6,n_classes:13,attend_rate:77.1},
+  {unit:"CEDESP 2",period:"Noite",course:"DESENHISTA DE MODA",matr:24,freq_avg:17.4,n_classes:13,attend_rate:72.5},
+  {unit:"CEDESP 2",period:"Noite",course:"ELETROMECÂNICO DE AUTOMÓVEIS",matr:30,freq_avg:18.5,n_classes:13,attend_rate:61.7},
+  {unit:"CEDESP 2",period:"Noite",course:"INSTALADOR DE SISTEMAS ELETRÔNICOS DE SEGURANÇA",matr:30,freq_avg:16.8,n_classes:13,attend_rate:56.0},
+  {unit:"CEDESP 2",period:"Noite",course:"MODELISTA DE ROUPAS",matr:27,freq_avg:19.8,n_classes:13,attend_rate:73.3},
+  {unit:"CEDESP 2",period:"Noite",course:"OPERADOR PARA INJETORA PARA TERMOPLÁSTICOS",matr:20,freq_avg:17.8,n_classes:13,attend_rate:89.0},
+  {unit:"CEDESP 3",period:"Manhã",course:"AUXILIAR DE MANUTENÇÃO PREDIAL (ELETRICISTA)",matr:21,freq_avg:14.7,n_classes:13,attend_rate:70.0},
+  {unit:"CEDESP 3",period:"Manhã",course:"MONTADOR DE EQUIPAMENTOS ELETROELETRÔNICOS",matr:20,freq_avg:16.9,n_classes:13,attend_rate:84.5},
+  {unit:"CEDESP 3",period:"Tarde",course:"AUXILIAR DE MANUTENÇÃO PREDIAL (ELETRICISTA) - A",matr:12,freq_avg:18.6,n_classes:13,attend_rate:75.0},
+  {unit:"CEDESP 3",period:"Tarde",course:"ELETROMECÂNICO DE AUTOMÓVEIS - A",matr:28,freq_avg:18.7,n_classes:13,attend_rate:66.8},
+  {unit:"CEDESP 3",period:"Tarde",course:"MONTADOR DE EQUIPAMENTOS ELETROELETRÔNICOS",matr:17,freq_avg:18.2,n_classes:13,attend_rate:83.5},
+  {unit:"CEDESP 3",period:"Tarde",course:"MONTADOR DE PAINEIS ELÉTRICOS",matr:24,freq_avg:13.4,n_classes:13,attend_rate:55.8},
+  {unit:"CEDESP 3",period:"Noite",course:"AUXILIAR DE MANUTENÇÃO PREDIAL (ELETRICISTA) - A",matr:20,freq_avg:17.7,n_classes:13,attend_rate:88.5},
+  {unit:"CEDESP 3",period:"Noite",course:"AUXILIAR DE MANUTENÇÃO PREDIAL (ELETRICISTA) - B",matr:22,freq_avg:22.6,n_classes:13,attend_rate:102.7},
+  {unit:"CEDESP 3",period:"Noite",course:"ELETRICISTA INDUSTRIAL",matr:27,freq_avg:23.4,n_classes:13,attend_rate:86.7},
+  {unit:"CEDESP 3",period:"Noite",course:"MONTADOR DE EQUIPAMENTOS ELETROELETRÔNICOS",matr:36,freq_avg:13.8,n_classes:13,attend_rate:38.3},
+  {unit:"CEDESP 3",period:"Noite",course:"MONTADOR DE PAINEIS ELÉTRICOS",matr:36,freq_avg:20.1,n_classes:13,attend_rate:55.8},
+  {unit:"CEDESP 4",period:"Manhã",course:"ASSISTENTE ADMINISTRATIVO - A",matr:26,freq_avg:20.8,n_classes:13,attend_rate:80.0},
+  {unit:"CEDESP 4",period:"Manhã",course:"ASSISTENTE ADMINISTRATIVO - B",matr:26,freq_avg:21.0,n_classes:13,attend_rate:80.8},
+  {unit:"CEDESP 4",period:"Manhã",course:"ASSISTENTE DE RECURSOS HUMANOS",matr:26,freq_avg:19.5,n_classes:13,attend_rate:75.0},
+  {unit:"CEDESP 4",period:"Manhã",course:"COZINHEIRO INDUSTRIAL",matr:25,freq_avg:19.7,n_classes:13,attend_rate:78.8},
+  {unit:"CEDESP 4",period:"Tarde",course:"ASSISTENTE ADMINISTRATIVO - A",matr:29,freq_avg:24.2,n_classes:13,attend_rate:83.4},
+  {unit:"CEDESP 4",period:"Tarde",course:"ASSISTENTE ADMINISTRATIVO - B",matr:29,freq_avg:21.8,n_classes:13,attend_rate:75.2},
+  {unit:"CEDESP 4",period:"Tarde",course:"ASSISTENTE DE RECURSOS HUMANOS",matr:27,freq_avg:21.8,n_classes:13,attend_rate:80.7},
+  {unit:"CEDESP 4",period:"Tarde",course:"COZINHEIRO INDUSTRIAL",matr:22,freq_avg:15.3,n_classes:13,attend_rate:69.5},
+  {unit:"CEDESP 4",period:"Noite",course:"ASSISTENTE ADMINISTRATIVO - A",matr:28,freq_avg:23.3,n_classes:13,attend_rate:83.2},
+  {unit:"CEDESP 4",period:"Noite",course:"ASSISTENTE ADMINISTRATIVO - B",matr:31,freq_avg:28.0,n_classes:13,attend_rate:90.3},
+  {unit:"CEDESP 4",period:"Noite",course:"ASSISTENTE DE RECURSOS HUMANOS",matr:33,freq_avg:24.6,n_classes:13,attend_rate:74.5},
+  {unit:"CEDESP 4",period:"Noite",course:"COZINHEIRO INDUSTRIAL",matr:28,freq_avg:23.2,n_classes:13,attend_rate:82.9},
+  {unit:"CEDESP 5",period:"Manhã",course:"AUXILIAR DE MANUTENÇÃO PREDIAL (ELETRICISTA)",matr:20,freq_avg:16.2,n_classes:13,attend_rate:81.0},
+  {unit:"CEDESP 5",period:"Manhã",course:"PEDREIRO DE ALVENARIA",matr:18,freq_avg:11.2,n_classes:13,attend_rate:62.2},
+  {unit:"CEDESP 5",period:"Manhã",course:"PROGRAMADOR DE SISTEMAS",matr:27,freq_avg:20.6,n_classes:13,attend_rate:76.3},
+  {unit:"CEDESP 5",period:"Manhã",course:"PROGRAMADOR WEB",matr:27,freq_avg:18.2,n_classes:13,attend_rate:67.4},
+  {unit:"CEDESP 5",period:"Tarde",course:"EDITOR DE PROJETOS VISUAIS GRÁFICOS",matr:30,freq_avg:20.1,n_classes:13,attend_rate:67.0},
+  {unit:"CEDESP 5",period:"Tarde",course:"PROGRAMADOR DE SISTEMAS",matr:26,freq_avg:24.4,n_classes:13,attend_rate:93.8},
+  {unit:"CEDESP 5",period:"Tarde",course:"PROGRAMADOR WEB",matr:30,freq_avg:24.0,n_classes:13,attend_rate:80.0},
+  {unit:"CEDESP 5",period:"Tarde",course:"SERÍGRAFO",matr:10,freq_avg:6.2,n_classes:13,attend_rate:62.0},
+  {unit:"CEDESP 5",period:"Noite",course:"ANIMADOR DE STOP MOTION",matr:20,freq_avg:14.8,n_classes:13,attend_rate:74.0},
+  {unit:"CEDESP 5",period:"Noite",course:"EDITOR DE PROJETOS VISUAIS GRÁFICOS",matr:23,freq_avg:17.2,n_classes:13,attend_rate:74.8},
+  {unit:"CEDESP 5",period:"Noite",course:"PEDREIRO DE ALVENARIA",matr:25,freq_avg:21.4,n_classes:13,attend_rate:85.6},
+  {unit:"CEDESP 5",period:"Noite",course:"PROGRAMADOR DE SISTEMAS",matr:25,freq_avg:20.5,n_classes:13,attend_rate:82.0},
+  {unit:"CEDESP 5",period:"Noite",course:"PROGRAMADOR WEB",matr:31,freq_avg:23.7,n_classes:13,attend_rate:76.5},
+  {unit:"CEDESP 5",period:"Noite",course:"SERÍGRAFO",matr:31,freq_avg:21.2,n_classes:13,attend_rate:68.4},
+  {unit:"CEDESP 6",period:"Manhã",course:"CONFEITEIRO (COM NOÇÕES DE SORVETERIA)",matr:27,freq_avg:22.2,n_classes:13,attend_rate:82.2},
+  {unit:"CEDESP 6",period:"Manhã",course:"ELETROMECÂNICO DE AUTOMÓVEIS - B",matr:29,freq_avg:19.8,n_classes:13,attend_rate:68.3},
+  {unit:"CEDESP 6",period:"Manhã",course:"ELETROMECÂNICO DE AUTOMÓVEIS - C",matr:26,freq_avg:20.8,n_classes:13,attend_rate:80.0},
+  {unit:"CEDESP 6",period:"Manhã",course:"PADEIRO",matr:27,freq_avg:21.9,n_classes:13,attend_rate:81.1},
+  {unit:"CEDESP 6",period:"Tarde",course:"CONFEITEIRO (COM NOÇÕES DE SORVETERIA)",matr:28,freq_avg:24.8,n_classes:13,attend_rate:88.6},
+  {unit:"CEDESP 6",period:"Tarde",course:"PADEIRO",matr:28,freq_avg:17.8,n_classes:13,attend_rate:63.6},
+  {unit:"CEDESP 6",period:"Noite",course:"CONFEITEIRO (COM NOÇÕES DE SORVETERIA)",matr:30,freq_avg:25.1,n_classes:13,attend_rate:83.7},
+  {unit:"CEDESP 6",period:"Noite",course:"ELETROMECÂNICO DE AUTOMÓVEIS - A",matr:23,freq_avg:24.5,n_classes:13,attend_rate:106.5},
+  {unit:"CEDESP 6",period:"Noite",course:"ELETROMECÂNICO DE AUTOMÓVEIS - C",matr:39,freq_avg:34.5,n_classes:13,attend_rate:88.5},
+  {unit:"CEDESP 6",period:"Noite",course:"PADEIRO",matr:27,freq_avg:20.6,n_classes:13,attend_rate:76.3},
+  {unit:"CEDESP 7",period:"Manhã",course:"ELETRICISTA DE SISTEMAS DE ENERGIAS RENOVÁVEIS",matr:16,freq_avg:12.0,n_classes:13,attend_rate:75.0},
+  {unit:"CEDESP 7",period:"Manhã",course:"MECÂNICO DE USINAGEM",matr:27,freq_avg:15.2,n_classes:13,attend_rate:56.3},
+  {unit:"CEDESP 7",period:"Tarde",course:"ELETROMECÂNICO DE AUTOMÓVEIS - B",matr:24,freq_avg:13.7,n_classes:13,attend_rate:57.1},
+  {unit:"CEDESP 7",period:"Tarde",course:"MECÂNICO DE USINAGEM CONVENCIONAL",matr:12,freq_avg:10.5,n_classes:13,attend_rate:87.5},
+  {unit:"CEDESP 7",period:"Noite",course:"ELETRICISTA DE SISTEMAS DE ENERGIAS RENOVÁVEIS",matr:26,freq_avg:21.0,n_classes:13,attend_rate:80.8},
+  {unit:"CEDESP 7",period:"Noite",course:"MECÂNICO DE USINAGEM CONVENCIONAL - A",matr:21,freq_avg:15.2,n_classes:13,attend_rate:72.4},
+  {unit:"CEDESP 7",period:"Noite",course:"MECÂNICO DE USINAGEM CONVENCIONAL - B",matr:18,freq_avg:12.9,n_classes:13,attend_rate:71.7},
+  {unit:"CEDESP 7",period:"Noite",course:"OPERADOR DE TORNO COM CNC",matr:23,freq_avg:20.7,n_classes:13,attend_rate:90.0},
+  {unit:"CEDESP 7",period:"Noite",course:"OPERADOR DE FRESADORA COM CNC",matr:16,freq_avg:9.3,n_classes:13,attend_rate:58.1},
+  {unit:"CEDESP 7",period:"Noite",course:"OPERADOR E PROGRAMADOR DE SISTEMAS AUTOMATIZADOS - A",matr:30,freq_avg:16.7,n_classes:13,attend_rate:55.7},
+  {unit:"CEDESP 7",period:"Noite",course:"OPERADOR E PROGRAMADOR DE SISTEMAS AUTOMATIZADOS - B",matr:27,freq_avg:16.8,n_classes:13,attend_rate:62.2},
+  {unit:"CEDESP 7",period:"Noite",course:"OPERADOR E PROGRAMADOR DE SISTEMAS AUTOMATIZADOS - C",matr:16,freq_avg:13.4,n_classes:13,attend_rate:83.8},
+  {unit:"CEDESP 8",period:"Manhã",course:"ANIMADOR DE STOP MOTION",matr:31,freq_avg:19.6,n_classes:13,attend_rate:63.2},
+  {unit:"CEDESP 8",period:"Manhã",course:"AUXILIAR PEDAGÓGICO",matr:41,freq_avg:27.7,n_classes:13,attend_rate:67.6},
+  {unit:"CEDESP 8",period:"Manhã",course:"CUIDADOR DE IDOSOS",matr:36,freq_avg:22.3,n_classes:13,attend_rate:61.9},
+  {unit:"CEDESP 8",period:"Manhã",course:"OPERADOR DE COMPUTADOR",matr:35,freq_avg:20.4,n_classes:13,attend_rate:58.3},
+  {unit:"CEDESP 8",period:"Tarde",course:"ANIMADOR DE STOP MOTION",matr:35,freq_avg:22.4,n_classes:13,attend_rate:64.0},
+  {unit:"CEDESP 8",period:"Tarde",course:"AUXILIAR PEDAGÓGICO",matr:35,freq_avg:22.9,n_classes:13,attend_rate:65.4},
+  {unit:"CEDESP 8",period:"Tarde",course:"CUIDADOR DE IDOSO",matr:38,freq_avg:23.2,n_classes:13,attend_rate:61.1},
+  {unit:"CEDESP 8",period:"Tarde",course:"OPERADOR DE COMPUTADOR",matr:42,freq_avg:28.8,n_classes:13,attend_rate:68.6},
+];
+
+// ── STATE ──
+let filterUnit = 'all';
+let filterPeriod = 'all';
+let sortMode = 'rate-desc';
+let searchQuery = '';
+
+// ── HELPERS ──
+function getColor(rate) {
+  if (rate >= 80) return '#2d7a4f';
+  if (rate >= 70) return '#c97c1a';
+  return '#c84b31';
+}
+
+function getStatus(rate) {
+  if (rate >= 80) return {cls:'high', label:'≥ 80%'};
+  if (rate >= 70) return {cls:'mid', label:'70–79%'};
+  return {cls:'low', label:'< 70%'};
+}
+
+function periodColor(p) {
+  if (p === 'Manhã') return '#c97c1a';
+  if (p === 'Tarde') return '#2b5f8a';
+  return '#4a3a7a';
+}
+
+// ── FILTER & SORT ──
+function getFiltered() {
+  return RAW.filter(d => {
+    if (filterUnit !== 'all' && d.unit !== filterUnit) return false;
+    if (filterPeriod !== 'all' && d.period !== filterPeriod) return false;
+    if (searchQuery && !d.course.toLowerCase().includes(searchQuery) && !d.unit.toLowerCase().includes(searchQuery)) return false;
+    return true;
+  });
+}
+
+function getSorted(data) {
+  return [...data].sort((a,b) => {
+    if (sortMode === 'rate-desc') return b.attend_rate - a.attend_rate;
+    if (sortMode === 'rate-asc') return a.attend_rate - b.attend_rate;
+    if (sortMode === 'matr-desc') return b.matr - a.matr;
+    if (sortMode === 'avg-desc') return b.freq_avg - a.freq_avg;
+    if (sortMode === 'unit') return a.unit.localeCompare(b.unit) || a.period.localeCompare(b.period);
+    return 0;
+  });
+}
+
+// ── CHARTS ──
+Chart.defaults.color = '#8a8279';
+Chart.defaults.font.family = "'Poppins', sans-serif";
+Chart.defaults.borderColor = '#d8d2c8';
+
+let courseBarChart, distChart, unitCompChart, periodChart;
+
+function buildCharts(data) {
+  const sorted = [...data].sort((a,b) => b.attend_rate - a.attend_rate).slice(0,20);
+
+  // Destroy old
+  [courseBarChart, distChart, unitCompChart, periodChart].forEach(c => c && c.destroy());
+
+  // 1. Course bar
+  courseBarChart = new Chart(document.getElementById('courseBarChart'), {
+    type: 'bar',
+    data: {
+      labels: sorted.map(d => d.course.length > 30 ? d.course.substring(0,28)+'…' : d.course),
+      datasets: [{
+        label: 'Taxa de Frequência %',
+        data: sorted.map(d => d.attend_rate),
+        backgroundColor: sorted.map(d => getColor(d.attend_rate) + 'cc'),
+        borderColor: sorted.map(d => getColor(d.attend_rate)),
+        borderWidth: 1,
+        borderRadius: 0,
+      }]
+    },
+    options: {
+      indexAxis: 'y',
+      responsive: true,
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          backgroundColor: '#1a1612', borderColor: '#d8d2c8', borderWidth: 1,
+          callbacks: {
+            label: ctx => ` ${ctx.raw.toFixed(1)}%  —  ${sorted[ctx.dataIndex].unit} · ${sorted[ctx.dataIndex].period}`
+          }
+        }
+      },
+      scales: {
+        x: {
+          min: 0, max: 120,
+          grid: { color: 'rgba(216,210,200,0.4)' },
+          ticks: { font: { size: 10 }, callback: v => v + '%' }
+        },
+        y: {
+          grid: { display: false },
+          ticks: { font: { size: 10 } }
+        }
+      }
+    }
+  });
+
+  // 2. Distribution
+  const bands = [
+    { label: '≥90%', min: 90, max: Infinity, color: '#2d7a4f' },
+    { label: '80–89%', min: 80, max: 90, color: '#52aa72' },
+    { label: '70–79%', min: 70, max: 80, color: '#c97c1a' },
+    { label: '60–69%', min: 60, max: 70, color: '#e09c46' },
+    { label: '<60%', min: 0, max: 60, color: '#c84b31' },
+  ];
+
+  const bandCounts = bands.map(b => data.filter(d => d.attend_rate >= b.min && d.attend_rate < b.max).length);
+
+  distChart = new Chart(document.getElementById('distChart'), {
+    type: 'doughnut',
+    data: {
+      labels: bands.map(b => b.label),
+      datasets: [{
+        data: bandCounts,
+        backgroundColor: bands.map(b => b.color + 'cc'),
+        borderColor: bands.map(b => b.color),
+        borderWidth: 2,
+        hoverOffset: 8,
+      }]
+    },
+    options: {
+      responsive: true,
+      cutout: '58%',
+      plugins: {
+        legend: {
+          position: 'right',
+          labels: { boxWidth: 12, padding: 12, font: { size: 11 }, usePointStyle: true }
+        },
+        tooltip: { backgroundColor: '#1a1612', borderColor: '#d8d2c8', borderWidth: 1 }
+      }
+    }
+  });
+
+  // 3. Unit comparison
+  const units = [...new Set(RAW.map(d => d.unit))];
+  const unitAvgs = units.map(u => {
+    const rows = data.filter(d => d.unit === u);
+    if (!rows.length) return null;
+    return +(rows.reduce((s,r) => s + r.attend_rate, 0) / rows.length).toFixed(1);
+  });
+  const unitCounts = units.map(u => data.filter(d => d.unit === u).length);
+
+  unitCompChart = new Chart(document.getElementById('unitCompChart'), {
+    type: 'bar',
+    data: {
+      labels: units.map(u => u.replace('CEDESP ', 'C')),
+      datasets: [
+        {
+          label: 'Taxa média %',
+          data: unitAvgs,
+          backgroundColor: unitAvgs.map(v => v ? getColor(v) + 'bb' : 'transparent'),
+          borderColor: unitAvgs.map(v => v ? getColor(v) : 'transparent'),
+          borderWidth: 1.5,
+          borderRadius: 0,
+          yAxisID: 'y',
+        },
+        {
+          label: 'Nº turmas',
+          data: unitCounts,
+          type: 'line',
+          borderColor: '#2b5f8a',
+          backgroundColor: 'rgba(43,95,138,0.1)',
+          pointBackgroundColor: '#2b5f8a',
+          pointRadius: 4,
+          borderWidth: 2,
+          fill: false,
+          yAxisID: 'y2',
+        }
+      ]
+    },
+    options: {
+      responsive: true,
+      plugins: {
+        legend: { position: 'top', labels: { boxWidth: 10, padding: 12, font: { size: 11 } } },
+        tooltip: { backgroundColor: '#1a1612', borderColor: '#d8d2c8', borderWidth: 1 }
+      },
+      scales: {
+        x: { grid: { display: false }, ticks: { font: { size: 11 } } },
+        y: {
+          min: 40, max: 100,
+          grid: { color: 'rgba(216,210,200,0.4)' },
+          ticks: { font: { size: 10 }, callback: v => v + '%' }
+        },
+        y2: {
+          position: 'right',
+          grid: { display: false },
+          ticks: { font: { size: 10 } }
+        }
+      }
+    }
+  });
+
+  // 4. Period comparison
+  const periods = ['Manhã', 'Tarde', 'Noite'];
+  const periodAvgs = periods.map(p => {
+    const rows = data.filter(d => d.period === p);
+    if (!rows.length) return 0;
+    return +(rows.reduce((s,r) => s + r.attend_rate, 0) / rows.length).toFixed(1);
+  });
+  const periodColors = periods.map(p => periodColor(p));
+
+  periodChart = new Chart(document.getElementById('periodChart'), {
+    type: 'bar',
+    data: {
+      labels: periods.map(p => p === 'Manhã' ? '☀ Manhã' : p === 'Tarde' ? '🌤 Tarde' : '🌙 Noite'),
+      datasets: [{
+        label: 'Taxa média %',
+        data: periodAvgs,
+        backgroundColor: periodColors.map(c => c + 'cc'),
+        borderColor: periodColors,
+        borderWidth: 1.5,
+        borderRadius: 0,
+      }]
+    },
+    options: {
+      responsive: true,
+      plugins: {
+        legend: { display: false },
+        tooltip: { backgroundColor: '#1a1612', borderColor: '#d8d2c8', borderWidth: 1 }
+      },
+      scales: {
+        x: { grid: { display: false }, ticks: { font: { size: 12 } } },
+        y: {
+          min: 60, max: 90,
+          grid: { color: 'rgba(216,210,200,0.4)' },
+          ticks: { font: { size: 10 }, callback: v => v + '%' }
+        }
+      }
+    }
+  });
+}
+
+// ── TABLE ──
+function buildTable(data) {
+  const tbody = document.getElementById('courseTableBody');
+  tbody.innerHTML = '';
+
+  const sorted = getSorted(data);
+  document.getElementById('resultCount').textContent = sorted.length + ' cursos';
+  document.getElementById('emptyState').style.display = sorted.length ? 'none' : 'block';
+
+  sorted.forEach(d => {
+    const st = getStatus(d.attend_rate);
+    const cappedRate = Math.min(d.attend_rate, 100);
+    const fillColor = getColor(d.attend_rate);
+    const pdot = d.period.toLowerCase().replace('ã','a');
+
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td><div class="course-name-cell">${d.course}</div></td>
+      <td><span class="unit-chip">${d.unit.replace('CEDESP ', 'C')}</span></td>
+      <td class="mono">
+        <span class="period-dot ${pdot}"></span>${d.period}
+      </td>
+      <td class="right mono">${d.matr}</td>
+      <td class="right mono">${d.freq_avg.toFixed(1)}</td>
+      <td class="right mono">${d.n_classes}</td>
+      <td class="rate-cell">
+        <div class="rate-wrap">
+          <div class="rate-bar">
+            <div class="rate-fill" style="width:${cappedRate}%;background:${fillColor}"></div>
+          </div>
+          <div class="rate-pct" style="color:${fillColor}">${d.attend_rate.toFixed(1)}%</div>
+        </div>
+      </td>
+      <td><span class="status-flag ${st.cls}">${st.label}</span></td>
+    `;
+    tbody.appendChild(tr);
+  });
+}
+
+// ── KPIs ──
+function updateKPIs(data) {
+  document.getElementById('kpi-cursos').textContent = data.length;
+
+  const totalMatr = data.reduce((s,d) => s + d.matr, 0);
+  const weightedRate = totalMatr > 0
+    ? (data.reduce((s,d) => s + d.attend_rate * d.matr, 0) / totalMatr).toFixed(1)
+    : '—';
+  document.getElementById('kpi-rate').textContent = weightedRate + '%';
+
+  const best = data.reduce((b, d) => d.freq_avg > (b ? b.freq_avg : -1) ? d : b, null);
+  document.getElementById('kpi-best').textContent = best ? best.freq_avg.toFixed(1) : '—';
+  document.getElementById('kpi-best-label').textContent = best ? best.course.substring(0,28) + (best.course.length > 28 ? '…' : '') : '—';
+
+  document.getElementById('kpi-low').textContent = data.filter(d => d.attend_rate < 70).length;
+
+  // Header stats
+  document.getElementById('hdr-cursos').textContent = data.length;
+  document.getElementById('hdr-avg').textContent = weightedRate + '%';
+  document.getElementById('hdr-matr').textContent = data.reduce((s,d) => s+d.matr, 0);
+}
+
+// ── MAIN UPDATE ──
+function update() {
+  const filtered = getFiltered();
+  updateKPIs(filtered);
+  buildCharts(filtered);
+  buildTable(filtered);
+}
+
+// ── EVENT LISTENERS ──
+document.querySelectorAll('[data-filter="unit"]').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('[data-filter="unit"]').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    filterUnit = btn.dataset.value;
+    update();
+  });
+});
+
+document.querySelectorAll('[data-filter="period"]').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('[data-filter="period"]').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    filterPeriod = btn.dataset.value;
+    update();
+  });
+});
+
+document.getElementById('sortSelect').addEventListener('change', e => {
+  sortMode = e.target.value;
+  const filtered = getFiltered();
+  buildTable(filtered);
+});
+
+document.getElementById('searchInput').addEventListener('input', e => {
+  searchQuery = e.target.value.toLowerCase().trim();
+  update();
+});
+
+// ── INIT ──
+update();
+</script>
+</body>
+</html>
