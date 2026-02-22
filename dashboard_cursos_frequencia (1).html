@@ -661,7 +661,7 @@ td.right { text-align: right; }
     <div class="kpi-cell">
       <div class="kpi-label">Taxa de frequência média</div>
       <div class="kpi-val" id="kpi-rate" style="color:var(--accent2)">—</div>
-      <div class="kpi-desc">média ponderada por matrículas</div>
+      <div class="kpi-desc">média freq. média ÷ meta do curso</div>
     </div>
     <div class="kpi-cell">
       <div class="kpi-label">Freq. diária mais alta</div>
@@ -669,7 +669,7 @@ td.right { text-align: right; }
       <div class="kpi-desc" id="kpi-best-label">—</div>
     </div>
     <div class="kpi-cell">
-      <div class="kpi-label">Cursos com taxa &lt;70%</div>
+      <div class="kpi-label">Cursos com taxa &lt;80%</div>
       <div class="kpi-val" id="kpi-low" style="color:var(--accent)">—</div>
       <div class="kpi-desc">requerem atenção imediata</div>
     </div>
@@ -684,7 +684,7 @@ td.right { text-align: right; }
   <div class="charts-grid">
     <div class="chart-box">
       <div class="chart-box-title">Taxa de Frequência por Curso</div>
-      <div class="chart-box-sub">Frequência diária média ÷ matrículas — top 20 cursos</div>
+      <div class="chart-box-sub">Frequência diária média ÷ meta do curso — top 20 cursos</div>
       <canvas id="courseBarChart" height="320"></canvas>
     </div>
     <div class="chart-box">
@@ -724,7 +724,7 @@ td.right { text-align: right; }
           <th class="right">Matr.</th>
           <th class="right">Freq. Média/dia</th>
           <th class="right">Aulas</th>
-          <th class="rate-cell">Taxa Frequência</th>
+          <th class="rate-cell">Taxa s/ Meta</th>
           <th>Status</th>
         </tr>
       </thead>
@@ -738,99 +738,946 @@ td.right { text-align: right; }
 <script>
 // ── RAW DATA ──
 const RAW = [
-  {unit:"CEDESP 1",period:"Manhã",course:"CABELEIREIRO - Noções de Barbearia",matr:29,freq_avg:18.0,n_classes:13,attend_rate:62.1},
-  {unit:"CEDESP 1",period:"Manhã",course:"MANICURE E PEDICURE",matr:30,freq_avg:24.3,n_classes:11,attend_rate:81.0},
-  {unit:"CEDESP 1",period:"Manhã",course:"MONTADOR E REPARADOR DE COMPUTADORES",matr:30,freq_avg:21.9,n_classes:13,attend_rate:73.0},
-  {unit:"CEDESP 1",period:"Manhã",course:"OPERADOR DE COMPUTADOR",matr:25,freq_avg:22.8,n_classes:13,attend_rate:91.2},
-  {unit:"CEDESP 1",period:"Tarde",course:"CABELEIREIRO",matr:33,freq_avg:25.5,n_classes:13,attend_rate:77.3},
-  {unit:"CEDESP 1",period:"Tarde",course:"MANICURE E PEDICURE",matr:30,freq_avg:18.9,n_classes:13,attend_rate:63.0},
-  {unit:"CEDESP 1",period:"Tarde",course:"MONTADOR E REPARADOR DE COMPUTADORES",matr:25,freq_avg:19.2,n_classes:13,attend_rate:76.8},
-  {unit:"CEDESP 1",period:"Tarde",course:"OPERADOR DE COMPUTADOR",matr:23,freq_avg:20.5,n_classes:13,attend_rate:89.1},
-  {unit:"CEDESP 1",period:"Noite",course:"CABELEIREIRO",matr:34,freq_avg:19.5,n_classes:13,attend_rate:57.4},
-  {unit:"CEDESP 1",period:"Noite",course:"MANICURE E PEDICURE",matr:30,freq_avg:24.1,n_classes:13,attend_rate:80.3},
-  {unit:"CEDESP 1",period:"Noite",course:"MONTADOR E REPARADOR DE COMPUTADORES",matr:25,freq_avg:17.5,n_classes:13,attend_rate:70.0},
-  {unit:"CEDESP 1",period:"Noite",course:"OPERADOR DE COMPUTADOR",matr:27,freq_avg:23.0,n_classes:13,attend_rate:85.2},
-  {unit:"CEDESP 2",period:"Manhã",course:"COSTUREIRO INDUSTRIAL DO VESTUÁRIO",matr:28,freq_avg:21.5,n_classes:13,attend_rate:76.8},
-  {unit:"CEDESP 2",period:"Manhã",course:"ORGANIZADOR DE EVENTOS",matr:26,freq_avg:17.1,n_classes:13,attend_rate:65.8},
-  {unit:"CEDESP 2",period:"Tarde",course:"ALFAIATE",matr:25,freq_avg:17.6,n_classes:13,attend_rate:70.4},
-  {unit:"CEDESP 2",period:"Tarde",course:"COSTUREIRO INDUSTRIAL DO VESTUÁRIO",matr:29,freq_avg:18.8,n_classes:13,attend_rate:64.8},
-  {unit:"CEDESP 2",period:"Tarde",course:"DESENHISTA DE MODA",matr:14,freq_avg:15.8,n_classes:13,attend_rate:112.9},
-  {unit:"CEDESP 2",period:"Tarde",course:"INSTALADOR DE SISTEMAS ELETRÔNICOS DE SEGURANÇA",matr:11,freq_avg:10.7,n_classes:13,attend_rate:97.3},
-  {unit:"CEDESP 2",period:"Tarde",course:"ORGANIZADOR DE EVENTOS",matr:25,freq_avg:19.8,n_classes:13,attend_rate:79.2},
-  {unit:"CEDESP 2",period:"Noite",course:"ALFAIATE",matr:28,freq_avg:17.6,n_classes:13,attend_rate:62.9},
-  {unit:"CEDESP 2",period:"Noite",course:"COSTUREIRO INDUSTRIAL DO VESTUÁRIO",matr:28,freq_avg:21.6,n_classes:13,attend_rate:77.1},
-  {unit:"CEDESP 2",period:"Noite",course:"DESENHISTA DE MODA",matr:24,freq_avg:17.4,n_classes:13,attend_rate:72.5},
-  {unit:"CEDESP 2",period:"Noite",course:"ELETROMECÂNICO DE AUTOMÓVEIS",matr:30,freq_avg:18.5,n_classes:13,attend_rate:61.7},
-  {unit:"CEDESP 2",period:"Noite",course:"INSTALADOR DE SISTEMAS ELETRÔNICOS DE SEGURANÇA",matr:30,freq_avg:16.8,n_classes:13,attend_rate:56.0},
-  {unit:"CEDESP 2",period:"Noite",course:"MODELISTA DE ROUPAS",matr:27,freq_avg:19.8,n_classes:13,attend_rate:73.3},
-  {unit:"CEDESP 2",period:"Noite",course:"OPERADOR PARA INJETORA PARA TERMOPLÁSTICOS",matr:20,freq_avg:17.8,n_classes:13,attend_rate:89.0},
-  {unit:"CEDESP 3",period:"Manhã",course:"AUXILIAR DE MANUTENÇÃO PREDIAL (ELETRICISTA)",matr:21,freq_avg:14.7,n_classes:13,attend_rate:70.0},
-  {unit:"CEDESP 3",period:"Manhã",course:"MONTADOR DE EQUIPAMENTOS ELETROELETRÔNICOS",matr:20,freq_avg:16.9,n_classes:13,attend_rate:84.5},
-  {unit:"CEDESP 3",period:"Tarde",course:"AUXILIAR DE MANUTENÇÃO PREDIAL (ELETRICISTA) - A",matr:12,freq_avg:18.6,n_classes:13,attend_rate:75.0},
-  {unit:"CEDESP 3",period:"Tarde",course:"ELETROMECÂNICO DE AUTOMÓVEIS - A",matr:28,freq_avg:18.7,n_classes:13,attend_rate:66.8},
-  {unit:"CEDESP 3",period:"Tarde",course:"MONTADOR DE EQUIPAMENTOS ELETROELETRÔNICOS",matr:17,freq_avg:18.2,n_classes:13,attend_rate:83.5},
-  {unit:"CEDESP 3",period:"Tarde",course:"MONTADOR DE PAINEIS ELÉTRICOS",matr:24,freq_avg:13.4,n_classes:13,attend_rate:55.8},
-  {unit:"CEDESP 3",period:"Noite",course:"AUXILIAR DE MANUTENÇÃO PREDIAL (ELETRICISTA) - A",matr:20,freq_avg:17.7,n_classes:13,attend_rate:88.5},
-  {unit:"CEDESP 3",period:"Noite",course:"AUXILIAR DE MANUTENÇÃO PREDIAL (ELETRICISTA) - B",matr:22,freq_avg:22.6,n_classes:13,attend_rate:102.7},
-  {unit:"CEDESP 3",period:"Noite",course:"ELETRICISTA INDUSTRIAL",matr:27,freq_avg:23.4,n_classes:13,attend_rate:86.7},
-  {unit:"CEDESP 3",period:"Noite",course:"MONTADOR DE EQUIPAMENTOS ELETROELETRÔNICOS",matr:36,freq_avg:13.8,n_classes:13,attend_rate:38.3},
-  {unit:"CEDESP 3",period:"Noite",course:"MONTADOR DE PAINEIS ELÉTRICOS",matr:36,freq_avg:20.1,n_classes:13,attend_rate:55.8},
-  {unit:"CEDESP 4",period:"Manhã",course:"ASSISTENTE ADMINISTRATIVO - A",matr:26,freq_avg:20.8,n_classes:13,attend_rate:80.0},
-  {unit:"CEDESP 4",period:"Manhã",course:"ASSISTENTE ADMINISTRATIVO - B",matr:26,freq_avg:21.0,n_classes:13,attend_rate:80.8},
-  {unit:"CEDESP 4",period:"Manhã",course:"ASSISTENTE DE RECURSOS HUMANOS",matr:26,freq_avg:19.5,n_classes:13,attend_rate:75.0},
-  {unit:"CEDESP 4",period:"Manhã",course:"COZINHEIRO INDUSTRIAL",matr:25,freq_avg:19.7,n_classes:13,attend_rate:78.8},
-  {unit:"CEDESP 4",period:"Tarde",course:"ASSISTENTE ADMINISTRATIVO - A",matr:29,freq_avg:24.2,n_classes:13,attend_rate:83.4},
-  {unit:"CEDESP 4",period:"Tarde",course:"ASSISTENTE ADMINISTRATIVO - B",matr:29,freq_avg:21.8,n_classes:13,attend_rate:75.2},
-  {unit:"CEDESP 4",period:"Tarde",course:"ASSISTENTE DE RECURSOS HUMANOS",matr:27,freq_avg:21.8,n_classes:13,attend_rate:80.7},
-  {unit:"CEDESP 4",period:"Tarde",course:"COZINHEIRO INDUSTRIAL",matr:22,freq_avg:15.3,n_classes:13,attend_rate:69.5},
-  {unit:"CEDESP 4",period:"Noite",course:"ASSISTENTE ADMINISTRATIVO - A",matr:28,freq_avg:23.3,n_classes:13,attend_rate:83.2},
-  {unit:"CEDESP 4",period:"Noite",course:"ASSISTENTE ADMINISTRATIVO - B",matr:31,freq_avg:28.0,n_classes:13,attend_rate:90.3},
-  {unit:"CEDESP 4",period:"Noite",course:"ASSISTENTE DE RECURSOS HUMANOS",matr:33,freq_avg:24.6,n_classes:13,attend_rate:74.5},
-  {unit:"CEDESP 4",period:"Noite",course:"COZINHEIRO INDUSTRIAL",matr:28,freq_avg:23.2,n_classes:13,attend_rate:82.9},
-  {unit:"CEDESP 5",period:"Manhã",course:"AUXILIAR DE MANUTENÇÃO PREDIAL (ELETRICISTA)",matr:20,freq_avg:16.2,n_classes:13,attend_rate:81.0},
-  {unit:"CEDESP 5",period:"Manhã",course:"PEDREIRO DE ALVENARIA",matr:18,freq_avg:11.2,n_classes:13,attend_rate:62.2},
-  {unit:"CEDESP 5",period:"Manhã",course:"PROGRAMADOR DE SISTEMAS",matr:27,freq_avg:20.6,n_classes:13,attend_rate:76.3},
-  {unit:"CEDESP 5",period:"Manhã",course:"PROGRAMADOR WEB",matr:27,freq_avg:18.2,n_classes:13,attend_rate:67.4},
-  {unit:"CEDESP 5",period:"Tarde",course:"EDITOR DE PROJETOS VISUAIS GRÁFICOS",matr:30,freq_avg:20.1,n_classes:13,attend_rate:67.0},
-  {unit:"CEDESP 5",period:"Tarde",course:"PROGRAMADOR DE SISTEMAS",matr:26,freq_avg:24.4,n_classes:13,attend_rate:93.8},
-  {unit:"CEDESP 5",period:"Tarde",course:"PROGRAMADOR WEB",matr:30,freq_avg:24.0,n_classes:13,attend_rate:80.0},
-  {unit:"CEDESP 5",period:"Tarde",course:"SERÍGRAFO",matr:10,freq_avg:6.2,n_classes:13,attend_rate:62.0},
-  {unit:"CEDESP 5",period:"Noite",course:"ANIMADOR DE STOP MOTION",matr:20,freq_avg:14.8,n_classes:13,attend_rate:74.0},
-  {unit:"CEDESP 5",period:"Noite",course:"EDITOR DE PROJETOS VISUAIS GRÁFICOS",matr:23,freq_avg:17.2,n_classes:13,attend_rate:74.8},
-  {unit:"CEDESP 5",period:"Noite",course:"PEDREIRO DE ALVENARIA",matr:25,freq_avg:21.4,n_classes:13,attend_rate:85.6},
-  {unit:"CEDESP 5",period:"Noite",course:"PROGRAMADOR DE SISTEMAS",matr:25,freq_avg:20.5,n_classes:13,attend_rate:82.0},
-  {unit:"CEDESP 5",period:"Noite",course:"PROGRAMADOR WEB",matr:31,freq_avg:23.7,n_classes:13,attend_rate:76.5},
-  {unit:"CEDESP 5",period:"Noite",course:"SERÍGRAFO",matr:31,freq_avg:21.2,n_classes:13,attend_rate:68.4},
-  {unit:"CEDESP 6",period:"Manhã",course:"CONFEITEIRO (COM NOÇÕES DE SORVETERIA)",matr:27,freq_avg:22.2,n_classes:13,attend_rate:82.2},
-  {unit:"CEDESP 6",period:"Manhã",course:"ELETROMECÂNICO DE AUTOMÓVEIS - B",matr:29,freq_avg:19.8,n_classes:13,attend_rate:68.3},
-  {unit:"CEDESP 6",period:"Manhã",course:"ELETROMECÂNICO DE AUTOMÓVEIS - C",matr:26,freq_avg:20.8,n_classes:13,attend_rate:80.0},
-  {unit:"CEDESP 6",period:"Manhã",course:"PADEIRO",matr:27,freq_avg:21.9,n_classes:13,attend_rate:81.1},
-  {unit:"CEDESP 6",period:"Tarde",course:"CONFEITEIRO (COM NOÇÕES DE SORVETERIA)",matr:28,freq_avg:24.8,n_classes:13,attend_rate:88.6},
-  {unit:"CEDESP 6",period:"Tarde",course:"PADEIRO",matr:28,freq_avg:17.8,n_classes:13,attend_rate:63.6},
-  {unit:"CEDESP 6",period:"Noite",course:"CONFEITEIRO (COM NOÇÕES DE SORVETERIA)",matr:30,freq_avg:25.1,n_classes:13,attend_rate:83.7},
-  {unit:"CEDESP 6",period:"Noite",course:"ELETROMECÂNICO DE AUTOMÓVEIS - A",matr:23,freq_avg:24.5,n_classes:13,attend_rate:106.5},
-  {unit:"CEDESP 6",period:"Noite",course:"ELETROMECÂNICO DE AUTOMÓVEIS - C",matr:39,freq_avg:34.5,n_classes:13,attend_rate:88.5},
-  {unit:"CEDESP 6",period:"Noite",course:"PADEIRO",matr:27,freq_avg:20.6,n_classes:13,attend_rate:76.3},
-  {unit:"CEDESP 7",period:"Manhã",course:"ELETRICISTA DE SISTEMAS DE ENERGIAS RENOVÁVEIS",matr:16,freq_avg:12.0,n_classes:13,attend_rate:75.0},
-  {unit:"CEDESP 7",period:"Manhã",course:"MECÂNICO DE USINAGEM",matr:27,freq_avg:15.2,n_classes:13,attend_rate:56.3},
-  {unit:"CEDESP 7",period:"Tarde",course:"ELETROMECÂNICO DE AUTOMÓVEIS - B",matr:24,freq_avg:13.7,n_classes:13,attend_rate:57.1},
-  {unit:"CEDESP 7",period:"Tarde",course:"MECÂNICO DE USINAGEM CONVENCIONAL",matr:12,freq_avg:10.5,n_classes:13,attend_rate:87.5},
-  {unit:"CEDESP 7",period:"Noite",course:"ELETRICISTA DE SISTEMAS DE ENERGIAS RENOVÁVEIS",matr:26,freq_avg:21.0,n_classes:13,attend_rate:80.8},
-  {unit:"CEDESP 7",period:"Noite",course:"MECÂNICO DE USINAGEM CONVENCIONAL - A",matr:21,freq_avg:15.2,n_classes:13,attend_rate:72.4},
-  {unit:"CEDESP 7",period:"Noite",course:"MECÂNICO DE USINAGEM CONVENCIONAL - B",matr:18,freq_avg:12.9,n_classes:13,attend_rate:71.7},
-  {unit:"CEDESP 7",period:"Noite",course:"OPERADOR DE TORNO COM CNC",matr:23,freq_avg:20.7,n_classes:13,attend_rate:90.0},
-  {unit:"CEDESP 7",period:"Noite",course:"OPERADOR DE FRESADORA COM CNC",matr:16,freq_avg:9.3,n_classes:13,attend_rate:58.1},
-  {unit:"CEDESP 7",period:"Noite",course:"OPERADOR E PROGRAMADOR DE SISTEMAS AUTOMATIZADOS - A",matr:30,freq_avg:16.7,n_classes:13,attend_rate:55.7},
-  {unit:"CEDESP 7",period:"Noite",course:"OPERADOR E PROGRAMADOR DE SISTEMAS AUTOMATIZADOS - B",matr:27,freq_avg:16.8,n_classes:13,attend_rate:62.2},
-  {unit:"CEDESP 7",period:"Noite",course:"OPERADOR E PROGRAMADOR DE SISTEMAS AUTOMATIZADOS - C",matr:16,freq_avg:13.4,n_classes:13,attend_rate:83.8},
-  {unit:"CEDESP 8",period:"Manhã",course:"ANIMADOR DE STOP MOTION",matr:31,freq_avg:19.6,n_classes:13,attend_rate:63.2},
-  {unit:"CEDESP 8",period:"Manhã",course:"AUXILIAR PEDAGÓGICO",matr:41,freq_avg:27.7,n_classes:13,attend_rate:67.6},
-  {unit:"CEDESP 8",period:"Manhã",course:"CUIDADOR DE IDOSOS",matr:36,freq_avg:22.3,n_classes:13,attend_rate:61.9},
-  {unit:"CEDESP 8",period:"Manhã",course:"OPERADOR DE COMPUTADOR",matr:35,freq_avg:20.4,n_classes:13,attend_rate:58.3},
-  {unit:"CEDESP 8",period:"Tarde",course:"ANIMADOR DE STOP MOTION",matr:35,freq_avg:22.4,n_classes:13,attend_rate:64.0},
-  {unit:"CEDESP 8",period:"Tarde",course:"AUXILIAR PEDAGÓGICO",matr:35,freq_avg:22.9,n_classes:13,attend_rate:65.4},
-  {unit:"CEDESP 8",period:"Tarde",course:"CUIDADOR DE IDOSO",matr:38,freq_avg:23.2,n_classes:13,attend_rate:61.1},
-  {unit:"CEDESP 8",period:"Tarde",course:"OPERADOR DE COMPUTADOR",matr:42,freq_avg:28.8,n_classes:13,attend_rate:68.6},
+  {
+    "unit": "CEDESP 1",
+    "period": "Manhã",
+    "course": "CABELEIREIRO - Noções de Barbearia",
+    "meta": 20.0,
+    "matr": 29.0,
+    "freq_avg": 18.0,
+    "n_classes": 13,
+    "attend_rate": 90.0
+  },
+  {
+    "unit": "CEDESP 1",
+    "period": "Manhã",
+    "course": "MANICURE E PEDICURE",
+    "meta": 20.0,
+    "matr": 30.0,
+    "freq_avg": 24.3,
+    "n_classes": 11,
+    "attend_rate": 121.5
+  },
+  {
+    "unit": "CEDESP 1",
+    "period": "Manhã",
+    "course": "MONTADOR E REPARADOR DE COMPUTADORES",
+    "meta": 20.0,
+    "matr": 30.0,
+    "freq_avg": 21.9,
+    "n_classes": 13,
+    "attend_rate": 109.5
+  },
+  {
+    "unit": "CEDESP 1",
+    "period": "Manhã",
+    "course": "OPERADOR DE COMPUTADOR",
+    "meta": 20.0,
+    "matr": 25.0,
+    "freq_avg": 22.8,
+    "n_classes": 13,
+    "attend_rate": 114.0
+  },
+  {
+    "unit": "CEDESP 1",
+    "period": "Tarde",
+    "course": "CABELEIREIRO",
+    "meta": 20.0,
+    "matr": 33.0,
+    "freq_avg": 25.5,
+    "n_classes": 13,
+    "attend_rate": 127.5
+  },
+  {
+    "unit": "CEDESP 1",
+    "period": "Tarde",
+    "course": "MANICURE E PEDICURE",
+    "meta": 20.0,
+    "matr": 30.0,
+    "freq_avg": 18.9,
+    "n_classes": 13,
+    "attend_rate": 94.5
+  },
+  {
+    "unit": "CEDESP 1",
+    "period": "Tarde",
+    "course": "MONTADOR E REPARADOR DE COMPUTADORES",
+    "meta": 20.0,
+    "matr": 25.0,
+    "freq_avg": 19.2,
+    "n_classes": 13,
+    "attend_rate": 96.0
+  },
+  {
+    "unit": "CEDESP 1",
+    "period": "Tarde",
+    "course": "OPERADOR DE COMPUTADOR",
+    "meta": 20.0,
+    "matr": 23.0,
+    "freq_avg": 20.5,
+    "n_classes": 13,
+    "attend_rate": 102.5
+  },
+  {
+    "unit": "CEDESP 1",
+    "period": "Noite",
+    "course": "CABELEIREIRO",
+    "meta": 20.0,
+    "matr": 34.0,
+    "freq_avg": 19.5,
+    "n_classes": 13,
+    "attend_rate": 97.5
+  },
+  {
+    "unit": "CEDESP 1",
+    "period": "Noite",
+    "course": "MANICURE E PEDICURE",
+    "meta": 20.0,
+    "matr": 30.0,
+    "freq_avg": 24.1,
+    "n_classes": 13,
+    "attend_rate": 120.5
+  },
+  {
+    "unit": "CEDESP 1",
+    "period": "Noite",
+    "course": "MONTADOR E REPARADOR DE COMPUTADORES",
+    "meta": 20.0,
+    "matr": 25.0,
+    "freq_avg": 17.5,
+    "n_classes": 13,
+    "attend_rate": 87.5
+  },
+  {
+    "unit": "CEDESP 1",
+    "period": "Noite",
+    "course": "OPERADOR DE COMPUTADOR",
+    "meta": 20.0,
+    "matr": 27.0,
+    "freq_avg": 23.0,
+    "n_classes": 13,
+    "attend_rate": 115.0
+  },
+  {
+    "unit": "CEDESP 2",
+    "period": "Manhã",
+    "course": "COSTUREIRO INDUSTRIAL DO VESTUÁRIO",
+    "meta": 20.0,
+    "matr": 28.0,
+    "freq_avg": 21.5,
+    "n_classes": 49,
+    "attend_rate": 107.5
+  },
+  {
+    "unit": "CEDESP 2",
+    "period": "Manhã",
+    "course": "ORGANIZADOR DE EVENTOS",
+    "meta": 20.0,
+    "matr": 26.0,
+    "freq_avg": 17.1,
+    "n_classes": 49,
+    "attend_rate": 85.5
+  },
+  {
+    "unit": "CEDESP 2",
+    "period": "Tarde",
+    "course": "ALFAIATE",
+    "meta": 20.0,
+    "matr": 25.0,
+    "freq_avg": 17.6,
+    "n_classes": 49,
+    "attend_rate": 88.0
+  },
+  {
+    "unit": "CEDESP 2",
+    "period": "Tarde",
+    "course": "COSTUREIRO INDUSTRIAL DO VESTUÁRIO",
+    "meta": 20.0,
+    "matr": 29.0,
+    "freq_avg": 18.8,
+    "n_classes": 49,
+    "attend_rate": 94.0
+  },
+  {
+    "unit": "CEDESP 2",
+    "period": "Tarde",
+    "course": "DESENHISTA DE MODA",
+    "meta": 20.0,
+    "matr": 14.0,
+    "freq_avg": 15.8,
+    "n_classes": 50,
+    "attend_rate": 79.0
+  },
+  {
+    "unit": "CEDESP 2",
+    "period": "Tarde",
+    "course": "INSTALADOR DE SISTEMAS ELETRÔNICOS DE SEGURANÇA",
+    "meta": 20.0,
+    "matr": 11.0,
+    "freq_avg": 10.7,
+    "n_classes": 44,
+    "attend_rate": 53.5
+  },
+  {
+    "unit": "CEDESP 2",
+    "period": "Tarde",
+    "course": "ORGANIZADOR DE EVENTOS",
+    "meta": 20.0,
+    "matr": 25.0,
+    "freq_avg": 19.8,
+    "n_classes": 46,
+    "attend_rate": 99.0
+  },
+  {
+    "unit": "CEDESP 2",
+    "period": "Noite",
+    "course": "ALFAIATE",
+    "meta": 20.0,
+    "matr": 28.0,
+    "freq_avg": 17.6,
+    "n_classes": 46,
+    "attend_rate": 88.0
+  },
+  {
+    "unit": "CEDESP 2",
+    "period": "Noite",
+    "course": "COSTUREIRO INDUSTRIAL DO VESTUÁRIO",
+    "meta": 20.0,
+    "matr": 28.0,
+    "freq_avg": 21.6,
+    "n_classes": 49,
+    "attend_rate": 108.0
+  },
+  {
+    "unit": "CEDESP 2",
+    "period": "Noite",
+    "course": "DESENHISTA DE MODA",
+    "meta": 20.0,
+    "matr": 24.0,
+    "freq_avg": 17.4,
+    "n_classes": 49,
+    "attend_rate": 87.0
+  },
+  {
+    "unit": "CEDESP 2",
+    "period": "Noite",
+    "course": "ELETROMECÂNICO DE AUTOMÓVEIS  - B",
+    "meta": 20.0,
+    "matr": 30.0,
+    "freq_avg": 18.5,
+    "n_classes": 35,
+    "attend_rate": 92.5
+  },
+  {
+    "unit": "CEDESP 2",
+    "period": "Noite",
+    "course": "INSTALADOR DE SISTEMAS ELETRÔNICOS DE SEGURANÇA",
+    "meta": 20.0,
+    "matr": 30.0,
+    "freq_avg": 16.8,
+    "n_classes": 44,
+    "attend_rate": 84.0
+  },
+  {
+    "unit": "CEDESP 2",
+    "period": "Noite",
+    "course": "MODELISTA DE ROUPAS",
+    "meta": 20.0,
+    "matr": 27.0,
+    "freq_avg": 19.8,
+    "n_classes": 47,
+    "attend_rate": 99.0
+  },
+  {
+    "unit": "CEDESP 2",
+    "period": "Noite",
+    "course": "OPERADOR PARA INJETORA PARA TERMOPLÁSTICOS",
+    "meta": 20.0,
+    "matr": 20.0,
+    "freq_avg": 17.8,
+    "n_classes": 48,
+    "attend_rate": 89.0
+  },
+  {
+    "unit": "CEDESP 3",
+    "period": "Manhã",
+    "course": "AUXILIAR DE MANUTENÇÃO PREDIAL (ELETRICISTA) - TURMA A",
+    "meta": 20.0,
+    "matr": 21.0,
+    "freq_avg": 14.7,
+    "n_classes": 46,
+    "attend_rate": 73.5
+  },
+  {
+    "unit": "CEDESP 3",
+    "period": "Manhã",
+    "course": "MONTADOR DE EQUIPAMENTOS ELETROELETRÔNICOS",
+    "meta": 20.0,
+    "matr": 20.0,
+    "freq_avg": 16.9,
+    "n_classes": 40,
+    "attend_rate": 84.5
+  },
+  {
+    "unit": "CEDESP 3",
+    "period": "Tarde",
+    "course": "AUXILIAR DE MANUTENÇÃO PREDIAL (ELETRICISTA) - TURMA A",
+    "meta": 20.0,
+    "matr": 12.0,
+    "freq_avg": 18.6,
+    "n_classes": 50,
+    "attend_rate": 93.0
+  },
+  {
+    "unit": "CEDESP 3",
+    "period": "Tarde",
+    "course": "AUXILIAR DE MANUTENÇÃO PREDIAL (ELETRICISTA) - TURMA B",
+    "meta": 20.0,
+    "matr": 12.0,
+    "freq_avg": 7.6,
+    "n_classes": 11,
+    "attend_rate": 38.0
+  },
+  {
+    "unit": "CEDESP 3",
+    "period": "Tarde",
+    "course": "ELETROMECÂNICO DE AUTOMÓVEIS  - A",
+    "meta": 20.0,
+    "matr": 28.0,
+    "freq_avg": 18.7,
+    "n_classes": 50,
+    "attend_rate": 93.5
+  },
+  {
+    "unit": "CEDESP 3",
+    "period": "Tarde",
+    "course": "MONTADOR DE EQUIPAMENTOS ELETROELETRÔNICOS",
+    "meta": 20.0,
+    "matr": 17.0,
+    "freq_avg": 18.2,
+    "n_classes": 46,
+    "attend_rate": 91.0
+  },
+  {
+    "unit": "CEDESP 3",
+    "period": "Tarde",
+    "course": "MONTADOR DE PAINEIS ELÉTRICOS",
+    "meta": 20.0,
+    "matr": 24.0,
+    "freq_avg": 13.4,
+    "n_classes": 47,
+    "attend_rate": 67.0
+  },
+  {
+    "unit": "CEDESP 3",
+    "period": "Noite",
+    "course": "AUXILIAR DE MANUTENÇÃO PREDIAL (ELETRICISTA) - TURMA A",
+    "meta": 20.0,
+    "matr": 20.0,
+    "freq_avg": 17.7,
+    "n_classes": 18,
+    "attend_rate": 88.5
+  },
+  {
+    "unit": "CEDESP 3",
+    "period": "Noite",
+    "course": "AUXILIAR DE MANUTENÇÃO PREDIAL (ELETRICISTA) - TURMA B",
+    "meta": 20.0,
+    "matr": 22.0,
+    "freq_avg": 22.6,
+    "n_classes": 50,
+    "attend_rate": 113.0
+  },
+  {
+    "unit": "CEDESP 3",
+    "period": "Noite",
+    "course": "ELETRICISTA INDUSTRIAL",
+    "meta": 20.0,
+    "matr": 27.0,
+    "freq_avg": 23.4,
+    "n_classes": 11,
+    "attend_rate": 117.0
+  },
+  {
+    "unit": "CEDESP 3",
+    "period": "Noite",
+    "course": "MONTADOR DE EQUIPAMENTOS ELETROELETRÔNICOS",
+    "meta": 20.0,
+    "matr": 36.0,
+    "freq_avg": 13.8,
+    "n_classes": 37,
+    "attend_rate": 69.0
+  },
+  {
+    "unit": "CEDESP 3",
+    "period": "Noite",
+    "course": "MONTADOR DE PAINEIS ELÉTRICOS",
+    "meta": 20.0,
+    "matr": 36.0,
+    "freq_avg": 20.1,
+    "n_classes": 47,
+    "attend_rate": 100.5
+  },
+  {
+    "unit": "CEDESP 4",
+    "period": "Manhã",
+    "course": "ASSISTENTE ADMINISTRATIVO - A",
+    "meta": 20.0,
+    "matr": 26.0,
+    "freq_avg": 20.8,
+    "n_classes": 13,
+    "attend_rate": 104.0
+  },
+  {
+    "unit": "CEDESP 4",
+    "period": "Manhã",
+    "course": "ASSISTENTE ADMINISTRATIVO - B",
+    "meta": 20.0,
+    "matr": 26.0,
+    "freq_avg": 21.0,
+    "n_classes": 13,
+    "attend_rate": 105.0
+  },
+  {
+    "unit": "CEDESP 4",
+    "period": "Manhã",
+    "course": "ASSISTENTE DE RECURSOS HUMANOS",
+    "meta": 20.0,
+    "matr": 26.0,
+    "freq_avg": 19.5,
+    "n_classes": 13,
+    "attend_rate": 97.5
+  },
+  {
+    "unit": "CEDESP 4",
+    "period": "Manhã",
+    "course": "COZINHEIRO INDUSTRIAL",
+    "meta": 20.0,
+    "matr": 25.0,
+    "freq_avg": 19.7,
+    "n_classes": 10,
+    "attend_rate": 98.5
+  },
+  {
+    "unit": "CEDESP 4",
+    "period": "Tarde",
+    "course": "ASSISTENTE ADMINISTRATIVO - A",
+    "meta": 20.0,
+    "matr": 29.0,
+    "freq_avg": 24.2,
+    "n_classes": 13,
+    "attend_rate": 121.0
+  },
+  {
+    "unit": "CEDESP 4",
+    "period": "Tarde",
+    "course": "ASSISTENTE ADMINISTRATIVO - B",
+    "meta": 20.0,
+    "matr": 29.0,
+    "freq_avg": 21.8,
+    "n_classes": 13,
+    "attend_rate": 109.0
+  },
+  {
+    "unit": "CEDESP 4",
+    "period": "Tarde",
+    "course": "ASSISTENTE DE RECURSOS HUMANOS",
+    "meta": 20.0,
+    "matr": 27.0,
+    "freq_avg": 21.8,
+    "n_classes": 13,
+    "attend_rate": 109.0
+  },
+  {
+    "unit": "CEDESP 4",
+    "period": "Tarde",
+    "course": "COZINHEIRO INDUSTRIAL",
+    "meta": 20.0,
+    "matr": 22.0,
+    "freq_avg": 15.3,
+    "n_classes": 13,
+    "attend_rate": 76.5
+  },
+  {
+    "unit": "CEDESP 4",
+    "period": "Noite",
+    "course": "ASSISTENTE ADMINISTRATIVO - A",
+    "meta": 20.0,
+    "matr": 28.0,
+    "freq_avg": 23.3,
+    "n_classes": 11,
+    "attend_rate": 116.5
+  },
+  {
+    "unit": "CEDESP 4",
+    "period": "Noite",
+    "course": "ASSISTENTE ADMINISTRATIVO - B",
+    "meta": 20.0,
+    "matr": 31.0,
+    "freq_avg": 28.0,
+    "n_classes": 13,
+    "attend_rate": 140.0
+  },
+  {
+    "unit": "CEDESP 4",
+    "period": "Noite",
+    "course": "ASSISTENTE DE RECURSOS HUMANOS",
+    "meta": 20.0,
+    "matr": 33.0,
+    "freq_avg": 24.6,
+    "n_classes": 12,
+    "attend_rate": 123.0
+  },
+  {
+    "unit": "CEDESP 4",
+    "period": "Noite",
+    "course": "COZINHEIRO INDUSTRIAL",
+    "meta": 20.0,
+    "matr": 28.0,
+    "freq_avg": 23.2,
+    "n_classes": 13,
+    "attend_rate": 116.0
+  },
+  {
+    "unit": "CEDESP 5",
+    "period": "Manhã",
+    "course": "AUXILIAR DE MANUTENÇÃO PREDIAL (ELETRICISTA) - TURMA B",
+    "meta": 20.0,
+    "matr": 20.0,
+    "freq_avg": 16.2,
+    "n_classes": 4,
+    "attend_rate": 81.0
+  },
+  {
+    "unit": "CEDESP 5",
+    "period": "Manhã",
+    "course": "PEDREIRO DE ALVENARIA",
+    "meta": 20.0,
+    "matr": 18.0,
+    "freq_avg": 11.2,
+    "n_classes": 13,
+    "attend_rate": 56.0
+  },
+  {
+    "unit": "CEDESP 5",
+    "period": "Manhã",
+    "course": "PROGRAMADOR DE SISTEMAS",
+    "meta": 20.0,
+    "matr": 27.0,
+    "freq_avg": 20.6,
+    "n_classes": 13,
+    "attend_rate": 103.0
+  },
+  {
+    "unit": "CEDESP 5",
+    "period": "Manhã",
+    "course": "PROGRAMADOR WEB",
+    "meta": 20.0,
+    "matr": 27.0,
+    "freq_avg": 18.2,
+    "n_classes": 13,
+    "attend_rate": 91.0
+  },
+  {
+    "unit": "CEDESP 5",
+    "period": "Tarde",
+    "course": "EDITOR DE PROJETOS VISUAIS GRÁFICOS",
+    "meta": 20.0,
+    "matr": 30.0,
+    "freq_avg": 20.1,
+    "n_classes": 12,
+    "attend_rate": 100.5
+  },
+  {
+    "unit": "CEDESP 5",
+    "period": "Tarde",
+    "course": "PROGRAMADOR DE SISTEMAS",
+    "meta": 20.0,
+    "matr": 26.0,
+    "freq_avg": 24.4,
+    "n_classes": 13,
+    "attend_rate": 122.0
+  },
+  {
+    "unit": "CEDESP 5",
+    "period": "Tarde",
+    "course": "PROGRAMADOR WEB",
+    "meta": 20.0,
+    "matr": 30.0,
+    "freq_avg": 24.0,
+    "n_classes": 13,
+    "attend_rate": 120.0
+  },
+  {
+    "unit": "CEDESP 5",
+    "period": "Tarde",
+    "course": "SERÍGRAFO",
+    "meta": 20.0,
+    "matr": 10.0,
+    "freq_avg": 6.2,
+    "n_classes": 12,
+    "attend_rate": 31.0
+  },
+  {
+    "unit": "CEDESP 5",
+    "period": "Noite",
+    "course": "ANIMADOR DE STOP MOTION",
+    "meta": 20.0,
+    "matr": 20.0,
+    "freq_avg": 14.8,
+    "n_classes": 12,
+    "attend_rate": 74.0
+  },
+  {
+    "unit": "CEDESP 5",
+    "period": "Noite",
+    "course": "EDITOR DE PROJETOS VISUAIS GRÁFICOS",
+    "meta": 20.0,
+    "matr": 23.0,
+    "freq_avg": 17.2,
+    "n_classes": 12,
+    "attend_rate": 86.0
+  },
+  {
+    "unit": "CEDESP 5",
+    "period": "Noite",
+    "course": "PEDREIRO DE ALVENARIA",
+    "meta": 20.0,
+    "matr": 25.0,
+    "freq_avg": 21.4,
+    "n_classes": 13,
+    "attend_rate": 107.0
+  },
+  {
+    "unit": "CEDESP 5",
+    "period": "Noite",
+    "course": "PROGRAMADOR DE SISTEMAS",
+    "meta": 20.0,
+    "matr": 25.0,
+    "freq_avg": 20.5,
+    "n_classes": 13,
+    "attend_rate": 102.5
+  },
+  {
+    "unit": "CEDESP 5",
+    "period": "Noite",
+    "course": "PROGRAMADOR WEB",
+    "meta": 20.0,
+    "matr": 31.0,
+    "freq_avg": 23.7,
+    "n_classes": 12,
+    "attend_rate": 118.5
+  },
+  {
+    "unit": "CEDESP 5",
+    "period": "Noite",
+    "course": "SERÍGRAFO",
+    "meta": 20.0,
+    "matr": 31.0,
+    "freq_avg": 21.2,
+    "n_classes": 9,
+    "attend_rate": 106.0
+  },
+  {
+    "unit": "CEDESP 6",
+    "period": "Manhã",
+    "course": "CONFEITEIRO (COM NOÇÕES DE SORVETERIA)",
+    "meta": 20.0,
+    "matr": 27.0,
+    "freq_avg": 22.2,
+    "n_classes": 12,
+    "attend_rate": 111.0
+  },
+  {
+    "unit": "CEDESP 6",
+    "period": "Manhã",
+    "course": "ELETROMECÂNICO DE AUTOMÓVEIS - B",
+    "meta": 20.0,
+    "matr": 29.0,
+    "freq_avg": 19.8,
+    "n_classes": 5,
+    "attend_rate": 99.0
+  },
+  {
+    "unit": "CEDESP 6",
+    "period": "Manhã",
+    "course": "ELETROMECÂNICO DE AUTOMÓVEIS - C",
+    "meta": 20.0,
+    "matr": 26.0,
+    "freq_avg": 20.8,
+    "n_classes": 12,
+    "attend_rate": 104.0
+  },
+  {
+    "unit": "CEDESP 6",
+    "period": "Manhã",
+    "course": "PADEIRO",
+    "meta": 20.0,
+    "matr": 27.0,
+    "freq_avg": 21.9,
+    "n_classes": 12,
+    "attend_rate": 109.5
+  },
+  {
+    "unit": "CEDESP 6",
+    "period": "Tarde",
+    "course": "CONFEITEIRO (COM NOÇÕES DE SORVETERIA)",
+    "meta": 20.0,
+    "matr": 28.0,
+    "freq_avg": 24.8,
+    "n_classes": 12,
+    "attend_rate": 124.0
+  },
+  {
+    "unit": "CEDESP 6",
+    "period": "Tarde",
+    "course": "PADEIRO",
+    "meta": 20.0,
+    "matr": 28.0,
+    "freq_avg": 17.8,
+    "n_classes": 12,
+    "attend_rate": 89.0
+  },
+  {
+    "unit": "CEDESP 6",
+    "period": "Noite",
+    "course": "CONFEITEIRO (COM NOÇÕES DE SORVETERIA)",
+    "meta": 20.0,
+    "matr": 30.0,
+    "freq_avg": 25.1,
+    "n_classes": 13,
+    "attend_rate": 125.5
+  },
+  {
+    "unit": "CEDESP 6",
+    "period": "Noite",
+    "course": "ELETROMECÂNICO DE AUTOMÓVEIS - A",
+    "meta": 20.0,
+    "matr": 23.0,
+    "freq_avg": 24.5,
+    "n_classes": 2,
+    "attend_rate": 122.5
+  },
+  {
+    "unit": "CEDESP 6",
+    "period": "Noite",
+    "course": "ELETROMECÂNICO DE AUTOMÓVEIS - C",
+    "meta": 20.0,
+    "matr": 39.0,
+    "freq_avg": 34.5,
+    "n_classes": 13,
+    "attend_rate": 172.5
+  },
+  {
+    "unit": "CEDESP 6",
+    "period": "Noite",
+    "course": "PADEIRO",
+    "meta": 20.0,
+    "matr": 27.0,
+    "freq_avg": 20.6,
+    "n_classes": 12,
+    "attend_rate": 103.0
+  },
+  {
+    "unit": "CEDESP 7",
+    "period": "Manhã",
+    "course": "ELETRICISTA DE SISTEMAS DE ENERGIAS RENOVÁVEIS",
+    "meta": 20.0,
+    "matr": 16.0,
+    "freq_avg": 12.0,
+    "n_classes": 13,
+    "attend_rate": 60.0
+  },
+  {
+    "unit": "CEDESP 7",
+    "period": "Manhã",
+    "course": "MECÂNICO DE USINAGEM (Eletromecânico de Automóveis)",
+    "meta": 20.0,
+    "matr": 27.0,
+    "freq_avg": 15.2,
+    "n_classes": 12,
+    "attend_rate": 76.0
+  },
+  {
+    "unit": "CEDESP 7",
+    "period": "Tarde",
+    "course": "ELETROMECÂNICO DE AUTOMÓVEIS  - B",
+    "meta": 20.0,
+    "matr": 24.0,
+    "freq_avg": 13.7,
+    "n_classes": 6,
+    "attend_rate": 68.5
+  },
+  {
+    "unit": "CEDESP 7",
+    "period": "Tarde",
+    "course": "MECÂNICO DE USINAGEM CONVENCIONAL",
+    "meta": 20.0,
+    "matr": 12.0,
+    "freq_avg": 10.5,
+    "n_classes": 11,
+    "attend_rate": 52.5
+  },
+  {
+    "unit": "CEDESP 7",
+    "period": "Noite",
+    "course": "ELETRICISTA DE SISTEMAS DE ENERGIAS RENOVÁVEIS",
+    "meta": 20.0,
+    "matr": 26.0,
+    "freq_avg": 21.0,
+    "n_classes": 12,
+    "attend_rate": 105.0
+  },
+  {
+    "unit": "CEDESP 7",
+    "period": "Noite",
+    "course": "MECÂNICO DE USINAGEM CONVENCIONAL - A",
+    "meta": 20.0,
+    "matr": 21.0,
+    "freq_avg": 15.2,
+    "n_classes": 13,
+    "attend_rate": 76.0
+  },
+  {
+    "unit": "CEDESP 7",
+    "period": "Noite",
+    "course": "MECÂNICO DE USINAGEM CONVENCIONAL - B",
+    "meta": 20.0,
+    "matr": 18.0,
+    "freq_avg": 12.9,
+    "n_classes": 13,
+    "attend_rate": 64.5
+  },
+  {
+    "unit": "CEDESP 7",
+    "period": "Noite",
+    "course": "OPERADOR DE TORNO COM CNC - A",
+    "meta": 20.0,
+    "matr": 23.0,
+    "freq_avg": 20.7,
+    "n_classes": 11,
+    "attend_rate": 103.5
+  },
+  {
+    "unit": "CEDESP 7",
+    "period": "Noite",
+    "course": "OPERADOR DE FRESADORA COM CNC",
+    "meta": 20.0,
+    "matr": 16.0,
+    "freq_avg": 9.3,
+    "n_classes": 12,
+    "attend_rate": 46.5
+  },
+  {
+    "unit": "CEDESP 7",
+    "period": "Noite",
+    "course": "OPERADOR E PROGRAMADOR DE SISTEMAS AUTOMATIZADOS DE SOLDAGEM - A",
+    "meta": 20.0,
+    "matr": 30.0,
+    "freq_avg": 16.7,
+    "n_classes": 11,
+    "attend_rate": 83.5
+  },
+  {
+    "unit": "CEDESP 7",
+    "period": "Noite",
+    "course": "OPERADOR E PROGRAMADOR DE SISTEMAS AUTOMATIZADOS DE SOLDAGEM - B",
+    "meta": 20.0,
+    "matr": 27.0,
+    "freq_avg": 16.8,
+    "n_classes": 12,
+    "attend_rate": 84.0
+  },
+  {
+    "unit": "CEDESP 7",
+    "period": "Noite",
+    "course": "OPERADOR E PROGRAMADOR DE SISTEMAS AUTOMATIZADOS DE SOLDAGEM - C",
+    "meta": 20.0,
+    "matr": 16.0,
+    "freq_avg": 13.4,
+    "n_classes": 10,
+    "attend_rate": 67.0
+  },
+  {
+    "unit": "CEDESP 8",
+    "period": "Manhã",
+    "course": "ANIMADOR DE STOP MOTION",
+    "meta": 20.0,
+    "matr": 31.0,
+    "freq_avg": 19.6,
+    "n_classes": 11,
+    "attend_rate": 98.0
+  },
+  {
+    "unit": "CEDESP 8",
+    "period": "Manhã",
+    "course": "AUXILIAR PEDAGÓGICO",
+    "meta": 20.0,
+    "matr": 41.0,
+    "freq_avg": 27.7,
+    "n_classes": 11,
+    "attend_rate": 138.5
+  },
+  {
+    "unit": "CEDESP 8",
+    "period": "Manhã",
+    "course": "CUIDADOR DE IDOSOS",
+    "meta": 20.0,
+    "matr": 36.0,
+    "freq_avg": 22.3,
+    "n_classes": 11,
+    "attend_rate": 111.5
+  },
+  {
+    "unit": "CEDESP 8",
+    "period": "Manhã",
+    "course": "OPERADOR DE COMPUTADOR",
+    "meta": 20.0,
+    "matr": 35.0,
+    "freq_avg": 20.4,
+    "n_classes": 11,
+    "attend_rate": 102.0
+  },
+  {
+    "unit": "CEDESP 8",
+    "period": "Tarde",
+    "course": "ANIMADOR DE STOP MOTION",
+    "meta": 20.0,
+    "matr": 35.0,
+    "freq_avg": 22.4,
+    "n_classes": 11,
+    "attend_rate": 112.0
+  },
+  {
+    "unit": "CEDESP 8",
+    "period": "Tarde",
+    "course": "AUXILIAR PEDAGÓGICO",
+    "meta": 20.0,
+    "matr": 35.0,
+    "freq_avg": 22.9,
+    "n_classes": 11,
+    "attend_rate": 114.5
+  },
+  {
+    "unit": "CEDESP 8",
+    "period": "Tarde",
+    "course": "CUIDADOR DE IDOSO",
+    "meta": 20.0,
+    "matr": 38.0,
+    "freq_avg": 23.2,
+    "n_classes": 11,
+    "attend_rate": 116.0
+  },
+  {
+    "unit": "CEDESP 8",
+    "period": "Tarde",
+    "course": "OPERADOR DE COMPUTADOR",
+    "meta": 20.0,
+    "matr": 42.0,
+    "freq_avg": 28.8,
+    "n_classes": 11,
+    "attend_rate": 144.0
+  }
 ];
 
 // ── STATE ──
@@ -841,15 +1688,15 @@ let searchQuery = '';
 
 // ── HELPERS ──
 function getColor(rate) {
-  if (rate >= 80) return '#2d7a4f';
-  if (rate >= 70) return '#c97c1a';
-  return '#c84b31';
+  if (rate >= 100) return '#2d7a4f';   // atingiu a meta
+  if (rate >= 80)  return '#c97c1a';   // atenção média (80–99.9%)
+  return '#c84b31';                     // atenção imediata (<80%)
 }
 
 function getStatus(rate) {
-  if (rate >= 80) return {cls:'high', label:'≥ 80%'};
-  if (rate >= 70) return {cls:'mid', label:'70–79%'};
-  return {cls:'low', label:'< 70%'};
+  if (rate >= 100) return {cls:'high', label:'✓ Meta atingida'};
+  if (rate >= 80)  return {cls:'mid',  label:'⚠ Atenção média'};
+  return                  {cls:'low',  label:'✗ Atenção imediata'};
 }
 
 function periodColor(p) {
@@ -934,11 +1781,9 @@ function buildCharts(data) {
 
   // 2. Distribution
   const bands = [
-    { label: '≥90%', min: 90, max: Infinity, color: '#2d7a4f' },
-    { label: '80–89%', min: 80, max: 90, color: '#52aa72' },
-    { label: '70–79%', min: 70, max: 80, color: '#c97c1a' },
-    { label: '60–69%', min: 60, max: 70, color: '#e09c46' },
-    { label: '<60%', min: 0, max: 60, color: '#c84b31' },
+    { label: '≥ 100% (Meta atingida)',   min: 100, max: Infinity, color: '#2d7a4f' },
+    { label: '80–99.9% (Atenção média)', min: 80,  max: 100,      color: '#c97c1a' },
+    { label: '< 80% (Atenção imediata)', min: 0,   max: 80,       color: '#c84b31' },
   ];
 
   const bandCounts = bands.map(b => data.filter(d => d.attend_rate >= b.min && d.attend_rate < b.max).length);
@@ -1120,7 +1965,7 @@ function updateKPIs(data) {
   document.getElementById('kpi-best').textContent = best ? best.freq_avg.toFixed(1) : '—';
   document.getElementById('kpi-best-label').textContent = best ? best.course.substring(0,28) + (best.course.length > 28 ? '…' : '') : '—';
 
-  document.getElementById('kpi-low').textContent = data.filter(d => d.attend_rate < 70).length;
+  document.getElementById('kpi-low').textContent = data.filter(d => d.attend_rate < 80).length;
 
   // Header stats
   document.getElementById('hdr-cursos').textContent = data.length;
