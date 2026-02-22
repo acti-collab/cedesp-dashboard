@@ -113,7 +113,7 @@ footer{border-top:1px solid var(--border);padding:20px 48px;display:flex;justify
     <button class="filter-btn noite" data-filter="period" data-value="Noite">🌙 Noite</button>
   </div>
   <div class="controls-spacer"></div>
-  <span class="update-badge">📅 Atualizado em: 22/02/2026 às 19:21</span>
+  <span class="update-badge">📅 Atualizado em: 22/02/2026 às 19:32</span>
   <div style="display:flex;align-items:center;gap:6px">
     <span class="filter-label">Ordenar:</span>
     <select class="sort-select" id="sortSelect">
@@ -136,7 +136,7 @@ footer{border-top:1px solid var(--border);padding:20px 48px;display:flex;justify
   <div class="kpi-cell"><div class="kpi-label">Cursos ativos</div><div class="kpi-val" id="kpi-cursos">—</div><div class="kpi-desc">turmas com frequência registrada</div></div>
   <div class="kpi-cell"><div class="kpi-label">Taxa de frequência média</div><div class="kpi-val" id="kpi-rate" style="color:var(--accent2)">—</div><div class="kpi-desc">freq. média ÷ meta do curso</div></div>
   <div class="kpi-cell"><div class="kpi-label">Freq. diária mais alta</div><div class="kpi-val" id="kpi-best" style="color:var(--green)">—</div><div class="kpi-desc" id="kpi-best-label">—</div></div>
-  <div class="kpi-cell"><div class="kpi-label">Cursos com taxa &lt;70%</div><div class="kpi-val" id="kpi-low" style="color:var(--accent)">—</div><div class="kpi-desc">requerem atenção</div></div>
+  <div class="kpi-cell"><div class="kpi-label">Cursos com taxa &lt;80%</div><div class="kpi-val" id="kpi-low" style="color:var(--accent)">—</div><div class="kpi-desc">requerem atenção</div></div>
 </div>
 
 <div class="section-row"><div class="section-title">Visão Gráfica</div><div class="section-rule"></div></div>
@@ -190,7 +190,7 @@ footer{border-top:1px solid var(--border);padding:20px 48px;display:flex;justify
 
 <footer>
   <div class="footer-text">CEDESP Dom Bosco Itaquera · Dashboard gerado automaticamente</div>
-  <div class="footer-text">Atualizado em 22/02/2026 às 19:21</div>
+  <div class="footer-text">Atualizado em 22/02/2026 às 19:32</div>
 </footer>
 
 <script>
@@ -511,9 +511,9 @@ const RAW = [
     "course": "MONTADOR DE EQUIPAMENTOS ELETROELETRÔNICOS",
     "meta": 20.0,
     "matr": 17.0,
-    "freq_avg": 14.3,
-    "n_classes": 12,
-    "attend_rate": 71.5
+    "freq_avg": 13.2,
+    "n_classes": 13,
+    "attend_rate": 66.0
   },
   {
     "unit": "CEDESP 3",
@@ -551,9 +551,9 @@ const RAW = [
     "course": "ELETRICISTA INDUSTRIAL",
     "meta": 20.0,
     "matr": 27.0,
-    "freq_avg": 23.4,
-    "n_classes": 11,
-    "attend_rate": 117.0
+    "freq_avg": 21.4,
+    "n_classes": 12,
+    "attend_rate": 107.0
   },
   {
     "unit": "CEDESP 3",
@@ -561,9 +561,9 @@ const RAW = [
     "course": "MONTADOR DE EQUIPAMENTOS ELETROELETRÔNICOS",
     "meta": 20.0,
     "matr": 36.0,
-    "freq_avg": 21.0,
-    "n_classes": 2,
-    "attend_rate": 105.0
+    "freq_avg": 14.0,
+    "n_classes": 3,
+    "attend_rate": 70.0
   },
   {
     "unit": "CEDESP 3",
@@ -571,9 +571,9 @@ const RAW = [
     "course": "MONTADOR DE PAINEIS ELÉTRICOS",
     "meta": 20.0,
     "matr": 36.0,
-    "freq_avg": 26.0,
-    "n_classes": 12,
-    "attend_rate": 130.0
+    "freq_avg": 24.0,
+    "n_classes": 13,
+    "attend_rate": 120.0
   },
   {
     "unit": "CEDESP 4",
@@ -861,9 +861,9 @@ const RAW = [
     "course": "ELETROMECÂNICO DE AUTOMÓVEIS - C",
     "meta": 20.0,
     "matr": 26.0,
-    "freq_avg": 20.8,
-    "n_classes": 12,
-    "attend_rate": 104.0
+    "freq_avg": 19.2,
+    "n_classes": 13,
+    "attend_rate": 96.0
   },
   {
     "unit": "CEDESP 6",
@@ -1011,9 +1011,9 @@ const RAW = [
     "course": "OPERADOR DE TORNO COM CNC - A",
     "meta": 20.0,
     "matr": 23.0,
-    "freq_avg": 20.7,
-    "n_classes": 11,
-    "attend_rate": 103.5
+    "freq_avg": 17.5,
+    "n_classes": 13,
+    "attend_rate": 87.5
   },
   {
     "unit": "CEDESP 7",
@@ -1021,9 +1021,9 @@ const RAW = [
     "course": "OPERADOR DE FRESADORA COM CNC",
     "meta": 20.0,
     "matr": 16.0,
-    "freq_avg": 9.3,
-    "n_classes": 12,
-    "attend_rate": 46.5
+    "freq_avg": 8.6,
+    "n_classes": 13,
+    "attend_rate": 43.0
   },
   {
     "unit": "CEDESP 7",
@@ -1031,9 +1031,9 @@ const RAW = [
     "course": "OPERADOR E PROGRAMADOR DE SISTEMAS AUTOMATIZADOS DE SOLDAGEM - A",
     "meta": 20.0,
     "matr": 30.0,
-    "freq_avg": 16.7,
-    "n_classes": 11,
-    "attend_rate": 83.5
+    "freq_avg": 15.3,
+    "n_classes": 12,
+    "attend_rate": 76.5
   },
   {
     "unit": "CEDESP 7",
@@ -1041,9 +1041,9 @@ const RAW = [
     "course": "OPERADOR E PROGRAMADOR DE SISTEMAS AUTOMATIZADOS DE SOLDAGEM - B",
     "meta": 20.0,
     "matr": 27.0,
-    "freq_avg": 16.8,
-    "n_classes": 12,
-    "attend_rate": 84.0
+    "freq_avg": 15.5,
+    "n_classes": 13,
+    "attend_rate": 77.5
   },
   {
     "unit": "CEDESP 7",
@@ -1051,9 +1051,9 @@ const RAW = [
     "course": "OPERADOR E PROGRAMADOR DE SISTEMAS AUTOMATIZADOS DE SOLDAGEM - C",
     "meta": 20.0,
     "matr": 16.0,
-    "freq_avg": 13.4,
-    "n_classes": 10,
-    "attend_rate": 67.0
+    "freq_avg": 12.2,
+    "n_classes": 11,
+    "attend_rate": 61.0
   },
   {
     "unit": "CEDESP 8",
@@ -1139,8 +1139,8 @@ const RAW = [
 
 let filterUnit='all', filterPeriod='all', sortMode='rate-desc', searchQuery='';
 
-function getColor(r){ return r>=80?'#2d7a4f':r>=70?'#c97c1a':'#c84b31'; }
-function getStatus(r){ return r>=80?{cls:'high',label:'≥ 80%'}:r>=70?{cls:'mid',label:'70–79%'}:{cls:'low',label:'< 70%'}; }
+function getColor(r){ return r>=100?'#2d7a4f':r>=80?'#c97c1a':'#c84b31'; }
+function getStatus(r){ return r>=100?{cls:'high',label:'✓ Meta atingida'}:r>=80?{cls:'mid',label:'⚠ Atenção média'}:{cls:'low',label:'✗ Atenção imediata'}; }
 function periodColor(p){ return p==='Manhã'?'#c97c1a':p==='Tarde'?'#2b5f8a':'#4a3a7a'; }
 
 function getFiltered(){
@@ -1182,11 +1182,9 @@ function buildCharts(data){
   });
 
   const bands=[
-    {label:'≥90%',min:90,max:Infinity,color:'#2d7a4f'},
-    {label:'80–89%',min:80,max:90,color:'#52aa72'},
-    {label:'70–79%',min:70,max:80,color:'#c97c1a'},
-    {label:'60–69%',min:60,max:70,color:'#e09c46'},
-    {label:'<60%',min:0,max:60,color:'#c84b31'},
+    {label:'≥ 100% (Meta atingida)',min:100,max:Infinity,color:'#2d7a4f'},
+    {label:'80–99.9% (Atenção média)',min:80,max:100,color:'#c97c1a'},
+    {label:'< 80% (Atenção imediata)',min:0,max:80,color:'#c84b31'},
   ];
   charts.dist=new Chart(document.getElementById('distChart'),{
     type:'doughnut',
@@ -1249,7 +1247,7 @@ function updateKPIs(data){
   const best=data.reduce((b,d)=>d.freq_avg>(b?b.freq_avg:-1)?d:b,null);
   document.getElementById('kpi-best').textContent=best?best.freq_avg.toFixed(1):'—';
   document.getElementById('kpi-best-label').textContent=best?best.course.substring(0,30)+(best.course.length>30?'…':''):'—';
-  document.getElementById('kpi-low').textContent=data.filter(d=>d.attend_rate<70).length;
+  document.getElementById('kpi-low').textContent=data.filter(d=>d.attend_rate<80).length;
   document.getElementById('hdr-cursos').textContent=data.length;
   document.getElementById('hdr-avg').textContent=wr;
   document.getElementById('hdr-matr').textContent=data.reduce((s,d)=>s+(d.matr||0),0);
