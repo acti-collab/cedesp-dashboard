@@ -1,0 +1,844 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Dashboard CEDESP Dom Bosco Itaquera — 1º Semestre 2026</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=DM+Mono:wght@400;500&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js"></script>
+<style>
+  :root {
+    --bg: #0d1117;
+    --surface: #161b22;
+    --surface2: #21262d;
+    --border: #30363d;
+    --text: #e6edf3;
+    --text-muted: #7d8590;
+    --accent: #f0a500;
+    --accent2: #58a6ff;
+    --green: #3fb950;
+    --red: #f85149;
+    --orange: #d29922;
+    --purple: #bc8cff;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'DM Sans', sans-serif;
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  /* Header */
+  header {
+    border-bottom: 1px solid var(--border);
+    padding: 0 40px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    height: 72px;
+    position: sticky;
+    top: 0;
+    background: rgba(13,17,23,0.92);
+    backdrop-filter: blur(12px);
+    z-index: 100;
+  }
+
+  .logo {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+
+  .logo-mark {
+    width: 36px;
+    height: 36px;
+    background: var(--accent);
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-family: 'DM Mono', monospace;
+    font-weight: 500;
+    color: #000;
+    font-size: 13px;
+    letter-spacing: -0.5px;
+  }
+
+  .logo-text {
+    font-family: 'DM Serif Display', serif;
+    font-size: 18px;
+    letter-spacing: -0.3px;
+    color: var(--text);
+  }
+
+  .logo-text span {
+    color: var(--accent);
+  }
+
+  .header-meta {
+    font-family: 'DM Mono', monospace;
+    font-size: 11px;
+    color: var(--text-muted);
+    text-align: right;
+    line-height: 1.6;
+  }
+
+  /* Main layout */
+  main {
+    padding: 40px;
+    max-width: 1400px;
+    margin: 0 auto;
+  }
+
+  /* Section title */
+  .section-header {
+    display: flex;
+    align-items: baseline;
+    gap: 16px;
+    margin-bottom: 24px;
+    margin-top: 48px;
+  }
+
+  .section-header:first-child { margin-top: 0; }
+
+  .section-title {
+    font-family: 'DM Serif Display', serif;
+    font-size: 22px;
+    letter-spacing: -0.5px;
+    color: var(--text);
+  }
+
+  .section-line {
+    flex: 1;
+    height: 1px;
+    background: var(--border);
+  }
+
+  .section-badge {
+    font-family: 'DM Mono', monospace;
+    font-size: 10px;
+    color: var(--text-muted);
+    letter-spacing: 1px;
+    text-transform: uppercase;
+  }
+
+  /* KPI Cards row */
+  .kpi-grid {
+    display: grid;
+    grid-template-columns: repeat(5, 1fr);
+    gap: 16px;
+    margin-bottom: 32px;
+  }
+
+  .kpi-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 24px 20px;
+    position: relative;
+    overflow: hidden;
+    transition: border-color 0.2s;
+  }
+
+  .kpi-card::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 3px;
+    border-radius: 12px 12px 0 0;
+    background: var(--accent);
+  }
+
+  .kpi-card.blue::before { background: var(--accent2); }
+  .kpi-card.green::before { background: var(--green); }
+  .kpi-card.red::before { background: var(--red); }
+  .kpi-card.purple::before { background: var(--purple); }
+
+  .kpi-label {
+    font-size: 11px;
+    letter-spacing: 0.8px;
+    text-transform: uppercase;
+    color: var(--text-muted);
+    font-family: 'DM Mono', monospace;
+    margin-bottom: 12px;
+  }
+
+  .kpi-value {
+    font-family: 'DM Serif Display', serif;
+    font-size: 38px;
+    line-height: 1;
+    letter-spacing: -1px;
+    margin-bottom: 8px;
+  }
+
+  .kpi-sub {
+    font-size: 12px;
+    color: var(--text-muted);
+  }
+
+  .kpi-sub .tag {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 20px;
+    font-size: 11px;
+    font-family: 'DM Mono', monospace;
+    font-weight: 500;
+  }
+
+  .tag.neg { background: rgba(248,81,73,0.15); color: var(--red); }
+  .tag.pos { background: rgba(63,185,80,0.15); color: var(--green); }
+  .tag.warn { background: rgba(210,153,34,0.15); color: var(--orange); }
+
+  /* Two-column layout */
+  .two-col {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 20px;
+    margin-bottom: 20px;
+  }
+
+  .three-col {
+    display: grid;
+    grid-template-columns: 1.2fr 1fr 0.8fr;
+    gap: 20px;
+    margin-bottom: 20px;
+  }
+
+  /* Chart card */
+  .chart-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 24px;
+  }
+
+  .chart-title {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--text);
+    margin-bottom: 4px;
+    letter-spacing: -0.2px;
+  }
+
+  .chart-sub {
+    font-size: 11px;
+    color: var(--text-muted);
+    font-family: 'DM Mono', monospace;
+    margin-bottom: 20px;
+  }
+
+  canvas { max-width: 100%; }
+
+  /* Table */
+  .table-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    overflow: hidden;
+  }
+
+  .table-header {
+    padding: 20px 24px 16px;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .table-title {
+    font-size: 13px;
+    font-weight: 600;
+    letter-spacing: -0.2px;
+  }
+
+  .table-sub {
+    font-size: 11px;
+    color: var(--text-muted);
+    font-family: 'DM Mono', monospace;
+    margin-top: 2px;
+  }
+
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 13px;
+  }
+
+  thead th {
+    padding: 10px 16px;
+    text-align: left;
+    font-size: 10px;
+    letter-spacing: 0.8px;
+    text-transform: uppercase;
+    color: var(--text-muted);
+    font-family: 'DM Mono', monospace;
+    font-weight: 500;
+    background: var(--surface2);
+    border-bottom: 1px solid var(--border);
+  }
+
+  thead th.right { text-align: right; }
+
+  tbody tr {
+    border-bottom: 1px solid var(--border);
+    transition: background 0.15s;
+  }
+
+  tbody tr:last-child { border-bottom: none; }
+  tbody tr:hover { background: var(--surface2); }
+
+  td {
+    padding: 12px 16px;
+    color: var(--text);
+  }
+
+  td.right { text-align: right; }
+  td.mono { font-family: 'DM Mono', monospace; font-size: 12px; }
+
+  .unit-name {
+    font-weight: 500;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .unit-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    flex-shrink: 0;
+  }
+
+  /* Progress bar */
+  .prog-wrap {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+
+  .prog-bar {
+    flex: 1;
+    height: 6px;
+    background: var(--surface2);
+    border-radius: 99px;
+    overflow: hidden;
+  }
+
+  .prog-fill {
+    height: 100%;
+    border-radius: 99px;
+    transition: width 0.6s ease;
+  }
+
+  .prog-pct {
+    font-family: 'DM Mono', monospace;
+    font-size: 11px;
+    color: var(--text-muted);
+    min-width: 38px;
+    text-align: right;
+  }
+
+  /* Saldo pill */
+  .saldo-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 3px 10px;
+    border-radius: 20px;
+    font-family: 'DM Mono', monospace;
+    font-size: 11px;
+    font-weight: 500;
+  }
+
+  .saldo-pill.pos { background: rgba(63,185,80,0.12); color: var(--green); }
+  .saldo-pill.neg { background: rgba(248,81,73,0.12); color: var(--red); }
+
+  /* Horario cards */
+  .horario-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 16px;
+  }
+
+  .horario-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 20px;
+  }
+
+  .horario-badge {
+    display: inline-block;
+    font-family: 'DM Mono', monospace;
+    font-size: 10px;
+    letter-spacing: 1.2px;
+    text-transform: uppercase;
+    padding: 3px 10px;
+    border-radius: 20px;
+    margin-bottom: 16px;
+    font-weight: 500;
+  }
+
+  .badge-manha { background: rgba(240,165,0,0.15); color: var(--accent); }
+  .badge-tarde { background: rgba(88,166,255,0.15); color: var(--accent2); }
+  .badge-noite { background: rgba(188,140,255,0.15); color: var(--purple); }
+
+  .horario-nums {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-end;
+    margin-bottom: 12px;
+  }
+
+  .h-val {
+    font-family: 'DM Serif Display', serif;
+    font-size: 32px;
+    letter-spacing: -1px;
+    line-height: 1;
+  }
+
+  .h-meta {
+    font-family: 'DM Mono', monospace;
+    font-size: 11px;
+    color: var(--text-muted);
+    margin-bottom: 4px;
+  }
+
+  .h-label {
+    font-size: 11px;
+    color: var(--text-muted);
+  }
+
+  /* Footer */
+  footer {
+    border-top: 1px solid var(--border);
+    padding: 24px 40px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-top: 60px;
+  }
+
+  .footer-text {
+    font-size: 11px;
+    color: var(--text-muted);
+    font-family: 'DM Mono', monospace;
+  }
+
+  /* Animations */
+  @keyframes fadeUp {
+    from { opacity: 0; transform: translateY(16px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+
+  .kpi-card { animation: fadeUp 0.5s ease both; }
+  .kpi-card:nth-child(1) { animation-delay: 0.05s; }
+  .kpi-card:nth-child(2) { animation-delay: 0.10s; }
+  .kpi-card:nth-child(3) { animation-delay: 0.15s; }
+  .kpi-card:nth-child(4) { animation-delay: 0.20s; }
+  .kpi-card:nth-child(5) { animation-delay: 0.25s; }
+
+  .chart-card, .table-card, .horario-card {
+    animation: fadeUp 0.5s ease 0.3s both;
+  }
+
+  @media (max-width: 1100px) {
+    .kpi-grid { grid-template-columns: repeat(3, 1fr); }
+    .three-col { grid-template-columns: 1fr; }
+  }
+  @media (max-width: 768px) {
+    main { padding: 20px; }
+    header { padding: 0 20px; }
+    .kpi-grid { grid-template-columns: 1fr 1fr; }
+    .two-col, .horario-grid { grid-template-columns: 1fr; }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo">
+    <div class="logo-mark">CDB</div>
+    <div class="logo-text">CEDESP <span>Dom Bosco</span></div>
+  </div>
+  <div class="header-meta">
+    Itaquera · Unidades 1–8<br>
+    1º Semestre / 2026
+  </div>
+</header>
+
+<main>
+
+  <!-- ── KPI CARDS ── -->
+  <div class="section-header">
+    <div class="section-title">Resumo Executivo</div>
+    <div class="section-line"></div>
+    <div class="section-badge">Visão Geral</div>
+  </div>
+
+  <div class="kpi-grid">
+    <div class="kpi-card">
+      <div class="kpi-label">Meta Convênio</div>
+      <div class="kpi-value" style="color:var(--accent)">1.880</div>
+      <div class="kpi-sub">Alunos planejados no semestre</div>
+    </div>
+    <div class="kpi-card blue">
+      <div class="kpi-label">Matrículas</div>
+      <div class="kpi-value" style="color:var(--accent2)">2.275</div>
+      <div class="kpi-sub"><span class="tag pos">+21,0%</span> acima da meta</div>
+    </div>
+    <div class="kpi-card" style="--accent:var(--green)">
+      <div class="kpi-label">Frequência Total</div>
+      <div class="kpi-value" style="color:var(--green)">1.767</div>
+      <div class="kpi-sub"><span class="tag warn">93,9%</span> das matrículas</div>
+    </div>
+    <div class="kpi-card red">
+      <div class="kpi-label">Saldo Frequência</div>
+      <div class="kpi-value" style="color:var(--red)">-114</div>
+      <div class="kpi-sub"><span class="tag neg">-6,1%</span> abaixo da meta</div>
+    </div>
+    <div class="kpi-card purple">
+      <div class="kpi-label">Unidades Ativas</div>
+      <div class="kpi-value" style="color:var(--purple)">8</div>
+      <div class="kpi-sub">5 superaram a meta de frequência</div>
+    </div>
+  </div>
+
+  <!-- ── CHARTS ROW ── -->
+  <div class="section-header" style="margin-top:32px">
+    <div class="section-title">Análise por Unidade</div>
+    <div class="section-line"></div>
+    <div class="section-badge">CEDESPs 1–8</div>
+  </div>
+
+  <div class="two-col">
+    <div class="chart-card">
+      <div class="chart-title">Meta vs Matrículas vs Frequência</div>
+      <div class="chart-sub">Comparativo por unidade — valores absolutos</div>
+      <canvas id="barChart" height="240"></canvas>
+    </div>
+    <div class="chart-card">
+      <div class="chart-title">Taxa de Frequência (% da Meta)</div>
+      <div class="chart-sub">Frequência realizada ÷ Meta convênio × 100</div>
+      <canvas id="radarChart" height="240"></canvas>
+    </div>
+  </div>
+
+  <!-- ── DETAILED TABLE ── -->
+  <div class="table-card" style="margin-bottom:20px">
+    <div class="table-header">
+      <div class="table-title">Performance Detalhada por Unidade</div>
+      <div class="table-sub">Dados consolidados · 1º Semestre 2026</div>
+    </div>
+    <table>
+      <thead>
+        <tr>
+          <th>Unidade</th>
+          <th class="right">Meta</th>
+          <th class="right">Matrículas</th>
+          <th class="right">Frequência</th>
+          <th>Atingimento da Meta</th>
+          <th class="right">Saldo</th>
+          <th class="right">Status</th>
+        </tr>
+      </thead>
+      <tbody id="mainTable"></tbody>
+    </table>
+  </div>
+
+  <!-- ── HORÁRIOS ── -->
+  <div class="section-header">
+    <div class="section-title">Distribuição por Horário</div>
+    <div class="section-line"></div>
+    <div class="section-badge">Sede + Metrô</div>
+  </div>
+
+  <div class="horario-grid">
+    <div class="horario-card">
+      <div class="horario-badge badge-manha">☀ Manhã</div>
+      <div class="horario-nums">
+        <div>
+          <div class="h-val" style="color:var(--accent)">699</div>
+          <div class="h-label">Matrículas</div>
+        </div>
+        <div style="text-align:right">
+          <div class="h-meta">META: 440</div>
+          <div class="h-meta">CEDESP 1–7: 556</div>
+          <div class="h-meta">CEDESP 8: 143</div>
+        </div>
+      </div>
+      <div class="prog-wrap">
+        <div class="prog-bar"><div class="prog-fill" style="width:100%;background:var(--accent)"></div></div>
+        <div class="prog-pct" style="color:var(--accent)">+59%</div>
+      </div>
+    </div>
+
+    <div class="horario-card">
+      <div class="horario-badge badge-tarde">🌤 Tarde</div>
+      <div class="horario-nums">
+        <div>
+          <div class="h-val" style="color:var(--accent2)">753</div>
+          <div class="h-label">Matrículas</div>
+        </div>
+        <div style="text-align:right">
+          <div class="h-meta">META: 600</div>
+          <div class="h-meta">CEDESP 1–7: 603</div>
+          <div class="h-meta">CEDESP 8: 150</div>
+        </div>
+      </div>
+      <div class="prog-wrap">
+        <div class="prog-bar"><div class="prog-fill" style="width:100%;background:var(--accent2)"></div></div>
+        <div class="prog-pct" style="color:var(--accent2)">+25%</div>
+      </div>
+    </div>
+
+    <div class="horario-card">
+      <div class="horario-badge badge-noite">🌙 Noite</div>
+      <div class="horario-nums">
+        <div>
+          <div class="h-val" style="color:var(--purple)">1.015</div>
+          <div class="h-label">Matrículas</div>
+        </div>
+        <div style="text-align:right">
+          <div class="h-meta">META: 760</div>
+          <div class="h-meta">CEDESP 1–7: 1.015</div>
+          <div class="h-meta">CEDESP 8: 0</div>
+        </div>
+      </div>
+      <div class="prog-wrap">
+        <div class="prog-bar"><div class="prog-fill" style="width:100%;background:var(--purple)"></div></div>
+        <div class="prog-pct" style="color:var(--purple)">+34%</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── CURSOS CHART ── -->
+  <div class="section-header">
+    <div class="section-title">Matrículas × Cursos Oferecidos</div>
+    <div class="section-line"></div>
+    <div class="section-badge">Seleção de Cursos</div>
+  </div>
+
+  <div class="two-col">
+    <div class="chart-card">
+      <div class="chart-title">Matrículas por Unidade — Donut</div>
+      <div class="chart-sub">Participação de cada CEDESP no total geral</div>
+      <canvas id="donutChart" height="260"></canvas>
+    </div>
+    <div class="chart-card">
+      <div class="chart-title">Saldo de Frequência por Unidade</div>
+      <div class="chart-sub">Diferença entre frequência realizada e meta convênio</div>
+      <canvas id="saldoChart" height="260"></canvas>
+    </div>
+  </div>
+
+</main>
+
+<footer>
+  <div class="footer-text">CEDESP Dom Bosco Itaquera · 1º Semestre 2026 · Dashboard de Acompanhamento</div>
+  <div class="footer-text">Gerado automaticamente a partir da planilha de controle</div>
+</footer>
+
+<script>
+  // ── DATA ──
+  const units = [
+    { name: 'CEDESP 1', meta: 240, matr: 341, freq: 262, saldo: 22 },
+    { name: 'CEDESP 2', meta: 280, matr: 139, freq: 263, saldo: -17 },
+    { name: 'CEDESP 3', meta: 240, matr: 230, freq: 182, saldo: -58 },
+    { name: 'CEDESP 4', meta: 240, matr: 389, freq: 269, saldo: 29 },
+    { name: 'CEDESP 5', meta: 280, matr: 343, freq: 245, saldo: -35 },
+    { name: 'CEDESP 6', meta: 200, matr: 284, freq: 196, saldo: -4 },
+    { name: 'CEDESP 7', meta: 240, matr: 256, freq: 161.5, saldo: -78.5 },
+    { name: 'CEDESP 8', meta: 160, matr: 293, freq: 188, saldo: 28 },
+  ];
+
+  const COLORS = [
+    '#f0a500','#58a6ff','#3fb950','#f85149',
+    '#bc8cff','#ff7b72','#56d364','#79c0ff'
+  ];
+
+  // ── TABLE ──
+  const tbody = document.getElementById('mainTable');
+  units.forEach((u, i) => {
+    const pct = ((u.freq / u.meta) * 100).toFixed(1);
+    const pctNum = parseFloat(pct);
+    const fillColor = pctNum >= 100 ? '#3fb950' : pctNum >= 85 ? '#d29922' : '#f85149';
+    const fillW = Math.min(pctNum, 100);
+    const saldoClass = u.saldo >= 0 ? 'pos' : 'neg';
+    const saldoSign = u.saldo >= 0 ? '+' : '';
+    const status = u.freq >= u.meta ? '✓ Atingiu' : '✗ Abaixo';
+    const statusColor = u.freq >= u.meta ? 'var(--green)' : 'var(--red)';
+    tbody.innerHTML += `
+      <tr>
+        <td><div class="unit-name"><div class="unit-dot" style="background:${COLORS[i]}"></div>${u.name}</div></td>
+        <td class="right mono">${u.meta}</td>
+        <td class="right mono">${u.matr}</td>
+        <td class="right mono">${u.freq}</td>
+        <td>
+          <div class="prog-wrap">
+            <div class="prog-bar" style="max-width:160px">
+              <div class="prog-fill" style="width:${fillW}%;background:${fillColor}"></div>
+            </div>
+            <div class="prog-pct" style="color:${fillColor}">${pct}%</div>
+          </div>
+        </td>
+        <td class="right"><span class="saldo-pill ${saldoClass}">${saldoSign}${u.saldo}</span></td>
+        <td class="right" style="font-size:12px;color:${statusColor};font-weight:600">${status}</td>
+      </tr>`;
+  });
+
+  // ── CHARTS CONFIG ──
+  Chart.defaults.color = '#7d8590';
+  Chart.defaults.font.family = "'DM Sans', sans-serif";
+  Chart.defaults.borderColor = '#30363d';
+
+  const gridOpts = {
+    color: 'rgba(48,54,61,0.6)',
+    drawBorder: false,
+  };
+
+  // Bar Chart
+  new Chart(document.getElementById('barChart'), {
+    type: 'bar',
+    data: {
+      labels: units.map(u => u.name),
+      datasets: [
+        {
+          label: 'Meta',
+          data: units.map(u => u.meta),
+          backgroundColor: 'rgba(240,165,0,0.25)',
+          borderColor: '#f0a500',
+          borderWidth: 1.5,
+          borderRadius: 4,
+        },
+        {
+          label: 'Matrículas',
+          data: units.map(u => u.matr),
+          backgroundColor: 'rgba(88,166,255,0.6)',
+          borderColor: '#58a6ff',
+          borderWidth: 1,
+          borderRadius: 4,
+        },
+        {
+          label: 'Frequência',
+          data: units.map(u => u.freq),
+          backgroundColor: 'rgba(63,185,80,0.6)',
+          borderColor: '#3fb950',
+          borderWidth: 1,
+          borderRadius: 4,
+        },
+      ]
+    },
+    options: {
+      responsive: true,
+      plugins: {
+        legend: { position: 'top', labels: { boxWidth: 12, padding: 16 } },
+        tooltip: { backgroundColor: '#161b22', borderColor: '#30363d', borderWidth: 1 }
+      },
+      scales: {
+        x: { grid: gridOpts, ticks: { font: { size: 11 } } },
+        y: { grid: gridOpts, ticks: { font: { size: 11 } } }
+      }
+    }
+  });
+
+  // Radar Chart (freq / meta %)
+  new Chart(document.getElementById('radarChart'), {
+    type: 'radar',
+    data: {
+      labels: units.map(u => u.name),
+      datasets: [{
+        label: 'Freq/Meta %',
+        data: units.map(u => +((u.freq / u.meta) * 100).toFixed(1)),
+        backgroundColor: 'rgba(88,166,255,0.15)',
+        borderColor: '#58a6ff',
+        pointBackgroundColor: '#58a6ff',
+        pointBorderColor: '#0d1117',
+        pointRadius: 4,
+        borderWidth: 2,
+      }, {
+        label: 'Referência 100%',
+        data: Array(8).fill(100),
+        backgroundColor: 'rgba(240,165,0,0.05)',
+        borderColor: 'rgba(240,165,0,0.4)',
+        borderDash: [5,3],
+        pointRadius: 0,
+        borderWidth: 1.5,
+      }]
+    },
+    options: {
+      responsive: true,
+      plugins: {
+        legend: { position: 'top', labels: { boxWidth: 12, padding: 16 } },
+        tooltip: { backgroundColor: '#161b22', borderColor: '#30363d', borderWidth: 1 }
+      },
+      scales: {
+        r: {
+          min: 50,
+          max: 130,
+          ticks: { backdropColor: 'transparent', font: { size: 10 }, stepSize: 20 },
+          grid: { color: 'rgba(48,54,61,0.5)' },
+          pointLabels: { font: { size: 11 } }
+        }
+      }
+    }
+  });
+
+  // Donut
+  new Chart(document.getElementById('donutChart'), {
+    type: 'doughnut',
+    data: {
+      labels: units.map(u => u.name),
+      datasets: [{
+        data: units.map(u => u.matr),
+        backgroundColor: COLORS.map(c => c + 'cc'),
+        borderColor: COLORS,
+        borderWidth: 2,
+        hoverOffset: 6,
+      }]
+    },
+    options: {
+      responsive: true,
+      cutout: '62%',
+      plugins: {
+        legend: { position: 'right', labels: { boxWidth: 12, padding: 12, font: { size: 11 } } },
+        tooltip: { backgroundColor: '#161b22', borderColor: '#30363d', borderWidth: 1 }
+      }
+    }
+  });
+
+  // Saldo Chart
+  new Chart(document.getElementById('saldoChart'), {
+    type: 'bar',
+    data: {
+      labels: units.map(u => u.name),
+      datasets: [{
+        label: 'Saldo (Freq − Meta)',
+        data: units.map(u => u.saldo),
+        backgroundColor: units.map(u => u.saldo >= 0 ? 'rgba(63,185,80,0.6)' : 'rgba(248,81,73,0.6)'),
+        borderColor: units.map(u => u.saldo >= 0 ? '#3fb950' : '#f85149'),
+        borderWidth: 1.5,
+        borderRadius: 4,
+      }]
+    },
+    options: {
+      responsive: true,
+      plugins: {
+        legend: { display: false },
+        tooltip: { backgroundColor: '#161b22', borderColor: '#30363d', borderWidth: 1 }
+      },
+      scales: {
+        x: { grid: gridOpts, ticks: { font: { size: 11 } } },
+        y: {
+          grid: gridOpts,
+          ticks: { font: { size: 11 } },
+          border: { dash: [4,4] }
+        }
+      }
+    }
+  });
+</script>
+
+</body>
+</html>
