@@ -113,7 +113,7 @@ footer{border-top:1px solid var(--border);padding:20px 48px;display:flex;justify
     <button class="filter-btn noite" data-filter="period" data-value="Noite">🌙 Noite</button>
   </div>
   <div class="controls-spacer"></div>
-  <span class="update-badge">📅 Atualizado em: 23/02/2026 às 09:56</span>
+  <span class="update-badge">📅 Atualizado em: 23/02/2026 às 11:12</span>
   <div style="display:flex;align-items:center;gap:6px">
     <span class="filter-label">Ordenar:</span>
     <select class="sort-select" id="sortSelect">
@@ -135,8 +135,9 @@ footer{border-top:1px solid var(--border);padding:20px 48px;display:flex;justify
 <div class="kpi-row">
   <div class="kpi-cell"><div class="kpi-label">Cursos ativos</div><div class="kpi-val" id="kpi-cursos">—</div><div class="kpi-desc">turmas com frequência registrada</div></div>
   <div class="kpi-cell"><div class="kpi-label">Taxa de frequência média</div><div class="kpi-val" id="kpi-rate" style="color:var(--accent2)">—</div><div class="kpi-desc">freq. média ÷ meta do curso</div></div>
-  <div class="kpi-cell"><div class="kpi-label">Freq. diária mais alta</div><div class="kpi-val" id="kpi-best" style="color:var(--green)">—</div><div class="kpi-desc" id="kpi-best-label">—</div></div>
+
   <div class="kpi-cell"><div class="kpi-label">Cursos com taxa &lt;80%</div><div class="kpi-val" id="kpi-low" style="color:var(--accent)">—</div><div class="kpi-desc">requerem atenção</div></div>
+  <div class="kpi-cell"><div class="kpi-label">Evasão média</div><div class="kpi-val" id="kpi-evasao" style="color:#c84b31">—</div><div class="kpi-desc">matriculados que não frequentam</div></div>
 </div>
 
 <div class="section-row"><div class="section-title">Visão Gráfica</div><div class="section-rule"></div></div>
@@ -166,6 +167,14 @@ footer{border-top:1px solid var(--border);padding:20px 48px;display:flex;justify
   </div>
 </div>
 
+<div class="charts-grid" style="grid-template-columns:1fr">
+  <div class="chart-box">
+    <div class="chart-box-title">Evasão por Curso — Top 20</div>
+    <div class="chart-box-sub">Cursos com maior evasão · matriculados que não frequentam</div>
+    <canvas id="evasaoChart" height="160"></canvas>
+  </div>
+</div>
+
 <div class="section-row">
   <div class="section-title">Tabela Completa</div>
   <div class="section-rule"></div>
@@ -178,7 +187,7 @@ footer{border-top:1px solid var(--border);padding:20px 48px;display:flex;justify
       <tr>
         <th>Curso</th><th>Unidade</th><th>Período</th>
         <th class="right">Matr.</th><th class="right">Freq. Média/dia</th>
-        <th class="right">Aulas</th><th>Taxa s\/ Meta</th><th>Status</th>
+        <th class="right">Aulas</th><th>Taxa s\/ Meta</th><th class="right">Evasão</th><th>Status</th>
       </tr>
     </thead>
     <tbody id="courseTableBody"></tbody>
@@ -190,7 +199,7 @@ footer{border-top:1px solid var(--border);padding:20px 48px;display:flex;justify
 
 <footer>
   <div class="footer-text">CEDESP Dom Bosco Itaquera · Dashboard gerado automaticamente</div>
-  <div class="footer-text">Atualizado em 23/02/2026 às 09:56</div>
+  <div class="footer-text">Atualizado em 23/02/2026 às 11:12</div>
 </footer>
 
 <script>
@@ -203,7 +212,9 @@ const RAW = [
     "matr": 29.0,
     "freq_avg": 18.1,
     "n_classes": 12,
-    "attend_rate": 90.5
+    "attend_rate": 90.5,
+    "evasao": 10.9,
+    "evasao_pct": 37.6
   },
   {
     "unit": "CEDESP 1",
@@ -213,7 +224,9 @@ const RAW = [
     "matr": 30.0,
     "freq_avg": 25.2,
     "n_classes": 10,
-    "attend_rate": 126.0
+    "attend_rate": 126.0,
+    "evasao": 4.8,
+    "evasao_pct": 16.0
   },
   {
     "unit": "CEDESP 1",
@@ -223,7 +236,9 @@ const RAW = [
     "matr": 30.0,
     "freq_avg": 22.7,
     "n_classes": 12,
-    "attend_rate": 113.5
+    "attend_rate": 113.5,
+    "evasao": 7.3,
+    "evasao_pct": 24.3
   },
   {
     "unit": "CEDESP 1",
@@ -233,7 +248,9 @@ const RAW = [
     "matr": 25.0,
     "freq_avg": 22.7,
     "n_classes": 12,
-    "attend_rate": 113.5
+    "attend_rate": 113.5,
+    "evasao": 2.3,
+    "evasao_pct": 9.2
   },
   {
     "unit": "CEDESP 1",
@@ -243,7 +260,9 @@ const RAW = [
     "matr": 33.0,
     "freq_avg": 27.1,
     "n_classes": 12,
-    "attend_rate": 135.5
+    "attend_rate": 135.5,
+    "evasao": 5.9,
+    "evasao_pct": 17.9
   },
   {
     "unit": "CEDESP 1",
@@ -253,7 +272,9 @@ const RAW = [
     "matr": 30.0,
     "freq_avg": 19.8,
     "n_classes": 12,
-    "attend_rate": 99.0
+    "attend_rate": 99.0,
+    "evasao": 10.2,
+    "evasao_pct": 34.0
   },
   {
     "unit": "CEDESP 1",
@@ -263,7 +284,9 @@ const RAW = [
     "matr": 25.0,
     "freq_avg": 20.0,
     "n_classes": 12,
-    "attend_rate": 100.0
+    "attend_rate": 100.0,
+    "evasao": 5.0,
+    "evasao_pct": 20.0
   },
   {
     "unit": "CEDESP 1",
@@ -273,7 +296,9 @@ const RAW = [
     "matr": 23.0,
     "freq_avg": 21.6,
     "n_classes": 12,
-    "attend_rate": 108.0
+    "attend_rate": 108.0,
+    "evasao": 1.4,
+    "evasao_pct": 6.1
   },
   {
     "unit": "CEDESP 1",
@@ -283,7 +308,9 @@ const RAW = [
     "matr": 34.0,
     "freq_avg": 20.5,
     "n_classes": 12,
-    "attend_rate": 102.5
+    "attend_rate": 102.5,
+    "evasao": 13.5,
+    "evasao_pct": 39.7
   },
   {
     "unit": "CEDESP 1",
@@ -293,7 +320,9 @@ const RAW = [
     "matr": 30.0,
     "freq_avg": 24.8,
     "n_classes": 12,
-    "attend_rate": 124.0
+    "attend_rate": 124.0,
+    "evasao": 5.2,
+    "evasao_pct": 17.3
   },
   {
     "unit": "CEDESP 1",
@@ -303,7 +332,9 @@ const RAW = [
     "matr": 25.0,
     "freq_avg": 18.3,
     "n_classes": 12,
-    "attend_rate": 91.5
+    "attend_rate": 91.5,
+    "evasao": 6.7,
+    "evasao_pct": 26.8
   },
   {
     "unit": "CEDESP 1",
@@ -313,7 +344,9 @@ const RAW = [
     "matr": 27.0,
     "freq_avg": 22.9,
     "n_classes": 12,
-    "attend_rate": 114.5
+    "attend_rate": 114.5,
+    "evasao": 4.1,
+    "evasao_pct": 15.2
   },
   {
     "unit": "CEDESP 2",
@@ -323,7 +356,9 @@ const RAW = [
     "matr": 28.0,
     "freq_avg": 23.0,
     "n_classes": 12,
-    "attend_rate": 115.0
+    "attend_rate": 115.0,
+    "evasao": 5.0,
+    "evasao_pct": 17.9
   },
   {
     "unit": "CEDESP 2",
@@ -333,7 +368,9 @@ const RAW = [
     "matr": 26.0,
     "freq_avg": 20.9,
     "n_classes": 11,
-    "attend_rate": 104.5
+    "attend_rate": 104.5,
+    "evasao": 5.1,
+    "evasao_pct": 19.6
   },
   {
     "unit": "CEDESP 2",
@@ -343,7 +380,9 @@ const RAW = [
     "matr": 25.0,
     "freq_avg": 19.6,
     "n_classes": 12,
-    "attend_rate": 98.0
+    "attend_rate": 98.0,
+    "evasao": 5.4,
+    "evasao_pct": 21.6
   },
   {
     "unit": "CEDESP 2",
@@ -353,7 +392,9 @@ const RAW = [
     "matr": 29.0,
     "freq_avg": 24.2,
     "n_classes": 12,
-    "attend_rate": 121.0
+    "attend_rate": 121.0,
+    "evasao": 4.8,
+    "evasao_pct": 16.6
   },
   {
     "unit": "CEDESP 2",
@@ -363,7 +404,9 @@ const RAW = [
     "matr": 14.0,
     "freq_avg": 11.1,
     "n_classes": 12,
-    "attend_rate": 55.5
+    "attend_rate": 55.5,
+    "evasao": 2.9,
+    "evasao_pct": 20.7
   },
   {
     "unit": "CEDESP 2",
@@ -373,7 +416,9 @@ const RAW = [
     "matr": 11.0,
     "freq_avg": 7.9,
     "n_classes": 11,
-    "attend_rate": 39.5
+    "attend_rate": 39.5,
+    "evasao": 3.1,
+    "evasao_pct": 28.2
   },
   {
     "unit": "CEDESP 2",
@@ -383,7 +428,9 @@ const RAW = [
     "matr": 25.0,
     "freq_avg": 19.9,
     "n_classes": 11,
-    "attend_rate": 99.5
+    "attend_rate": 99.5,
+    "evasao": 5.1,
+    "evasao_pct": 20.4
   },
   {
     "unit": "CEDESP 2",
@@ -393,7 +440,9 @@ const RAW = [
     "matr": 28.0,
     "freq_avg": 20.6,
     "n_classes": 12,
-    "attend_rate": 103.0
+    "attend_rate": 103.0,
+    "evasao": 7.4,
+    "evasao_pct": 26.4
   },
   {
     "unit": "CEDESP 2",
@@ -403,7 +452,9 @@ const RAW = [
     "matr": 28.0,
     "freq_avg": 23.8,
     "n_classes": 12,
-    "attend_rate": 119.0
+    "attend_rate": 119.0,
+    "evasao": 4.2,
+    "evasao_pct": 15.0
   },
   {
     "unit": "CEDESP 2",
@@ -413,7 +464,9 @@ const RAW = [
     "matr": 24.0,
     "freq_avg": 18.2,
     "n_classes": 12,
-    "attend_rate": 91.0
+    "attend_rate": 91.0,
+    "evasao": 5.8,
+    "evasao_pct": 24.2
   },
   {
     "unit": "CEDESP 2",
@@ -423,7 +476,9 @@ const RAW = [
     "matr": 30.0,
     "freq_avg": 17.9,
     "n_classes": 11,
-    "attend_rate": 89.5
+    "attend_rate": 89.5,
+    "evasao": 12.1,
+    "evasao_pct": 40.3
   },
   {
     "unit": "CEDESP 2",
@@ -433,7 +488,9 @@ const RAW = [
     "matr": 30.0,
     "freq_avg": 23.4,
     "n_classes": 11,
-    "attend_rate": 117.0
+    "attend_rate": 117.0,
+    "evasao": 6.6,
+    "evasao_pct": 22.0
   },
   {
     "unit": "CEDESP 2",
@@ -443,7 +500,9 @@ const RAW = [
     "matr": 27.0,
     "freq_avg": 23.1,
     "n_classes": 10,
-    "attend_rate": 115.5
+    "attend_rate": 115.5,
+    "evasao": 3.9,
+    "evasao_pct": 14.4
   },
   {
     "unit": "CEDESP 2",
@@ -453,7 +512,9 @@ const RAW = [
     "matr": 20.0,
     "freq_avg": 14.0,
     "n_classes": 11,
-    "attend_rate": 70.0
+    "attend_rate": 70.0,
+    "evasao": 6.0,
+    "evasao_pct": 30.0
   },
   {
     "unit": "CEDESP 3",
@@ -463,7 +524,9 @@ const RAW = [
     "matr": 21.0,
     "freq_avg": 16.2,
     "n_classes": 10,
-    "attend_rate": 81.0
+    "attend_rate": 81.0,
+    "evasao": 4.8,
+    "evasao_pct": 22.9
   },
   {
     "unit": "CEDESP 3",
@@ -473,7 +536,9 @@ const RAW = [
     "matr": 20.0,
     "freq_avg": 9.7,
     "n_classes": 6,
-    "attend_rate": 48.5
+    "attend_rate": 48.5,
+    "evasao": 10.3,
+    "evasao_pct": 51.5
   },
   {
     "unit": "CEDESP 3",
@@ -483,7 +548,9 @@ const RAW = [
     "matr": 12.0,
     "freq_avg": 9.1,
     "n_classes": 12,
-    "attend_rate": 45.5
+    "attend_rate": 45.5,
+    "evasao": 2.9,
+    "evasao_pct": 24.2
   },
   {
     "unit": "CEDESP 3",
@@ -493,7 +560,9 @@ const RAW = [
     "matr": 12.0,
     "freq_avg": 8.0,
     "n_classes": 10,
-    "attend_rate": 40.0
+    "attend_rate": 40.0,
+    "evasao": 4.0,
+    "evasao_pct": 33.3
   },
   {
     "unit": "CEDESP 3",
@@ -503,7 +572,9 @@ const RAW = [
     "matr": 28.0,
     "freq_avg": 27.3,
     "n_classes": 12,
-    "attend_rate": 136.5
+    "attend_rate": 136.5,
+    "evasao": 0.7,
+    "evasao_pct": 2.5
   },
   {
     "unit": "CEDESP 3",
@@ -513,7 +584,9 @@ const RAW = [
     "matr": 17.0,
     "freq_avg": 14.3,
     "n_classes": 12,
-    "attend_rate": 71.5
+    "attend_rate": 71.5,
+    "evasao": 2.7,
+    "evasao_pct": 15.9
   },
   {
     "unit": "CEDESP 3",
@@ -523,7 +596,9 @@ const RAW = [
     "matr": 24.0,
     "freq_avg": 19.5,
     "n_classes": 12,
-    "attend_rate": 97.5
+    "attend_rate": 97.5,
+    "evasao": 4.5,
+    "evasao_pct": 18.8
   },
   {
     "unit": "CEDESP 3",
@@ -533,7 +608,9 @@ const RAW = [
     "matr": 20.0,
     "freq_avg": 16.3,
     "n_classes": 12,
-    "attend_rate": 81.5
+    "attend_rate": 81.5,
+    "evasao": 3.7,
+    "evasao_pct": 18.5
   },
   {
     "unit": "CEDESP 3",
@@ -543,7 +620,9 @@ const RAW = [
     "matr": 22.0,
     "freq_avg": 20.2,
     "n_classes": 11,
-    "attend_rate": 101.0
+    "attend_rate": 101.0,
+    "evasao": 1.8,
+    "evasao_pct": 8.2
   },
   {
     "unit": "CEDESP 3",
@@ -553,7 +632,9 @@ const RAW = [
     "matr": 27.0,
     "freq_avg": 23.4,
     "n_classes": 11,
-    "attend_rate": 117.0
+    "attend_rate": 117.0,
+    "evasao": 3.6,
+    "evasao_pct": 13.3
   },
   {
     "unit": "CEDESP 3",
@@ -563,7 +644,9 @@ const RAW = [
     "matr": 36.0,
     "freq_avg": 21.0,
     "n_classes": 2,
-    "attend_rate": 105.0
+    "attend_rate": 105.0,
+    "evasao": 15.0,
+    "evasao_pct": 41.7
   },
   {
     "unit": "CEDESP 3",
@@ -573,7 +656,9 @@ const RAW = [
     "matr": 36.0,
     "freq_avg": 26.0,
     "n_classes": 12,
-    "attend_rate": 130.0
+    "attend_rate": 130.0,
+    "evasao": 10.0,
+    "evasao_pct": 27.8
   },
   {
     "unit": "CEDESP 4",
@@ -583,7 +668,9 @@ const RAW = [
     "matr": 26.0,
     "freq_avg": 21.8,
     "n_classes": 12,
-    "attend_rate": 109.0
+    "attend_rate": 109.0,
+    "evasao": 4.2,
+    "evasao_pct": 16.2
   },
   {
     "unit": "CEDESP 4",
@@ -593,7 +680,9 @@ const RAW = [
     "matr": 26.0,
     "freq_avg": 21.7,
     "n_classes": 12,
-    "attend_rate": 108.5
+    "attend_rate": 108.5,
+    "evasao": 4.3,
+    "evasao_pct": 16.5
   },
   {
     "unit": "CEDESP 4",
@@ -603,7 +692,9 @@ const RAW = [
     "matr": 26.0,
     "freq_avg": 20.0,
     "n_classes": 12,
-    "attend_rate": 100.0
+    "attend_rate": 100.0,
+    "evasao": 6.0,
+    "evasao_pct": 23.1
   },
   {
     "unit": "CEDESP 4",
@@ -613,7 +704,9 @@ const RAW = [
     "matr": 25.0,
     "freq_avg": 20.2,
     "n_classes": 9,
-    "attend_rate": 101.0
+    "attend_rate": 101.0,
+    "evasao": 4.8,
+    "evasao_pct": 19.2
   },
   {
     "unit": "CEDESP 4",
@@ -623,7 +716,9 @@ const RAW = [
     "matr": 29.0,
     "freq_avg": 25.5,
     "n_classes": 12,
-    "attend_rate": 127.5
+    "attend_rate": 127.5,
+    "evasao": 3.5,
+    "evasao_pct": 12.1
   },
   {
     "unit": "CEDESP 4",
@@ -633,7 +728,9 @@ const RAW = [
     "matr": 29.0,
     "freq_avg": 23.2,
     "n_classes": 12,
-    "attend_rate": 116.0
+    "attend_rate": 116.0,
+    "evasao": 5.8,
+    "evasao_pct": 20.0
   },
   {
     "unit": "CEDESP 4",
@@ -643,7 +740,9 @@ const RAW = [
     "matr": 27.0,
     "freq_avg": 22.8,
     "n_classes": 12,
-    "attend_rate": 114.0
+    "attend_rate": 114.0,
+    "evasao": 4.2,
+    "evasao_pct": 15.6
   },
   {
     "unit": "CEDESP 4",
@@ -653,7 +752,9 @@ const RAW = [
     "matr": 22.0,
     "freq_avg": 16.1,
     "n_classes": 12,
-    "attend_rate": 80.5
+    "attend_rate": 80.5,
+    "evasao": 5.9,
+    "evasao_pct": 26.8
   },
   {
     "unit": "CEDESP 4",
@@ -663,7 +764,9 @@ const RAW = [
     "matr": 28.0,
     "freq_avg": 23.4,
     "n_classes": 10,
-    "attend_rate": 117.0
+    "attend_rate": 117.0,
+    "evasao": 4.6,
+    "evasao_pct": 16.4
   },
   {
     "unit": "CEDESP 4",
@@ -673,7 +776,9 @@ const RAW = [
     "matr": 31.0,
     "freq_avg": 28.1,
     "n_classes": 12,
-    "attend_rate": 140.5
+    "attend_rate": 140.5,
+    "evasao": 2.9,
+    "evasao_pct": 9.4
   },
   {
     "unit": "CEDESP 4",
@@ -683,7 +788,9 @@ const RAW = [
     "matr": 33.0,
     "freq_avg": 24.7,
     "n_classes": 11,
-    "attend_rate": 123.5
+    "attend_rate": 123.5,
+    "evasao": 8.3,
+    "evasao_pct": 25.2
   },
   {
     "unit": "CEDESP 4",
@@ -693,7 +800,9 @@ const RAW = [
     "matr": 28.0,
     "freq_avg": 24.5,
     "n_classes": 12,
-    "attend_rate": 122.5
+    "attend_rate": 122.5,
+    "evasao": 3.5,
+    "evasao_pct": 12.5
   },
   {
     "unit": "CEDESP 5",
@@ -703,7 +812,9 @@ const RAW = [
     "matr": 20.0,
     "freq_avg": 16.0,
     "n_classes": 3,
-    "attend_rate": 80.0
+    "attend_rate": 80.0,
+    "evasao": 4.0,
+    "evasao_pct": 20.0
   },
   {
     "unit": "CEDESP 5",
@@ -713,7 +824,9 @@ const RAW = [
     "matr": 18.0,
     "freq_avg": 11.7,
     "n_classes": 12,
-    "attend_rate": 58.5
+    "attend_rate": 58.5,
+    "evasao": 6.3,
+    "evasao_pct": 35.0
   },
   {
     "unit": "CEDESP 5",
@@ -723,7 +836,9 @@ const RAW = [
     "matr": 27.0,
     "freq_avg": 21.8,
     "n_classes": 12,
-    "attend_rate": 109.0
+    "attend_rate": 109.0,
+    "evasao": 5.2,
+    "evasao_pct": 19.3
   },
   {
     "unit": "CEDESP 5",
@@ -733,7 +848,9 @@ const RAW = [
     "matr": 27.0,
     "freq_avg": 18.5,
     "n_classes": 12,
-    "attend_rate": 92.5
+    "attend_rate": 92.5,
+    "evasao": 8.5,
+    "evasao_pct": 31.5
   },
   {
     "unit": "CEDESP 5",
@@ -743,7 +860,9 @@ const RAW = [
     "matr": 30.0,
     "freq_avg": 20.5,
     "n_classes": 11,
-    "attend_rate": 102.5
+    "attend_rate": 102.5,
+    "evasao": 9.5,
+    "evasao_pct": 31.7
   },
   {
     "unit": "CEDESP 5",
@@ -753,7 +872,9 @@ const RAW = [
     "matr": 26.0,
     "freq_avg": 25.8,
     "n_classes": 12,
-    "attend_rate": 129.0
+    "attend_rate": 129.0,
+    "evasao": 0.2,
+    "evasao_pct": 0.8
   },
   {
     "unit": "CEDESP 5",
@@ -763,7 +884,9 @@ const RAW = [
     "matr": 30.0,
     "freq_avg": 24.2,
     "n_classes": 12,
-    "attend_rate": 121.0
+    "attend_rate": 121.0,
+    "evasao": 5.8,
+    "evasao_pct": 19.3
   },
   {
     "unit": "CEDESP 5",
@@ -773,7 +896,9 @@ const RAW = [
     "matr": 10.0,
     "freq_avg": 6.5,
     "n_classes": 11,
-    "attend_rate": 32.5
+    "attend_rate": 32.5,
+    "evasao": 3.5,
+    "evasao_pct": 35.0
   },
   {
     "unit": "CEDESP 5",
@@ -783,7 +908,9 @@ const RAW = [
     "matr": 20.0,
     "freq_avg": 15.1,
     "n_classes": 11,
-    "attend_rate": 75.5
+    "attend_rate": 75.5,
+    "evasao": 4.9,
+    "evasao_pct": 24.5
   },
   {
     "unit": "CEDESP 5",
@@ -793,7 +920,9 @@ const RAW = [
     "matr": 23.0,
     "freq_avg": 18.3,
     "n_classes": 11,
-    "attend_rate": 91.5
+    "attend_rate": 91.5,
+    "evasao": 4.7,
+    "evasao_pct": 20.4
   },
   {
     "unit": "CEDESP 5",
@@ -803,7 +932,9 @@ const RAW = [
     "matr": 25.0,
     "freq_avg": 22.8,
     "n_classes": 12,
-    "attend_rate": 114.0
+    "attend_rate": 114.0,
+    "evasao": 2.2,
+    "evasao_pct": 8.8
   },
   {
     "unit": "CEDESP 5",
@@ -813,7 +944,9 @@ const RAW = [
     "matr": 25.0,
     "freq_avg": 21.8,
     "n_classes": 12,
-    "attend_rate": 109.0
+    "attend_rate": 109.0,
+    "evasao": 3.2,
+    "evasao_pct": 12.8
   },
   {
     "unit": "CEDESP 5",
@@ -823,7 +956,9 @@ const RAW = [
     "matr": 31.0,
     "freq_avg": 23.5,
     "n_classes": 11,
-    "attend_rate": 117.5
+    "attend_rate": 117.5,
+    "evasao": 7.5,
+    "evasao_pct": 24.2
   },
   {
     "unit": "CEDESP 5",
@@ -833,7 +968,9 @@ const RAW = [
     "matr": 31.0,
     "freq_avg": 21.8,
     "n_classes": 8,
-    "attend_rate": 109.0
+    "attend_rate": 109.0,
+    "evasao": 9.2,
+    "evasao_pct": 29.7
   },
   {
     "unit": "CEDESP 6",
@@ -843,7 +980,9 @@ const RAW = [
     "matr": 27.0,
     "freq_avg": 22.2,
     "n_classes": 12,
-    "attend_rate": 111.0
+    "attend_rate": 111.0,
+    "evasao": 4.8,
+    "evasao_pct": 17.8
   },
   {
     "unit": "CEDESP 6",
@@ -853,7 +992,9 @@ const RAW = [
     "matr": 29.0,
     "freq_avg": 20.8,
     "n_classes": 4,
-    "attend_rate": 104.0
+    "attend_rate": 104.0,
+    "evasao": 8.2,
+    "evasao_pct": 28.3
   },
   {
     "unit": "CEDESP 6",
@@ -863,7 +1004,9 @@ const RAW = [
     "matr": 26.0,
     "freq_avg": 20.8,
     "n_classes": 12,
-    "attend_rate": 104.0
+    "attend_rate": 104.0,
+    "evasao": 5.2,
+    "evasao_pct": 20.0
   },
   {
     "unit": "CEDESP 6",
@@ -873,7 +1016,9 @@ const RAW = [
     "matr": 27.0,
     "freq_avg": 22.5,
     "n_classes": 11,
-    "attend_rate": 112.5
+    "attend_rate": 112.5,
+    "evasao": 4.5,
+    "evasao_pct": 16.7
   },
   {
     "unit": "CEDESP 6",
@@ -883,7 +1028,9 @@ const RAW = [
     "matr": 28.0,
     "freq_avg": 24.8,
     "n_classes": 12,
-    "attend_rate": 124.0
+    "attend_rate": 124.0,
+    "evasao": 3.2,
+    "evasao_pct": 11.4
   },
   {
     "unit": "CEDESP 6",
@@ -893,7 +1040,9 @@ const RAW = [
     "matr": 28.0,
     "freq_avg": 18.9,
     "n_classes": 11,
-    "attend_rate": 94.5
+    "attend_rate": 94.5,
+    "evasao": 9.1,
+    "evasao_pct": 32.5
   },
   {
     "unit": "CEDESP 6",
@@ -903,7 +1052,9 @@ const RAW = [
     "matr": 30.0,
     "freq_avg": 25.9,
     "n_classes": 12,
-    "attend_rate": 129.5
+    "attend_rate": 129.5,
+    "evasao": 4.1,
+    "evasao_pct": 13.7
   },
   {
     "unit": "CEDESP 6",
@@ -913,7 +1064,9 @@ const RAW = [
     "matr": 23.0,
     "freq_avg": 20.0,
     "n_classes": 1,
-    "attend_rate": 100.0
+    "attend_rate": 100.0,
+    "evasao": 3.0,
+    "evasao_pct": 13.0
   },
   {
     "unit": "CEDESP 6",
@@ -923,7 +1076,9 @@ const RAW = [
     "matr": 39.0,
     "freq_avg": 34.2,
     "n_classes": 12,
-    "attend_rate": 171.0
+    "attend_rate": 171.0,
+    "evasao": 4.8,
+    "evasao_pct": 12.3
   },
   {
     "unit": "CEDESP 6",
@@ -933,7 +1088,9 @@ const RAW = [
     "matr": 27.0,
     "freq_avg": 22.0,
     "n_classes": 11,
-    "attend_rate": 110.0
+    "attend_rate": 110.0,
+    "evasao": 5.0,
+    "evasao_pct": 18.5
   },
   {
     "unit": "CEDESP 7",
@@ -943,7 +1100,9 @@ const RAW = [
     "matr": 16.0,
     "freq_avg": 12.5,
     "n_classes": 12,
-    "attend_rate": 62.5
+    "attend_rate": 62.5,
+    "evasao": 3.5,
+    "evasao_pct": 21.9
   },
   {
     "unit": "CEDESP 7",
@@ -953,7 +1112,9 @@ const RAW = [
     "matr": 27.0,
     "freq_avg": 16.1,
     "n_classes": 11,
-    "attend_rate": 80.5
+    "attend_rate": 80.5,
+    "evasao": 10.9,
+    "evasao_pct": 40.4
   },
   {
     "unit": "CEDESP 7",
@@ -963,7 +1124,9 @@ const RAW = [
     "matr": 24.0,
     "freq_avg": 12.2,
     "n_classes": 5,
-    "attend_rate": 61.0
+    "attend_rate": 61.0,
+    "evasao": 11.8,
+    "evasao_pct": 49.2
   },
   {
     "unit": "CEDESP 7",
@@ -973,7 +1136,9 @@ const RAW = [
     "matr": 12.0,
     "freq_avg": 10.9,
     "n_classes": 10,
-    "attend_rate": 54.5
+    "attend_rate": 54.5,
+    "evasao": 1.1,
+    "evasao_pct": 9.2
   },
   {
     "unit": "CEDESP 7",
@@ -983,7 +1148,9 @@ const RAW = [
     "matr": 26.0,
     "freq_avg": 22.8,
     "n_classes": 11,
-    "attend_rate": 114.0
+    "attend_rate": 114.0,
+    "evasao": 3.2,
+    "evasao_pct": 12.3
   },
   {
     "unit": "CEDESP 7",
@@ -993,7 +1160,9 @@ const RAW = [
     "matr": 21.0,
     "freq_avg": 15.8,
     "n_classes": 12,
-    "attend_rate": 79.0
+    "attend_rate": 79.0,
+    "evasao": 5.2,
+    "evasao_pct": 24.8
   },
   {
     "unit": "CEDESP 7",
@@ -1003,7 +1172,9 @@ const RAW = [
     "matr": 18.0,
     "freq_avg": 13.8,
     "n_classes": 12,
-    "attend_rate": 69.0
+    "attend_rate": 69.0,
+    "evasao": 4.2,
+    "evasao_pct": 23.3
   },
   {
     "unit": "CEDESP 7",
@@ -1013,7 +1184,9 @@ const RAW = [
     "matr": 23.0,
     "freq_avg": 19.0,
     "n_classes": 12,
-    "attend_rate": 95.0
+    "attend_rate": 95.0,
+    "evasao": 4.0,
+    "evasao_pct": 17.4
   },
   {
     "unit": "CEDESP 7",
@@ -1023,7 +1196,9 @@ const RAW = [
     "matr": 16.0,
     "freq_avg": 9.3,
     "n_classes": 12,
-    "attend_rate": 46.5
+    "attend_rate": 46.5,
+    "evasao": 6.7,
+    "evasao_pct": 41.9
   },
   {
     "unit": "CEDESP 7",
@@ -1033,7 +1208,9 @@ const RAW = [
     "matr": 30.0,
     "freq_avg": 16.7,
     "n_classes": 11,
-    "attend_rate": 83.5
+    "attend_rate": 83.5,
+    "evasao": 13.3,
+    "evasao_pct": 44.3
   },
   {
     "unit": "CEDESP 7",
@@ -1043,7 +1220,9 @@ const RAW = [
     "matr": 27.0,
     "freq_avg": 16.8,
     "n_classes": 12,
-    "attend_rate": 84.0
+    "attend_rate": 84.0,
+    "evasao": 10.2,
+    "evasao_pct": 37.8
   },
   {
     "unit": "CEDESP 7",
@@ -1053,7 +1232,9 @@ const RAW = [
     "matr": 16.0,
     "freq_avg": 13.4,
     "n_classes": 10,
-    "attend_rate": 67.0
+    "attend_rate": 67.0,
+    "evasao": 2.6,
+    "evasao_pct": 16.2
   },
   {
     "unit": "CEDESP 8",
@@ -1063,7 +1244,9 @@ const RAW = [
     "matr": 31.0,
     "freq_avg": 19.6,
     "n_classes": 11,
-    "attend_rate": 98.0
+    "attend_rate": 98.0,
+    "evasao": 11.4,
+    "evasao_pct": 36.8
   },
   {
     "unit": "CEDESP 8",
@@ -1073,7 +1256,9 @@ const RAW = [
     "matr": 41.0,
     "freq_avg": 27.7,
     "n_classes": 11,
-    "attend_rate": 138.5
+    "attend_rate": 138.5,
+    "evasao": 13.3,
+    "evasao_pct": 32.4
   },
   {
     "unit": "CEDESP 8",
@@ -1083,7 +1268,9 @@ const RAW = [
     "matr": 36.0,
     "freq_avg": 22.3,
     "n_classes": 11,
-    "attend_rate": 111.5
+    "attend_rate": 111.5,
+    "evasao": 13.7,
+    "evasao_pct": 38.1
   },
   {
     "unit": "CEDESP 8",
@@ -1093,7 +1280,9 @@ const RAW = [
     "matr": 35.0,
     "freq_avg": 20.4,
     "n_classes": 11,
-    "attend_rate": 102.0
+    "attend_rate": 102.0,
+    "evasao": 14.6,
+    "evasao_pct": 41.7
   },
   {
     "unit": "CEDESP 8",
@@ -1103,7 +1292,9 @@ const RAW = [
     "matr": 35.0,
     "freq_avg": 22.4,
     "n_classes": 11,
-    "attend_rate": 112.0
+    "attend_rate": 112.0,
+    "evasao": 12.6,
+    "evasao_pct": 36.0
   },
   {
     "unit": "CEDESP 8",
@@ -1113,7 +1304,9 @@ const RAW = [
     "matr": 35.0,
     "freq_avg": 22.9,
     "n_classes": 11,
-    "attend_rate": 114.5
+    "attend_rate": 114.5,
+    "evasao": 12.1,
+    "evasao_pct": 34.6
   },
   {
     "unit": "CEDESP 8",
@@ -1123,7 +1316,9 @@ const RAW = [
     "matr": 38.0,
     "freq_avg": 23.2,
     "n_classes": 11,
-    "attend_rate": 116.0
+    "attend_rate": 116.0,
+    "evasao": 14.8,
+    "evasao_pct": 38.9
   },
   {
     "unit": "CEDESP 8",
@@ -1133,7 +1328,9 @@ const RAW = [
     "matr": 42.0,
     "freq_avg": 28.8,
     "n_classes": 11,
-    "attend_rate": 144.0
+    "attend_rate": 144.0,
+    "evasao": 13.2,
+    "evasao_pct": 31.4
   }
 ];
 
@@ -1215,6 +1412,37 @@ function buildCharts(data){
   });
 }
 
+// ── EVASION CHART ──
+let evasaoChart;
+function buildEvasaoChart(data){
+  if(evasaoChart)evasaoChart.destroy();
+  const withEvasao=data.filter(d=>d.matr&&d.evasao!=null).sort((a,b)=>b.evasao_pct-a.evasao_pct).slice(0,20);
+  const labels=withEvasao.map(d=>{const n=d.course.length>30?d.course.substring(0,28)+'…':d.course;return n+' ('+d.unit.replace('CEDESP ','C')+')';});
+  evasaoChart=new Chart(document.getElementById('evasaoChart'),{
+    type:'bar',
+    data:{labels,datasets:[{
+      label:'Evasão (alunos)',
+      data:withEvasao.map(d=>d.evasao),
+      backgroundColor:withEvasao.map(d=>d.evasao_pct>30?'rgba(200,75,49,.85)':d.evasao_pct>15?'rgba(201,124,26,.85)':'rgba(125,133,144,.6)'),
+      borderColor:withEvasao.map(d=>d.evasao_pct>30?'#c84b31':d.evasao_pct>15?'#c97c1a':'#7d8590'),
+      borderWidth:1,borderRadius:0
+    }]},
+    options:{
+      indexAxis:'y',responsive:true,
+      plugins:{
+        legend:{display:false},
+        tooltip:{backgroundColor:'#1a1612',borderColor:'#d8d2c8',borderWidth:1,
+          callbacks:{label:ctx=>{const d=withEvasao[ctx.dataIndex];return` ${d.evasao.toFixed(0)} alunos evadidos — ${d.evasao_pct.toFixed(1)}% · ${d.period}`;}}
+        }
+      },
+      scales:{
+        x:{grid:{color:'rgba(216,210,200,.3)'},ticks:{font:{size:10}}},
+        y:{grid:{display:false},ticks:{font:{size:10}}}
+      }
+    }
+  });
+}
+
 function buildTable(data){
   const tbody=document.getElementById('courseTableBody');
   tbody.innerHTML='';
@@ -1235,6 +1463,7 @@ function buildTable(data){
       <td class="right mono">${d.freq_avg.toFixed(1)}</td>
       <td class="right mono">${d.n_classes}</td>
       <td class="rate-cell"><div class="rate-wrap"><div class="rate-bar"><div class="rate-fill" style="width:${cap}%;background:${fc}"></div></div><div class="rate-pct" style="color:${fc}">${d.attend_rate.toFixed(1)}%</div></div></td>
+      <td class="right mono">${d.evasao_pct!=null?'<span style="color:'+(d.evasao_pct>30?'#c84b31':d.evasao_pct>15?'#c97c1a':'#7d8590')+'">'+d.evasao_pct.toFixed(1)+'%</span>':'—'}</td>
       <td><span class="status-flag ${st.cls}">${st.label}</span></td>
     `;
     tbody.appendChild(tr);
@@ -1246,10 +1475,11 @@ function updateKPIs(data){
   const tm=data.reduce((s,d)=>s+(d.meta||0),0);
   const wr=tm>0?(data.reduce((s,d)=>s+d.attend_rate*(d.meta||0),0)/tm).toFixed(1)+'%':'—';
   document.getElementById('kpi-rate').textContent=wr;
-  const best=data.reduce((b,d)=>d.freq_avg>(b?b.freq_avg:-1)?d:b,null);
-  document.getElementById('kpi-best').textContent=best?best.freq_avg.toFixed(1):'—';
-  document.getElementById('kpi-best-label').textContent=best?best.course.substring(0,30)+(best.course.length>30?'…':''):'—';
+
   document.getElementById('kpi-low').textContent=data.filter(d=>d.attend_rate<80).length;
+  const withEv=data.filter(d=>d.evasao_pct!=null);
+  const avgEv=withEv.length?(withEv.reduce((s,d)=>s+d.evasao_pct,0)/withEv.length).toFixed(1):'—';
+  document.getElementById('kpi-evasao').textContent=avgEv!=='—'?avgEv+'%':'—';
   document.getElementById('hdr-cursos').textContent=data.length;
   document.getElementById('hdr-avg').textContent=wr;
   document.getElementById('hdr-matr').textContent=data.reduce((s,d)=>s+(d.matr||0),0);
@@ -1259,6 +1489,7 @@ function update(){
   const f=getFiltered();
   updateKPIs(f);
   buildCharts(f);
+  buildEvasaoChart(f);
   buildTable(f);
 }
 
