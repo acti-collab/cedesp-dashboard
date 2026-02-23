@@ -113,7 +113,7 @@ footer{border-top:1px solid var(--border);padding:20px 48px;display:flex;justify
     <button class="filter-btn noite" data-filter="period" data-value="Noite">🌙 Noite</button>
   </div>
   <div class="controls-spacer"></div>
-  <span class="update-badge">📅 Atualizado em: 22/02/2026 às 19:51</span>
+  <span class="update-badge">📅 Atualizado em: 23/02/2026 às 08:34</span>
   <div style="display:flex;align-items:center;gap:6px">
     <span class="filter-label">Ordenar:</span>
     <select class="sort-select" id="sortSelect">
@@ -155,8 +155,8 @@ footer{border-top:1px solid var(--border);padding:20px 48px;display:flex;justify
 </div>
 <div class="charts-grid" style="grid-template-columns:1fr 1fr">
   <div class="chart-box">
-    <div class="chart-box-title">Comparativo por Unidade</div>
-    <div class="chart-box-sub">Taxa média de frequência e número de turmas</div>
+    <div class="chart-box-title">Cursos Críticos por Unidade</div>
+    <div class="chart-box-sub">Nº de turmas por faixa de atenção em cada CEDESP</div>
     <canvas id="unitCompChart" height="240"></canvas>
   </div>
   <div class="chart-box">
@@ -190,7 +190,7 @@ footer{border-top:1px solid var(--border);padding:20px 48px;display:flex;justify
 
 <footer>
   <div class="footer-text">CEDESP Dom Bosco Itaquera · Dashboard gerado automaticamente</div>
-  <div class="footer-text">Atualizado em 22/02/2026 às 19:51</div>
+  <div class="footer-text">Atualizado em 23/02/2026 às 08:34</div>
 </footer>
 
 <script>
@@ -201,9 +201,9 @@ const RAW = [
     "course": "CABELEIREIRO - Noções de Barbearia",
     "meta": 20.0,
     "matr": 29.0,
-    "freq_avg": 18.1,
-    "n_classes": 12,
-    "attend_rate": 90.5
+    "freq_avg": 18.4,
+    "n_classes": 13,
+    "attend_rate": 92.0
   },
   {
     "unit": "CEDESP 1",
@@ -211,9 +211,9 @@ const RAW = [
     "course": "MANICURE E PEDICURE",
     "meta": 20.0,
     "matr": 30.0,
-    "freq_avg": 25.2,
-    "n_classes": 10,
-    "attend_rate": 126.0
+    "freq_avg": 24.8,
+    "n_classes": 11,
+    "attend_rate": 124.0
   },
   {
     "unit": "CEDESP 1",
@@ -221,9 +221,9 @@ const RAW = [
     "course": "MONTADOR E REPARADOR DE COMPUTADORES",
     "meta": 20.0,
     "matr": 30.0,
-    "freq_avg": 22.7,
-    "n_classes": 12,
-    "attend_rate": 113.5
+    "freq_avg": 22.5,
+    "n_classes": 13,
+    "attend_rate": 112.5
   },
   {
     "unit": "CEDESP 1",
@@ -231,9 +231,9 @@ const RAW = [
     "course": "OPERADOR DE COMPUTADOR",
     "meta": 20.0,
     "matr": 25.0,
-    "freq_avg": 22.7,
-    "n_classes": 12,
-    "attend_rate": 113.5
+    "freq_avg": 22.3,
+    "n_classes": 13,
+    "attend_rate": 111.5
   },
   {
     "unit": "CEDESP 1",
@@ -241,9 +241,9 @@ const RAW = [
     "course": "CABELEIREIRO",
     "meta": 20.0,
     "matr": 33.0,
-    "freq_avg": 27.1,
-    "n_classes": 12,
-    "attend_rate": 135.5
+    "freq_avg": 26.7,
+    "n_classes": 13,
+    "attend_rate": 133.5
   },
   {
     "unit": "CEDESP 1",
@@ -252,7 +252,7 @@ const RAW = [
     "meta": 20.0,
     "matr": 30.0,
     "freq_avg": 19.8,
-    "n_classes": 12,
+    "n_classes": 13,
     "attend_rate": 99.0
   },
   {
@@ -261,9 +261,9 @@ const RAW = [
     "course": "MONTADOR E REPARADOR DE COMPUTADORES",
     "meta": 20.0,
     "matr": 25.0,
-    "freq_avg": 20.0,
-    "n_classes": 12,
-    "attend_rate": 100.0
+    "freq_avg": 19.8,
+    "n_classes": 13,
+    "attend_rate": 99.0
   },
   {
     "unit": "CEDESP 1",
@@ -271,9 +271,9 @@ const RAW = [
     "course": "OPERADOR DE COMPUTADOR",
     "meta": 20.0,
     "matr": 23.0,
-    "freq_avg": 21.6,
-    "n_classes": 12,
-    "attend_rate": 108.0
+    "freq_avg": 21.4,
+    "n_classes": 13,
+    "attend_rate": 107.0
   },
   {
     "unit": "CEDESP 1",
@@ -281,9 +281,9 @@ const RAW = [
     "course": "CABELEIREIRO",
     "meta": 20.0,
     "matr": 34.0,
-    "freq_avg": 20.5,
-    "n_classes": 12,
-    "attend_rate": 102.5
+    "freq_avg": 20.3,
+    "n_classes": 13,
+    "attend_rate": 101.5
   },
   {
     "unit": "CEDESP 1",
@@ -291,9 +291,9 @@ const RAW = [
     "course": "MANICURE E PEDICURE",
     "meta": 20.0,
     "matr": 30.0,
-    "freq_avg": 24.8,
-    "n_classes": 12,
-    "attend_rate": 124.0
+    "freq_avg": 24.2,
+    "n_classes": 13,
+    "attend_rate": 121.0
   },
   {
     "unit": "CEDESP 1",
@@ -301,9 +301,9 @@ const RAW = [
     "course": "MONTADOR E REPARADOR DE COMPUTADORES",
     "meta": 20.0,
     "matr": 25.0,
-    "freq_avg": 18.3,
-    "n_classes": 12,
-    "attend_rate": 91.5
+    "freq_avg": 18.2,
+    "n_classes": 13,
+    "attend_rate": 91.0
   },
   {
     "unit": "CEDESP 1",
@@ -311,9 +311,9 @@ const RAW = [
     "course": "OPERADOR DE COMPUTADOR",
     "meta": 20.0,
     "matr": 27.0,
-    "freq_avg": 22.9,
-    "n_classes": 12,
-    "attend_rate": 114.5
+    "freq_avg": 22.3,
+    "n_classes": 13,
+    "attend_rate": 111.5
   },
   {
     "unit": "CEDESP 2",
@@ -1170,7 +1170,7 @@ let charts={};
 
 function buildCharts(data){
   Object.values(charts).forEach(c=>c&&c.destroy());
-  const sorted=[...data].sort((a,b)=>b.attend_rate-a.attend_rate).slice(0,20);
+  const sorted=[...data].sort((a,b)=>a.attend_rate-b.attend_rate).slice(0,20);
 
   charts.bar=new Chart(document.getElementById('courseBarChart'),{
     type:'bar',
@@ -1193,15 +1193,17 @@ function buildCharts(data){
   });
 
   const units=[...new Set(RAW.map(d=>d.unit))];
-  const uAvgs=units.map(u=>{const r=data.filter(d=>d.unit===u);return r.length?+(r.reduce((s,x)=>s+x.attend_rate,0)/r.length).toFixed(1):null;});
-  const uCounts=units.map(u=>data.filter(d=>d.unit===u).length);
+  const critImediata=units.map(u=>data.filter(d=>d.unit===u&&d.attend_rate<80).length);
+  const critMedia=units.map(u=>data.filter(d=>d.unit===u&&d.attend_rate>=80&&d.attend_rate<100).length);
+  const critOk=units.map(u=>data.filter(d=>d.unit===u&&d.attend_rate>=100).length);
   charts.unit=new Chart(document.getElementById('unitCompChart'),{
     type:'bar',
     data:{labels:units.map(u=>u.replace('CEDESP ','C')),datasets:[
-      {label:'Taxa média %',data:uAvgs,backgroundColor:uAvgs.map(v=>v?getColor(v)+'bb':'transparent'),borderColor:uAvgs.map(v=>v?getColor(v):'transparent'),borderWidth:1.5,borderRadius:0,yAxisID:'y'},
-      {label:'Nº turmas',data:uCounts,type:'line',borderColor:'#2b5f8a',backgroundColor:'rgba(43,95,138,.1)',pointBackgroundColor:'#2b5f8a',pointRadius:4,borderWidth:2,fill:false,yAxisID:'y2'}
+      {label:'✗ Atenção imediata (<80%)',data:critImediata,backgroundColor:'rgba(200,75,49,.85)',borderColor:'#c84b31',borderWidth:1,borderRadius:0},
+      {label:'⚠ Atenção média (80–99%)',data:critMedia,backgroundColor:'rgba(201,124,26,.85)',borderColor:'#c97c1a',borderWidth:1,borderRadius:0},
+      {label:'✓ Meta atingida (≥100%)',data:critOk,backgroundColor:'rgba(45,122,79,.85)',borderColor:'#2d7a4f',borderWidth:1,borderRadius:0}
     ]},
-    options:{responsive:true,plugins:{legend:{position:'top',labels:{boxWidth:10,padding:12,font:{size:11}}},tooltip:{backgroundColor:'#1a1612',borderColor:'#d8d2c8',borderWidth:1}},scales:{x:{grid:{display:false},ticks:{font:{size:11}}},y:{min:40,max:100,grid:{color:'rgba(216,210,200,.4)'},ticks:{font:{size:10},callback:v=>v+'%'}},y2:{position:'right',grid:{display:false},ticks:{font:{size:10}}}}}
+    options:{responsive:true,plugins:{legend:{position:'top',labels:{boxWidth:10,padding:10,font:{size:10}}},tooltip:{backgroundColor:'#1a1612',borderColor:'#d8d2c8',borderWidth:1,callbacks:{label:ctx=>{const u=units[ctx.dataIndex];const total=data.filter(d=>d.unit===u).length;return` ${ctx.dataset.label.split(' ')[0]} ${ctx.raw} turma${ctx.raw!==1?'s':''} de ${total}`;}}}},scales:{x:{stacked:true,grid:{display:false},ticks:{font:{size:11}}},y:{stacked:true,grid:{color:'rgba(216,210,200,.4)'},ticks:{font:{size:10},stepSize:1}}}}
   });
 
   const periods=['Manhã','Tarde','Noite'];
