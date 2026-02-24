@@ -117,7 +117,7 @@ footer{border-top:1px solid var(--border);padding:20px 48px;display:flex;justify
     <button class="filter-btn noite" data-filter="period" data-value="Noite">🌙 Noite</button>
   </div>
   <div class="controls-spacer"></div>
-  <span class="update-badge">📅 Atualizado em: 24/02/2026 às 11:26</span>
+  <span class="update-badge">📅 Atualizado em: 24/02/2026 às 16:49</span>
   <div style="display:flex;align-items:center;gap:6px">
 
   </div>
@@ -190,6 +190,7 @@ footer{border-top:1px solid var(--border);padding:20px 48px;display:flex;justify
         <th class="right" data-sort="n_classes">Aulas <span class="sort-arrow">↕</span></th>
         <th data-sort="attend_rate">Taxa s\/ Meta <span class="sort-arrow">↕</span></th>
         <th class="right" data-sort="evasao_pct">Evasão <span class="sort-arrow">↕</span></th>
+        <th class="right" data-sort="dem_total">Demanda <span class="sort-arrow">↕</span></th>
         <th data-sort="status">Status <span class="sort-arrow">↕</span></th>
       </tr>
     </thead>
@@ -202,7 +203,7 @@ footer{border-top:1px solid var(--border);padding:20px 48px;display:flex;justify
 
 <footer>
   <div class="footer-text">CEDESP Dom Bosco Itaquera · Dashboard gerado automaticamente</div>
-  <div class="footer-text">Atualizado em 24/02/2026 às 11:26</div>
+  <div class="footer-text">Atualizado em 24/02/2026 às 16:49</div>
 </footer>
 
 <script>
@@ -217,7 +218,10 @@ const RAW = [
     "n_classes": 13,
     "attend_rate": 92.5,
     "evasao": 10.5,
-    "evasao_pct": 36.2
+    "evasao_pct": 36.2,
+    "centr": 16,
+    "sentr": 2,
+    "dem_total": 18
   },
   {
     "unit": "CEDESP 1",
@@ -229,7 +233,10 @@ const RAW = [
     "n_classes": 11,
     "attend_rate": 126.5,
     "evasao": 4.7,
-    "evasao_pct": 15.7
+    "evasao_pct": 15.7,
+    "centr": 0,
+    "sentr": 0,
+    "dem_total": 0
   },
   {
     "unit": "CEDESP 1",
@@ -241,7 +248,10 @@ const RAW = [
     "n_classes": 13,
     "attend_rate": 114.0,
     "evasao": 7.2,
-    "evasao_pct": 24.0
+    "evasao_pct": 24.0,
+    "centr": 0,
+    "sentr": 0,
+    "dem_total": 0
   },
   {
     "unit": "CEDESP 1",
@@ -253,7 +263,10 @@ const RAW = [
     "n_classes": 13,
     "attend_rate": 114.0,
     "evasao": 2.2,
-    "evasao_pct": 8.8
+    "evasao_pct": 8.8,
+    "centr": 17,
+    "sentr": 7,
+    "dem_total": 24
   },
   {
     "unit": "CEDESP 1",
@@ -265,7 +278,10 @@ const RAW = [
     "n_classes": 13,
     "attend_rate": 135.5,
     "evasao": 5.9,
-    "evasao_pct": 17.9
+    "evasao_pct": 17.9,
+    "centr": 0,
+    "sentr": 0,
+    "dem_total": 0
   },
   {
     "unit": "CEDESP 1",
@@ -277,7 +293,10 @@ const RAW = [
     "n_classes": 13,
     "attend_rate": 101.0,
     "evasao": 9.8,
-    "evasao_pct": 32.7
+    "evasao_pct": 32.7,
+    "centr": 0,
+    "sentr": 0,
+    "dem_total": 0
   },
   {
     "unit": "CEDESP 1",
@@ -289,7 +308,10 @@ const RAW = [
     "n_classes": 13,
     "attend_rate": 100.5,
     "evasao": 4.9,
-    "evasao_pct": 19.6
+    "evasao_pct": 19.6,
+    "centr": 0,
+    "sentr": 0,
+    "dem_total": 0
   },
   {
     "unit": "CEDESP 1",
@@ -301,7 +323,10 @@ const RAW = [
     "n_classes": 13,
     "attend_rate": 108.5,
     "evasao": 1.3,
-    "evasao_pct": 5.7
+    "evasao_pct": 5.7,
+    "centr": 9,
+    "sentr": 70,
+    "dem_total": 79
   },
   {
     "unit": "CEDESP 1",
@@ -313,7 +338,10 @@ const RAW = [
     "n_classes": 13,
     "attend_rate": 103.0,
     "evasao": 13.4,
-    "evasao_pct": 39.4
+    "evasao_pct": 39.4,
+    "centr": 9,
+    "sentr": 2,
+    "dem_total": 11
   },
   {
     "unit": "CEDESP 1",
@@ -325,7 +353,10 @@ const RAW = [
     "n_classes": 12,
     "attend_rate": 124.0,
     "evasao": 5.2,
-    "evasao_pct": 17.3
+    "evasao_pct": 17.3,
+    "centr": 0,
+    "sentr": 0,
+    "dem_total": 0
   },
   {
     "unit": "CEDESP 1",
@@ -337,7 +368,10 @@ const RAW = [
     "n_classes": 13,
     "attend_rate": 92.5,
     "evasao": 6.5,
-    "evasao_pct": 26.0
+    "evasao_pct": 26.0,
+    "centr": 0,
+    "sentr": 0,
+    "dem_total": 0
   },
   {
     "unit": "CEDESP 1",
@@ -349,7 +383,10 @@ const RAW = [
     "n_classes": 13,
     "attend_rate": 115.0,
     "evasao": 4.0,
-    "evasao_pct": 14.8
+    "evasao_pct": 14.8,
+    "centr": 24,
+    "sentr": 96,
+    "dem_total": 120
   },
   {
     "unit": "CEDESP 2",
@@ -361,7 +398,10 @@ const RAW = [
     "n_classes": 13,
     "attend_rate": 116.0,
     "evasao": 4.8,
-    "evasao_pct": 17.1
+    "evasao_pct": 17.1,
+    "centr": 26,
+    "sentr": 11,
+    "dem_total": 37
   },
   {
     "unit": "CEDESP 2",
@@ -373,7 +413,10 @@ const RAW = [
     "n_classes": 13,
     "attend_rate": 102.0,
     "evasao": 5.6,
-    "evasao_pct": 21.5
+    "evasao_pct": 21.5,
+    "centr": 0,
+    "sentr": 0,
+    "dem_total": 0
   },
   {
     "unit": "CEDESP 2",
@@ -385,7 +428,10 @@ const RAW = [
     "n_classes": 13,
     "attend_rate": 96.5,
     "evasao": 5.7,
-    "evasao_pct": 22.8
+    "evasao_pct": 22.8,
+    "centr": 0,
+    "sentr": 0,
+    "dem_total": 0
   },
   {
     "unit": "CEDESP 2",
@@ -397,7 +443,10 @@ const RAW = [
     "n_classes": 13,
     "attend_rate": 122.0,
     "evasao": 4.6,
-    "evasao_pct": 15.9
+    "evasao_pct": 15.9,
+    "centr": 0,
+    "sentr": 0,
+    "dem_total": 0
   },
   {
     "unit": "CEDESP 2",
@@ -409,7 +458,10 @@ const RAW = [
     "n_classes": 13,
     "attend_rate": 56.0,
     "evasao": 2.8,
-    "evasao_pct": 20.0
+    "evasao_pct": 20.0,
+    "centr": 0,
+    "sentr": 0,
+    "dem_total": 0
   },
   {
     "unit": "CEDESP 2",
@@ -421,7 +473,10 @@ const RAW = [
     "n_classes": 13,
     "attend_rate": 39.0,
     "evasao": 3.2,
-    "evasao_pct": 29.1
+    "evasao_pct": 29.1,
+    "centr": 0,
+    "sentr": 0,
+    "dem_total": 0
   },
   {
     "unit": "CEDESP 2",
@@ -433,7 +488,10 @@ const RAW = [
     "n_classes": 13,
     "attend_rate": 101.5,
     "evasao": 4.7,
-    "evasao_pct": 18.8
+    "evasao_pct": 18.8,
+    "centr": 0,
+    "sentr": 0,
+    "dem_total": 0
   },
   {
     "unit": "CEDESP 2",
@@ -445,7 +503,10 @@ const RAW = [
     "n_classes": 13,
     "attend_rate": 104.0,
     "evasao": 7.2,
-    "evasao_pct": 25.7
+    "evasao_pct": 25.7,
+    "centr": 1,
+    "sentr": 0,
+    "dem_total": 1
   },
   {
     "unit": "CEDESP 2",
@@ -457,7 +518,10 @@ const RAW = [
     "n_classes": 13,
     "attend_rate": 119.0,
     "evasao": 4.2,
-    "evasao_pct": 15.0
+    "evasao_pct": 15.0,
+    "centr": 48,
+    "sentr": 21,
+    "dem_total": 69
   },
   {
     "unit": "CEDESP 2",
@@ -469,7 +533,10 @@ const RAW = [
     "n_classes": 13,
     "attend_rate": 92.0,
     "evasao": 5.6,
-    "evasao_pct": 23.3
+    "evasao_pct": 23.3,
+    "centr": 1,
+    "sentr": 0,
+    "dem_total": 1
   },
   {
     "unit": "CEDESP 2",
@@ -481,7 +548,10 @@ const RAW = [
     "n_classes": 12,
     "attend_rate": 90.5,
     "evasao": 11.9,
-    "evasao_pct": 39.7
+    "evasao_pct": 39.7,
+    "centr": 0,
+    "sentr": 0,
+    "dem_total": 0
   },
   {
     "unit": "CEDESP 2",
@@ -493,7 +563,10 @@ const RAW = [
     "n_classes": 12,
     "attend_rate": 117.0,
     "evasao": 6.6,
-    "evasao_pct": 22.0
+    "evasao_pct": 22.0,
+    "centr": 3,
+    "sentr": 0,
+    "dem_total": 3
   },
   {
     "unit": "CEDESP 2",
@@ -505,7 +578,10 @@ const RAW = [
     "n_classes": 12,
     "attend_rate": 114.5,
     "evasao": 4.1,
-    "evasao_pct": 15.2
+    "evasao_pct": 15.2,
+    "centr": 14,
+    "sentr": 5,
+    "dem_total": 19
   },
   {
     "unit": "CEDESP 2",
@@ -517,7 +593,10 @@ const RAW = [
     "n_classes": 12,
     "attend_rate": 71.5,
     "evasao": 5.7,
-    "evasao_pct": 28.5
+    "evasao_pct": 28.5,
+    "centr": 0,
+    "sentr": 0,
+    "dem_total": 0
   },
   {
     "unit": "CEDESP 3",
@@ -529,7 +608,10 @@ const RAW = [
     "n_classes": 12,
     "attend_rate": 81.0,
     "evasao": 4.8,
-    "evasao_pct": 22.9
+    "evasao_pct": 22.9,
+    "centr": 3,
+    "sentr": 2,
+    "dem_total": 5
   },
   {
     "unit": "CEDESP 3",
@@ -541,7 +623,10 @@ const RAW = [
     "n_classes": 8,
     "attend_rate": 49.5,
     "evasao": 10.1,
-    "evasao_pct": 50.5
+    "evasao_pct": 50.5,
+    "centr": 4,
+    "sentr": 0,
+    "dem_total": 4
   },
   {
     "unit": "CEDESP 3",
@@ -553,7 +638,10 @@ const RAW = [
     "n_classes": 13,
     "attend_rate": 46.0,
     "evasao": 2.8,
-    "evasao_pct": 23.3
+    "evasao_pct": 23.3,
+    "centr": 0,
+    "sentr": 0,
+    "dem_total": 0
   },
   {
     "unit": "CEDESP 3",
@@ -565,7 +653,10 @@ const RAW = [
     "n_classes": 11,
     "attend_rate": 41.0,
     "evasao": 3.8,
-    "evasao_pct": 31.7
+    "evasao_pct": 31.7,
+    "centr": 0,
+    "sentr": 0,
+    "dem_total": 0
   },
   {
     "unit": "CEDESP 3",
@@ -577,7 +668,10 @@ const RAW = [
     "n_classes": 13,
     "attend_rate": 137.0,
     "evasao": 0.6,
-    "evasao_pct": 2.1
+    "evasao_pct": 2.1,
+    "centr": 0,
+    "sentr": 0,
+    "dem_total": 0
   },
   {
     "unit": "CEDESP 3",
@@ -589,7 +683,10 @@ const RAW = [
     "n_classes": 13,
     "attend_rate": 71.0,
     "evasao": 2.8,
-    "evasao_pct": 16.5
+    "evasao_pct": 16.5,
+    "centr": 0,
+    "sentr": 0,
+    "dem_total": 0
   },
   {
     "unit": "CEDESP 3",
@@ -601,7 +698,10 @@ const RAW = [
     "n_classes": 13,
     "attend_rate": 98.0,
     "evasao": 4.4,
-    "evasao_pct": 18.3
+    "evasao_pct": 18.3,
+    "centr": 0,
+    "sentr": 0,
+    "dem_total": 0
   },
   {
     "unit": "CEDESP 3",
@@ -613,7 +713,10 @@ const RAW = [
     "n_classes": 13,
     "attend_rate": 82.0,
     "evasao": 3.6,
-    "evasao_pct": 18.0
+    "evasao_pct": 18.0,
+    "centr": 75,
+    "sentr": 86,
+    "dem_total": 161
   },
   {
     "unit": "CEDESP 3",
@@ -625,7 +728,10 @@ const RAW = [
     "n_classes": 12,
     "attend_rate": 100.5,
     "evasao": 1.9,
-    "evasao_pct": 8.6
+    "evasao_pct": 8.6,
+    "centr": 0,
+    "sentr": 0,
+    "dem_total": 0
   },
   {
     "unit": "CEDESP 3",
@@ -637,7 +743,10 @@ const RAW = [
     "n_classes": 12,
     "attend_rate": 114.5,
     "evasao": 4.1,
-    "evasao_pct": 15.2
+    "evasao_pct": 15.2,
+    "centr": 0,
+    "sentr": 33,
+    "dem_total": 33
   },
   {
     "unit": "CEDESP 3",
@@ -649,7 +758,10 @@ const RAW = [
     "n_classes": 3,
     "attend_rate": 105.0,
     "evasao": 15.0,
-    "evasao_pct": 41.7
+    "evasao_pct": 41.7,
+    "centr": 6,
+    "sentr": 78,
+    "dem_total": 84
   },
   {
     "unit": "CEDESP 3",
@@ -661,7 +773,10 @@ const RAW = [
     "n_classes": 13,
     "attend_rate": 129.5,
     "evasao": 10.1,
-    "evasao_pct": 28.1
+    "evasao_pct": 28.1,
+    "centr": 0,
+    "sentr": 17,
+    "dem_total": 17
   },
   {
     "unit": "CEDESP 4",
@@ -673,7 +788,10 @@ const RAW = [
     "n_classes": 13,
     "attend_rate": 109.0,
     "evasao": 4.2,
-    "evasao_pct": 16.2
+    "evasao_pct": 16.2,
+    "centr": 3,
+    "sentr": 0,
+    "dem_total": 3
   },
   {
     "unit": "CEDESP 4",
@@ -685,7 +803,10 @@ const RAW = [
     "n_classes": 13,
     "attend_rate": 109.0,
     "evasao": 4.2,
-    "evasao_pct": 16.2
+    "evasao_pct": 16.2,
+    "centr": 0,
+    "sentr": 0,
+    "dem_total": 0
   },
   {
     "unit": "CEDESP 4",
@@ -697,7 +818,10 @@ const RAW = [
     "n_classes": 13,
     "attend_rate": 102.0,
     "evasao": 5.6,
-    "evasao_pct": 21.5
+    "evasao_pct": 21.5,
+    "centr": 4,
+    "sentr": 0,
+    "dem_total": 4
   },
   {
     "unit": "CEDESP 4",
@@ -709,7 +833,10 @@ const RAW = [
     "n_classes": 13,
     "attend_rate": 101.0,
     "evasao": 4.8,
-    "evasao_pct": 19.2
+    "evasao_pct": 19.2,
+    "centr": 3,
+    "sentr": 5,
+    "dem_total": 8
   },
   {
     "unit": "CEDESP 4",
@@ -721,7 +848,10 @@ const RAW = [
     "n_classes": 13,
     "attend_rate": 127.5,
     "evasao": 3.5,
-    "evasao_pct": 12.1
+    "evasao_pct": 12.1,
+    "centr": 16,
+    "sentr": 0,
+    "dem_total": 16
   },
   {
     "unit": "CEDESP 4",
@@ -733,7 +863,10 @@ const RAW = [
     "n_classes": 13,
     "attend_rate": 118.0,
     "evasao": 5.4,
-    "evasao_pct": 18.6
+    "evasao_pct": 18.6,
+    "centr": 0,
+    "sentr": 0,
+    "dem_total": 0
   },
   {
     "unit": "CEDESP 4",
@@ -745,7 +878,10 @@ const RAW = [
     "n_classes": 13,
     "attend_rate": 114.0,
     "evasao": 4.2,
-    "evasao_pct": 15.6
+    "evasao_pct": 15.6,
+    "centr": 0,
+    "sentr": 0,
+    "dem_total": 0
   },
   {
     "unit": "CEDESP 4",
@@ -757,7 +893,10 @@ const RAW = [
     "n_classes": 13,
     "attend_rate": 81.0,
     "evasao": 5.8,
-    "evasao_pct": 26.4
+    "evasao_pct": 26.4,
+    "centr": 0,
+    "sentr": 0,
+    "dem_total": 0
   },
   {
     "unit": "CEDESP 4",
@@ -769,7 +908,10 @@ const RAW = [
     "n_classes": 13,
     "attend_rate": 111.0,
     "evasao": 5.8,
-    "evasao_pct": 20.7
+    "evasao_pct": 20.7,
+    "centr": 5,
+    "sentr": 0,
+    "dem_total": 5
   },
   {
     "unit": "CEDESP 4",
@@ -781,7 +923,10 @@ const RAW = [
     "n_classes": 13,
     "attend_rate": 141.5,
     "evasao": 2.7,
-    "evasao_pct": 8.7
+    "evasao_pct": 8.7,
+    "centr": 0,
+    "sentr": 0,
+    "dem_total": 0
   },
   {
     "unit": "CEDESP 4",
@@ -793,7 +938,10 @@ const RAW = [
     "n_classes": 13,
     "attend_rate": 120.0,
     "evasao": 9.0,
-    "evasao_pct": 27.3
+    "evasao_pct": 27.3,
+    "centr": 14,
+    "sentr": 0,
+    "dem_total": 14
   },
   {
     "unit": "CEDESP 4",
@@ -805,7 +953,10 @@ const RAW = [
     "n_classes": 13,
     "attend_rate": 121.0,
     "evasao": 3.8,
-    "evasao_pct": 13.6
+    "evasao_pct": 13.6,
+    "centr": 3,
+    "sentr": 0,
+    "dem_total": 3
   },
   {
     "unit": "CEDESP 5",
@@ -817,7 +968,10 @@ const RAW = [
     "n_classes": 3,
     "attend_rate": 80.0,
     "evasao": 5.0,
-    "evasao_pct": 23.8
+    "evasao_pct": 23.8,
+    "centr": 0,
+    "sentr": 0,
+    "dem_total": 0
   },
   {
     "unit": "CEDESP 5",
@@ -829,7 +983,10 @@ const RAW = [
     "n_classes": 13,
     "attend_rate": 59.0,
     "evasao": 6.2,
-    "evasao_pct": 34.4
+    "evasao_pct": 34.4,
+    "centr": 1,
+    "sentr": 1,
+    "dem_total": 2
   },
   {
     "unit": "CEDESP 5",
@@ -841,7 +998,10 @@ const RAW = [
     "n_classes": 13,
     "attend_rate": 108.0,
     "evasao": 5.4,
-    "evasao_pct": 20.0
+    "evasao_pct": 20.0,
+    "centr": 1,
+    "sentr": 0,
+    "dem_total": 1
   },
   {
     "unit": "CEDESP 5",
@@ -853,7 +1013,10 @@ const RAW = [
     "n_classes": 13,
     "attend_rate": 91.5,
     "evasao": 8.7,
-    "evasao_pct": 32.2
+    "evasao_pct": 32.2,
+    "centr": 0,
+    "sentr": 0,
+    "dem_total": 0
   },
   {
     "unit": "CEDESP 5",
@@ -865,7 +1028,10 @@ const RAW = [
     "n_classes": 13,
     "attend_rate": 103.5,
     "evasao": 9.3,
-    "evasao_pct": 31.0
+    "evasao_pct": 31.0,
+    "centr": 10,
+    "sentr": 0,
+    "dem_total": 10
   },
   {
     "unit": "CEDESP 5",
@@ -877,7 +1043,10 @@ const RAW = [
     "n_classes": 13,
     "attend_rate": 128.0,
     "evasao": 0.4,
-    "evasao_pct": 1.5
+    "evasao_pct": 1.5,
+    "centr": 29,
+    "sentr": 0,
+    "dem_total": 29
   },
   {
     "unit": "CEDESP 5",
@@ -889,7 +1058,10 @@ const RAW = [
     "n_classes": 13,
     "attend_rate": 121.0,
     "evasao": 5.8,
-    "evasao_pct": 19.3
+    "evasao_pct": 19.3,
+    "centr": 20,
+    "sentr": 0,
+    "dem_total": 20
   },
   {
     "unit": "CEDESP 5",
@@ -901,7 +1073,10 @@ const RAW = [
     "n_classes": 13,
     "attend_rate": 34.0,
     "evasao": 3.2,
-    "evasao_pct": 32.0
+    "evasao_pct": 32.0,
+    "centr": 5,
+    "sentr": 0,
+    "dem_total": 5
   },
   {
     "unit": "CEDESP 5",
@@ -913,7 +1088,10 @@ const RAW = [
     "n_classes": 13,
     "attend_rate": 77.0,
     "evasao": 4.6,
-    "evasao_pct": 23.0
+    "evasao_pct": 23.0,
+    "centr": 0,
+    "sentr": 0,
+    "dem_total": 0
   },
   {
     "unit": "CEDESP 5",
@@ -925,7 +1103,10 @@ const RAW = [
     "n_classes": 13,
     "attend_rate": 92.5,
     "evasao": 4.5,
-    "evasao_pct": 19.6
+    "evasao_pct": 19.6,
+    "centr": 0,
+    "sentr": 0,
+    "dem_total": 0
   },
   {
     "unit": "CEDESP 5",
@@ -937,7 +1118,10 @@ const RAW = [
     "n_classes": 12,
     "attend_rate": 114.0,
     "evasao": 2.2,
-    "evasao_pct": 8.8
+    "evasao_pct": 8.8,
+    "centr": 22,
+    "sentr": 14,
+    "dem_total": 36
   },
   {
     "unit": "CEDESP 5",
@@ -949,7 +1133,10 @@ const RAW = [
     "n_classes": 13,
     "attend_rate": 110.0,
     "evasao": 3.0,
-    "evasao_pct": 12.0
+    "evasao_pct": 12.0,
+    "centr": 7,
+    "sentr": 0,
+    "dem_total": 7
   },
   {
     "unit": "CEDESP 5",
@@ -961,7 +1148,10 @@ const RAW = [
     "n_classes": 13,
     "attend_rate": 119.0,
     "evasao": 7.2,
-    "evasao_pct": 23.2
+    "evasao_pct": 23.2,
+    "centr": 0,
+    "sentr": 0,
+    "dem_total": 0
   },
   {
     "unit": "CEDESP 5",
@@ -973,7 +1163,10 @@ const RAW = [
     "n_classes": 10,
     "attend_rate": 112.5,
     "evasao": 8.5,
-    "evasao_pct": 27.4
+    "evasao_pct": 27.4,
+    "centr": 0,
+    "sentr": 0,
+    "dem_total": 0
   },
   {
     "unit": "CEDESP 6",
@@ -985,7 +1178,10 @@ const RAW = [
     "n_classes": 13,
     "attend_rate": 111.0,
     "evasao": 4.8,
-    "evasao_pct": 17.8
+    "evasao_pct": 17.8,
+    "centr": 42,
+    "sentr": 9,
+    "dem_total": 51
   },
   {
     "unit": "CEDESP 6",
@@ -997,7 +1193,10 @@ const RAW = [
     "n_classes": 7,
     "attend_rate": 107.0,
     "evasao": 7.6,
-    "evasao_pct": 26.2
+    "evasao_pct": 26.2,
+    "centr": 0,
+    "sentr": 0,
+    "dem_total": 0
   },
   {
     "unit": "CEDESP 6",
@@ -1009,7 +1208,10 @@ const RAW = [
     "n_classes": 13,
     "attend_rate": 105.0,
     "evasao": 5.0,
-    "evasao_pct": 19.2
+    "evasao_pct": 19.2,
+    "centr": 0,
+    "sentr": 0,
+    "dem_total": 0
   },
   {
     "unit": "CEDESP 6",
@@ -1021,7 +1223,10 @@ const RAW = [
     "n_classes": 13,
     "attend_rate": 112.0,
     "evasao": 4.6,
-    "evasao_pct": 17.0
+    "evasao_pct": 17.0,
+    "centr": 1,
+    "sentr": 0,
+    "dem_total": 1
   },
   {
     "unit": "CEDESP 6",
@@ -1033,7 +1238,10 @@ const RAW = [
     "n_classes": 13,
     "attend_rate": 122.5,
     "evasao": 3.5,
-    "evasao_pct": 12.5
+    "evasao_pct": 12.5,
+    "centr": 8,
+    "sentr": 0,
+    "dem_total": 8
   },
   {
     "unit": "CEDESP 6",
@@ -1045,7 +1253,10 @@ const RAW = [
     "n_classes": 13,
     "attend_rate": 95.5,
     "evasao": 8.9,
-    "evasao_pct": 31.8
+    "evasao_pct": 31.8,
+    "centr": 0,
+    "sentr": 0,
+    "dem_total": 0
   },
   {
     "unit": "CEDESP 6",
@@ -1057,7 +1268,10 @@ const RAW = [
     "n_classes": 13,
     "attend_rate": 127.5,
     "evasao": 4.5,
-    "evasao_pct": 15.0
+    "evasao_pct": 15.0,
+    "centr": 62,
+    "sentr": 70,
+    "dem_total": 132
   },
   {
     "unit": "CEDESP 6",
@@ -1069,7 +1283,10 @@ const RAW = [
     "n_classes": 1,
     "attend_rate": 100.0,
     "evasao": 3.0,
-    "evasao_pct": 13.0
+    "evasao_pct": 13.0,
+    "centr": 12,
+    "sentr": 0,
+    "dem_total": 12
   },
   {
     "unit": "CEDESP 6",
@@ -1081,7 +1298,10 @@ const RAW = [
     "n_classes": 12,
     "attend_rate": 171.0,
     "evasao": 4.8,
-    "evasao_pct": 12.3
+    "evasao_pct": 12.3,
+    "centr": 0,
+    "sentr": 0,
+    "dem_total": 0
   },
   {
     "unit": "CEDESP 6",
@@ -1093,7 +1313,10 @@ const RAW = [
     "n_classes": 13,
     "attend_rate": 110.5,
     "evasao": 4.9,
-    "evasao_pct": 18.1
+    "evasao_pct": 18.1,
+    "centr": 1,
+    "sentr": 0,
+    "dem_total": 1
   },
   {
     "unit": "CEDESP 7",
@@ -1105,7 +1328,10 @@ const RAW = [
     "n_classes": 13,
     "attend_rate": 63.0,
     "evasao": 3.4,
-    "evasao_pct": 21.2
+    "evasao_pct": 21.2,
+    "centr": 2,
+    "sentr": 0,
+    "dem_total": 2
   },
   {
     "unit": "CEDESP 7",
@@ -1117,7 +1343,10 @@ const RAW = [
     "n_classes": 12,
     "attend_rate": 80.0,
     "evasao": 11.0,
-    "evasao_pct": 40.7
+    "evasao_pct": 40.7,
+    "centr": 0,
+    "sentr": 0,
+    "dem_total": 0
   },
   {
     "unit": "CEDESP 7",
@@ -1129,7 +1358,10 @@ const RAW = [
     "n_classes": 13,
     "attend_rate": 87.5,
     "evasao": 6.5,
-    "evasao_pct": 27.1
+    "evasao_pct": 27.1,
+    "centr": 0,
+    "sentr": 0,
+    "dem_total": 0
   },
   {
     "unit": "CEDESP 7",
@@ -1141,7 +1373,10 @@ const RAW = [
     "n_classes": 12,
     "attend_rate": 55.0,
     "evasao": 1.0,
-    "evasao_pct": 8.3
+    "evasao_pct": 8.3,
+    "centr": 1,
+    "sentr": 0,
+    "dem_total": 1
   },
   {
     "unit": "CEDESP 7",
@@ -1153,7 +1388,10 @@ const RAW = [
     "n_classes": 13,
     "attend_rate": 114.0,
     "evasao": 3.2,
-    "evasao_pct": 12.3
+    "evasao_pct": 12.3,
+    "centr": 7,
+    "sentr": 18,
+    "dem_total": 25
   },
   {
     "unit": "CEDESP 7",
@@ -1165,7 +1403,10 @@ const RAW = [
     "n_classes": 13,
     "attend_rate": 80.0,
     "evasao": 5.0,
-    "evasao_pct": 23.8
+    "evasao_pct": 23.8,
+    "centr": 0,
+    "sentr": 0,
+    "dem_total": 0
   },
   {
     "unit": "CEDESP 7",
@@ -1177,7 +1418,10 @@ const RAW = [
     "n_classes": 13,
     "attend_rate": 69.5,
     "evasao": 4.1,
-    "evasao_pct": 22.8
+    "evasao_pct": 22.8,
+    "centr": 0,
+    "sentr": 0,
+    "dem_total": 0
   },
   {
     "unit": "CEDESP 7",
@@ -1189,7 +1433,10 @@ const RAW = [
     "n_classes": 13,
     "attend_rate": 94.5,
     "evasao": 4.1,
-    "evasao_pct": 17.8
+    "evasao_pct": 17.8,
+    "centr": 0,
+    "sentr": 0,
+    "dem_total": 0
   },
   {
     "unit": "CEDESP 7",
@@ -1201,7 +1448,10 @@ const RAW = [
     "n_classes": 13,
     "attend_rate": 46.5,
     "evasao": 6.7,
-    "evasao_pct": 41.9
+    "evasao_pct": 41.9,
+    "centr": 1,
+    "sentr": 21,
+    "dem_total": 22
   },
   {
     "unit": "CEDESP 7",
@@ -1213,7 +1463,10 @@ const RAW = [
     "n_classes": 12,
     "attend_rate": 84.0,
     "evasao": 13.2,
-    "evasao_pct": 44.0
+    "evasao_pct": 44.0,
+    "centr": 11,
+    "sentr": 58,
+    "dem_total": 69
   },
   {
     "unit": "CEDESP 7",
@@ -1225,7 +1478,10 @@ const RAW = [
     "n_classes": 13,
     "attend_rate": 83.0,
     "evasao": 10.4,
-    "evasao_pct": 38.5
+    "evasao_pct": 38.5,
+    "centr": 0,
+    "sentr": 0,
+    "dem_total": 0
   },
   {
     "unit": "CEDESP 7",
@@ -1237,7 +1493,10 @@ const RAW = [
     "n_classes": 12,
     "attend_rate": 67.5,
     "evasao": 2.5,
-    "evasao_pct": 15.6
+    "evasao_pct": 15.6,
+    "centr": 0,
+    "sentr": 0,
+    "dem_total": 0
   },
   {
     "unit": "CEDESP 8",
@@ -1249,7 +1508,10 @@ const RAW = [
     "n_classes": 13,
     "attend_rate": 98.5,
     "evasao": 11.3,
-    "evasao_pct": 36.5
+    "evasao_pct": 36.5,
+    "centr": 1,
+    "sentr": 0,
+    "dem_total": 1
   },
   {
     "unit": "CEDESP 8",
@@ -1261,7 +1523,10 @@ const RAW = [
     "n_classes": 13,
     "attend_rate": 139.0,
     "evasao": 13.2,
-    "evasao_pct": 32.2
+    "evasao_pct": 32.2,
+    "centr": 8,
+    "sentr": 131,
+    "dem_total": 139
   },
   {
     "unit": "CEDESP 8",
@@ -1273,7 +1538,10 @@ const RAW = [
     "n_classes": 13,
     "attend_rate": 111.5,
     "evasao": 13.7,
-    "evasao_pct": 38.1
+    "evasao_pct": 38.1,
+    "centr": 7,
+    "sentr": 69,
+    "dem_total": 76
   },
   {
     "unit": "CEDESP 8",
@@ -1285,7 +1553,10 @@ const RAW = [
     "n_classes": 13,
     "attend_rate": 100.0,
     "evasao": 15.0,
-    "evasao_pct": 42.9
+    "evasao_pct": 42.9,
+    "centr": 1,
+    "sentr": 6,
+    "dem_total": 7
   },
   {
     "unit": "CEDESP 8",
@@ -1297,7 +1568,10 @@ const RAW = [
     "n_classes": 12,
     "attend_rate": 113.5,
     "evasao": 12.3,
-    "evasao_pct": 35.1
+    "evasao_pct": 35.1,
+    "centr": 1,
+    "sentr": 0,
+    "dem_total": 1
   },
   {
     "unit": "CEDESP 8",
@@ -1309,7 +1583,10 @@ const RAW = [
     "n_classes": 12,
     "attend_rate": 114.5,
     "evasao": 12.1,
-    "evasao_pct": 34.6
+    "evasao_pct": 34.6,
+    "centr": 4,
+    "sentr": 36,
+    "dem_total": 40
   },
   {
     "unit": "CEDESP 8",
@@ -1321,7 +1598,10 @@ const RAW = [
     "n_classes": 12,
     "attend_rate": 115.5,
     "evasao": 14.9,
-    "evasao_pct": 39.2
+    "evasao_pct": 39.2,
+    "centr": 5,
+    "sentr": 37,
+    "dem_total": 42
   },
   {
     "unit": "CEDESP 8",
@@ -1333,7 +1613,10 @@ const RAW = [
     "n_classes": 12,
     "attend_rate": 143.5,
     "evasao": 13.3,
-    "evasao_pct": 31.7
+    "evasao_pct": 31.7,
+    "centr": 5,
+    "sentr": 15,
+    "dem_total": 20
   }
 ];
 
@@ -1467,6 +1750,16 @@ function buildTable(data){
       <td class="right mono">${d.n_classes}</td>
       <td class="rate-cell"><div class="rate-wrap"><div class="rate-bar"><div class="rate-fill" style="width:${cap}%;background:${fc}"></div></div><div class="rate-pct" style="color:${fc}">${d.attend_rate.toFixed(1)}%</div></div></td>
       <td class="right mono">${d.evasao_pct!=null?'<span style="color:'+(d.evasao_pct>30?'#c84b31':d.evasao_pct>15?'#c97c1a':'#7d8590')+'">'+d.evasao_pct.toFixed(1)+'%</span>':'—'}</td>
+      <td class="right">${(()=>{
+        const c=d.centr,s=d.sentr,t=d.dem_total;
+        if(!t)return'<span style="color:var(--text-muted)">—</span>';
+        const tag=c>0?'<span style="display:inline-flex;gap:3px;align-items:center">'
+          +'<span title="Com entrevista (aguardando vaga)" style="font-size:10px;padding:1px 5px;border-radius:2px;background:rgba(45,122,79,.15);color:#2d7a4f;font-family:JetBrains Mono,monospace">'+c+'✓</span>'
+          +(s>0?'<span title="Sem entrevista (só ficha)" style="font-size:10px;padding:1px 5px;border-radius:2px;background:rgba(88,166,255,.12);color:#58a6ff;font-family:JetBrains Mono,monospace">'+s+'~</span>':'')
+          +'</span>'
+          :'<span title="Só ficha, sem entrevista" style="font-size:10px;padding:1px 5px;border-radius:2px;background:rgba(88,166,255,.12);color:#58a6ff;font-family:JetBrains Mono,monospace">'+s+'~</span>';
+        return tag;
+      })()}</td>
       <td><span class="status-flag ${st.cls}">${st.label}</span></td>
     `;
     tbody.appendChild(tr);
@@ -1523,7 +1816,6 @@ document.querySelectorAll('#courseTable thead th[data-sort]').forEach(th=>{
     buildTable(getFiltered());
   });
 });
-// Inicializar header ativo
 (()=>{
   const th=document.querySelector('#courseTable thead th[data-sort="attend_rate"]');
   if(th){th.classList.add('sort-active');const arr=th.querySelector('.sort-arrow');if(arr)arr.textContent='↓';}
