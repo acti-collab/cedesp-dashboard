@@ -262,14 +262,14 @@
       <div class="hm-label">Matrículas</div>
     </div>
     <div class="hm-item">
-      <div class="hm-val" style="color:var(--green)">3/8</div>
+      <div class="hm-val" style="color:var(--green)">1/8</div>
       <div class="hm-label">Superaram a Meta</div>
     </div>
     <div style="width:1px;height:36px;background:var(--border);margin:0 4px"></div>
     <div class="hm-item">
       <div style="font-family:'DM Mono',monospace;font-size:12px;color:var(--text-muted);background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:6px 14px;text-align:center;line-height:1.5">
         📅 Última atualização<br>
-        <span style="color:var(--accent);font-size:13px;font-weight:500">24/02/2026 às 08:46</span>
+        <span style="color:var(--accent);font-size:13px;font-weight:500">25/02/2026 às 08:00</span>
       </div>
     </div>
   </div>
@@ -296,13 +296,13 @@
     </div>
     <div class="kpi-card green">
       <div class="kpi-label">Unidades Acima da Meta de Freq.</div>
-      <div class="kpi-value" style="color:var(--green)">3</div>
+      <div class="kpi-value" style="color:var(--green)">1</div>
       <div class="kpi-sub">de 8 unidades ativas</div>
     </div>
     <div class="kpi-card purple">
       <div class="kpi-label">Unidades Ativas</div>
       <div class="kpi-value" style="color:var(--purple)">8</div>
-      <div class="kpi-sub">3 superaram a meta de frequência</div>
+      <div class="kpi-sub">1 superaram a meta de frequência</div>
     </div>
   </div>
 
@@ -420,7 +420,7 @@
 
   <div class="two-col">
     <div class="chart-card">
-      <div class="chart-title">Matrículas por Unidade</div>
+      <div class="chart-title">Matrículas por Unidade — Donut</div>
       <div class="chart-sub">Participação de cada CEDESP no total geral</div>
       <canvas id="donutChart" height="260"></canvas>
     </div>
@@ -435,11 +435,11 @@
 
 <footer>
   <div class="footer-text">CEDESP Dom Bosco Itaquera · 1º Semestre 2026 · Dashboard de Acompanhamento</div>
-  <div class="footer-text">Atualizado em 24/02/2026 às 08:46 · Frequência excluindo 30/01 (dia opcional)</div>
+  <div class="footer-text">Atualizado em 25/02/2026 às 08:00 · Frequência excluindo 30/01 (dia opcional)</div>
 </footer>
 
 <script>
-  const units = [{"unit": "CEDESP 1", "meta": 240, "matr": 341, "freq": 262.0, "saldo": 22.0}, {"unit": "CEDESP 2", "meta": 280, "matr": 345, "freq": 258.0, "saldo": -22.0}, {"unit": "CEDESP 3", "meta": 240, "matr": 275, "freq": 171.0, "saldo": -69.0}, {"unit": "CEDESP 4", "meta": 240, "matr": 330, "freq": 279.0, "saldo": 39.0}, {"unit": "CEDESP 5", "meta": 280, "matr": 344, "freq": 220.0, "saldo": -60.0}, {"unit": "CEDESP 6", "meta": 200, "matr": 284, "freq": 179.0, "saldo": -21.0}, {"unit": "CEDESP 7", "meta": 240, "matr": 256, "freq": 172.0, "saldo": -68.0}, {"unit": "CEDESP 8", "meta": 160, "matr": 293, "freq": 183.0, "saldo": 23.0}];
+  const units = [{"unit": "CEDESP 1", "meta": 240, "matr": 341, "freq": 224.0, "saldo": -16.0}, {"unit": "CEDESP 2", "meta": 280, "matr": 345, "freq": 255.0, "saldo": -25.0}, {"unit": "CEDESP 3", "meta": 240, "matr": 275, "freq": 159.0, "saldo": -81.0}, {"unit": "CEDESP 4", "meta": 240, "matr": 330, "freq": 209.0, "saldo": -31.0}, {"unit": "CEDESP 5", "meta": 280, "matr": 344, "freq": 236.0, "saldo": -44.0}, {"unit": "CEDESP 6", "meta": 200, "matr": 284, "freq": 188.0, "saldo": -12.0}, {"unit": "CEDESP 7", "meta": 240, "matr": 256, "freq": 164.0, "saldo": -76.0}, {"unit": "CEDESP 8", "meta": 160, "matr": 293, "freq": 189.0, "saldo": 29.0}];
 
   const COLORS = [
     '#f0a500','#58a6ff','#3fb950','#f85149',
