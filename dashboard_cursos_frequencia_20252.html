@@ -1,0 +1,1813 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Frequência por Curso — CEDESP Dom Bosco Itaquera</title>
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js"></script>
+<style>
+:root {
+  --bg:#f5f2ee;--surface:#fff;--surface2:#ede9e3;--border:#d8d2c8;
+  --text:#1a1612;--text-muted:#8a8279;--accent:#c84b31;--accent2:#2b5f8a;
+  --green:#2d7a4f;--orange:#c97c1a;--yellow:#e8c547;--ink:#1a1612;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:var(--bg);color:var(--text);font-family:'Poppins',sans-serif;min-height:100vh}
+header{background:var(--ink);color:#f5f2ee;padding:0 48px;display:flex;align-items:stretch;justify-content:space-between;height:80px;position:sticky;top:0;z-index:100}
+.header-left{display:flex;align-items:center;gap:20px}
+.header-accent{width:4px;height:40px;background:var(--accent);border-radius:2px}
+.header-title{font-family:'Poppins',sans-serif;font-weight:800;font-size:17px;letter-spacing:-0.3px;line-height:1.25}
+.header-sub{font-family:'JetBrains Mono',monospace;font-size:10px;color:rgba(245,242,238,.45);margin-top:3px;letter-spacing:.5px}
+.header-right{display:flex;align-items:center;gap:32px}
+.header-stat{text-align:right}
+.hs-val{font-family:'Poppins',sans-serif;font-size:22px;font-weight:700;letter-spacing:-.5px;color:var(--yellow)}
+.hs-label{font-family:'JetBrains Mono',monospace;font-size:10px;color:rgba(245,242,238,.45);letter-spacing:.5px}
+.controls{background:var(--surface);border-bottom:1px solid var(--border);padding:14px 48px;display:flex;align-items:center;gap:12px;flex-wrap:wrap;position:sticky;top:80px;z-index:99}
+.filter-label{font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--text-muted);letter-spacing:.5px;text-transform:uppercase}
+.filter-btn{display:inline-flex;align-items:center;padding:5px 14px;border-radius:2px;border:1px solid var(--border);background:transparent;color:var(--text-muted);font-family:'Poppins',sans-serif;font-size:12px;cursor:pointer;transition:all .15s}
+.filter-btn:hover{border-color:var(--ink);color:var(--ink)}
+.filter-btn.active{background:var(--ink);color:var(--bg);border-color:var(--ink)}
+.filter-btn.manha.active{background:var(--orange);border-color:var(--orange);color:#fff}
+.filter-btn.tarde.active{background:var(--accent2);border-color:var(--accent2);color:#fff}
+.filter-btn.noite.active{background:#4a3a7a;border-color:#4a3a7a;color:#fff}
+.sort-select{padding:5px 28px 5px 12px;border:1px solid var(--border);background:transparent;font-family:'Poppins',sans-serif;font-size:12px;color:var(--text);border-radius:2px;cursor:pointer;appearance:none;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath d='M1 1l4 4 4-4' stroke='%238a8279' stroke-width='1.5' fill='none'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 8px center}
+.controls-spacer{flex:1}
+.search-wrap{position:relative}
+.search-input{padding:6px 12px 6px 32px;border:1px solid var(--border);background:var(--bg);font-family:'Poppins',sans-serif;font-size:12px;color:var(--text);border-radius:2px;width:220px;outline:none}
+.search-input:focus{border-color:var(--ink)}
+.search-icon{position:absolute;left:10px;top:50%;transform:translateY(-50%);color:var(--text-muted);font-size:12px}
+main{padding:32px 48px 60px;max-width:1440px;margin:0 auto}
+.kpi-row{display:grid;grid-template-columns:repeat(4,1fr);gap:1px;background:var(--border);border:1px solid var(--border);margin-bottom:32px}
+.kpi-cell{background:var(--surface);padding:24px 28px}
+.kpi-label{font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--text-muted);letter-spacing:.8px;text-transform:uppercase;margin-bottom:10px}
+.kpi-val{font-family:'Poppins',sans-serif;font-size:40px;font-weight:800;letter-spacing:-2px;line-height:1;margin-bottom:4px}
+.kpi-desc{font-size:12px;color:var(--text-muted)}
+.section-row{display:flex;align-items:baseline;gap:12px;margin-bottom:20px;margin-top:40px}
+.section-row:first-child{margin-top:0}
+.section-title{font-family:'Poppins',sans-serif;font-size:13px;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:var(--text-muted)}
+.section-rule{flex:1;height:1px;background:var(--border)}
+.section-count{font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--text-muted)}
+.charts-grid{display:grid;grid-template-columns:1.6fr 1fr;gap:20px;margin-bottom:20px}
+.chart-box{background:var(--surface);border:1px solid var(--border);padding:24px}
+.chart-box-title{font-family:'Poppins',sans-serif;font-size:13px;font-weight:700;letter-spacing:-.2px;margin-bottom:3px}
+.chart-box-sub{font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--text-muted);margin-bottom:20px}
+.course-table-wrap{background:var(--surface);border:1px solid var(--border);overflow:hidden}
+table{width:100%;border-collapse:collapse}
+thead th{padding:10px 16px;text-align:left;font-family:'JetBrains Mono',monospace;font-size:10px;letter-spacing:.8px;text-transform:uppercase;color:var(--text-muted);background:var(--surface2);border-bottom:1px solid var(--border);white-space:nowrap;cursor:pointer;user-select:none;transition:color .15s}
+thead th:hover{color:var(--text)}
+thead th.sort-active{color:var(--accent2)}
+thead th.right{text-align:right}
+thead th .sort-arrow{margin-left:4px;opacity:.5;font-size:10px}
+thead th.sort-active .sort-arrow{opacity:1;color:var(--accent2)}
+tbody tr{border-bottom:1px solid var(--border);transition:background .1s}
+tbody tr:last-child{border-bottom:none}
+tbody tr:hover{background:var(--surface2)}
+td{padding:11px 16px;font-size:12.5px}
+td.mono{font-family:'JetBrains Mono',monospace;font-size:11.5px}
+td.right{text-align:right}
+.course-name-cell{max-width:240px;font-weight:600;font-size:12px;line-height:1.3}
+.unit-chip{display:inline-block;padding:2px 8px;border-radius:2px;font-family:'JetBrains Mono',monospace;font-size:10px;font-weight:500;background:var(--surface2);color:var(--text-muted);white-space:nowrap}
+.period-dot{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:6px}
+.period-dot.manhã{background:var(--orange)}.period-dot.tarde{background:var(--accent2)}.period-dot.noite{background:#4a3a7a}
+.rate-cell{min-width:140px}
+.rate-wrap{display:flex;align-items:center;gap:8px}
+.rate-bar{flex:1;height:5px;background:var(--surface2);overflow:hidden;min-width:60px}
+.rate-fill{height:100%}
+.rate-pct{font-family:'JetBrains Mono',monospace;font-size:11px;min-width:40px;text-align:right;font-weight:500}
+.status-flag{display:inline-flex;align-items:center;gap:5px;font-size:11px;font-family:'JetBrains Mono',monospace;padding:2px 8px;border:1px solid;border-radius:2px}
+.status-flag.high{border-color:#2d7a4f;color:#2d7a4f;background:rgba(45,122,79,.06)}
+.status-flag.mid{border-color:#c97c1a;color:#c97c1a;background:rgba(201,124,26,.06)}
+.status-flag.low{border-color:var(--accent);color:var(--accent);background:rgba(200,75,49,.06)}
+.empty-state{text-align:center;padding:48px;color:var(--text-muted);font-size:13px}
+.update-badge{font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--text-muted);background:var(--surface2);border:1px solid var(--border);padding:3px 10px;border-radius:2px}
+footer{border-top:1px solid var(--border);padding:20px 48px;display:flex;justify-content:space-between;align-items:center;margin-top:48px}
+.footer-text{font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--text-muted)}
+@media(max-width:900px){header,.controls,main{padding-left:20px;padding-right:20px}.charts-grid{grid-template-columns:1fr}.kpi-row{grid-template-columns:1fr 1fr}}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="header-left">
+    <div class="header-accent"></div>
+    <div>
+      <div class="header-title">Frequência por Curso</div>
+      <div class="header-sub">CEDESP DOM BOSCO ITAQUERA · 2º SEMESTRE 2025</div>
+    </div>
+  </div>
+  <div class="header-right">
+    <div class="header-stat"><div class="hs-val" id="hdr-cursos">—</div><div class="hs-label">CURSOS</div></div>
+    <div class="header-stat"><div class="hs-val" id="hdr-avg">—</div><div class="hs-label">FREQ. MÉDIA</div></div>
+    <div class="header-stat"><div class="hs-val" id="hdr-matr">—</div><div class="hs-label">MATRÍCULAS</div></div>
+  </div>
+</header>
+
+<div class="controls">
+  <div style="display:flex;align-items:center;gap:6px">
+    <span class="filter-label">Unidade:</span>
+    <button class="filter-btn active" data-filter="unit" data-value="all">Todas</button>
+    <button class="filter-btn" data-filter="unit" data-value="CEDESP 1">C1</button><button class="filter-btn" data-filter="unit" data-value="CEDESP 2">C2</button><button class="filter-btn" data-filter="unit" data-value="CEDESP 3">C3</button><button class="filter-btn" data-filter="unit" data-value="CEDESP 4">C4</button><button class="filter-btn" data-filter="unit" data-value="CEDESP 5">C5</button><button class="filter-btn" data-filter="unit" data-value="CEDESP 6">C6</button><button class="filter-btn" data-filter="unit" data-value="CEDESP 7">C7</button><button class="filter-btn" data-filter="unit" data-value="CEDESP 8">C8</button>
+  </div>
+  <div style="display:flex;align-items:center;gap:6px">
+    <span class="filter-label">Horário:</span>
+    <button class="filter-btn active" data-filter="period" data-value="all">Todos</button>
+    <button class="filter-btn manha" data-filter="period" data-value="Manhã">☀ Manhã</button>
+    <button class="filter-btn tarde" data-filter="period" data-value="Tarde">🌤 Tarde</button>
+    <button class="filter-btn noite" data-filter="period" data-value="Noite">🌙 Noite</button>
+  </div>
+  <div class="controls-spacer"></div>
+  <span class="update-badge">📅 Atualizado em: 25/02/2026 às 15:51</span>
+  <div style="display:flex;align-items:center;gap:6px">
+
+  </div>
+  <div class="search-wrap">
+    <span class="search-icon">⌕</span>
+    <input type="text" class="search-input" id="searchInput" placeholder="Buscar curso...">
+  </div>
+</div>
+
+<main>
+
+<div class="kpi-row">
+  <div class="kpi-cell"><div class="kpi-label">Cursos ativos</div><div class="kpi-val" id="kpi-cursos">—</div><div class="kpi-desc">turmas com frequência registrada</div></div>
+  <div class="kpi-cell"><div class="kpi-label">Taxa de frequência média</div><div class="kpi-val" id="kpi-rate" style="color:var(--accent2)">—</div><div class="kpi-desc">freq. média ÷ meta do curso</div></div>
+
+  <div class="kpi-cell"><div class="kpi-label">Cursos com taxa &lt;80%</div><div class="kpi-val" id="kpi-low" style="color:var(--accent)">—</div><div class="kpi-desc">requerem atenção</div></div>
+  <div class="kpi-cell"><div class="kpi-label">Evasão média</div><div class="kpi-val" id="kpi-evasao" style="color:#c84b31">—</div><div class="kpi-desc">matriculados que não frequentam</div></div>
+</div>
+
+<div class="section-row"><div class="section-title">Visão Gráfica</div><div class="section-rule"></div></div>
+
+<div class="charts-grid">
+  <div class="chart-box">
+    <div class="chart-box-title">Taxa de Frequência por Curso</div>
+    <div class="chart-box-sub">Frequência diária média ÷ meta do curso — top 20 cursos</div>
+    <canvas id="courseBarChart" height="320"></canvas>
+  </div>
+  <div class="chart-box">
+    <div class="chart-box-title">Distribuição de Taxas</div>
+    <div class="chart-box-sub">Agrupamento por faixa de frequência</div>
+    <canvas id="distChart" height="320"></canvas>
+  </div>
+</div>
+<div class="charts-grid" style="grid-template-columns:1fr 1fr">
+  <div class="chart-box">
+    <div class="chart-box-title">Cursos Críticos por Unidade</div>
+    <div class="chart-box-sub">Nº de turmas por faixa de atenção em cada CEDESP</div>
+    <canvas id="unitCompChart" height="240"></canvas>
+  </div>
+  <div class="chart-box">
+    <div class="chart-box-title">Frequência por Horário</div>
+    <div class="chart-box-sub">Taxa média por período do dia</div>
+    <canvas id="periodChart" height="240"></canvas>
+  </div>
+</div>
+
+<div class="charts-grid" style="grid-template-columns:1fr">
+  <div class="chart-box">
+    <div class="chart-box-title">Evasão por Curso — Top 20</div>
+    <div class="chart-box-sub">Cursos com maior evasão · matriculados que não frequentam</div>
+    <canvas id="evasaoChart" height="160"></canvas>
+  </div>
+</div>
+
+<div class="section-row">
+  <div class="section-title">Tabela Completa</div>
+  <div class="section-rule"></div>
+  <span class="section-count" id="resultCount">—</span>
+</div>
+
+<div class="course-table-wrap">
+  <table id="courseTable">
+    <thead>
+      <tr>
+        <th data-sort="course">Curso <span class="sort-arrow">↕</span></th>
+        <th data-sort="unit">Unidade <span class="sort-arrow">↕</span></th>
+        <th data-sort="period">Período <span class="sort-arrow">↕</span></th>
+        <th class="right" data-sort="matr">Matr. <span class="sort-arrow">↕</span></th>
+        <th class="right" data-sort="freq_avg">Freq. Média/dia <span class="sort-arrow">↕</span></th>
+        <th class="right" data-sort="n_classes">Aulas <span class="sort-arrow">↕</span></th>
+        <th data-sort="attend_rate">Taxa s\/ Meta <span class="sort-arrow">↕</span></th>
+        <th class="right" data-sort="evasao_pct">Evasão <span class="sort-arrow">↕</span></th>
+        <th class="right" data-sort="dem_total">Demanda <span class="sort-arrow">↕</span></th>
+        <th data-sort="status">Status <span class="sort-arrow">↕</span></th>
+      </tr>
+    </thead>
+    <tbody id="courseTableBody"></tbody>
+  </table>
+  <div class="empty-state" id="emptyState" style="display:none">Nenhum curso encontrado.</div>
+</div>
+
+</main>
+
+<footer>
+  <div class="footer-text">CEDESP Dom Bosco Itaquera · Dashboard gerado automaticamente</div>
+  <div class="footer-text">Atualizado em 25/02/2026 às 15:51</div>
+</footer>
+
+<script>
+const RAW = [
+  {
+    "unit": "CEDESP 1",
+    "period": "Manhã",
+    "course": "BARBEIRO",
+    "meta": 20.0,
+    "matr": 21.0,
+    "freq_avg": 15.0,
+    "n_classes": 94,
+    "attend_rate": 75.0,
+    "evasao": 6.0,
+    "evasao_pct": 28.6,
+    "centr": 30,
+    "sentr": 2,
+    "dem_total": 32
+  },
+  {
+    "unit": "CEDESP 1",
+    "period": "Manhã",
+    "course": "MANICURE E PEDICURE",
+    "meta": 20.0,
+    "matr": 19.0,
+    "freq_avg": 16.0,
+    "n_classes": 93,
+    "attend_rate": 80.0,
+    "evasao": 3.0,
+    "evasao_pct": 15.8,
+    "centr": 20,
+    "sentr": 0,
+    "dem_total": 20
+  },
+  {
+    "unit": "CEDESP 1",
+    "period": "Manhã",
+    "course": "MONTADOR E REPARADOR DE COMPUTADORES",
+    "meta": 20.0,
+    "matr": 23.0,
+    "freq_avg": 17.2,
+    "n_classes": 94,
+    "attend_rate": 86.0,
+    "evasao": 5.8,
+    "evasao_pct": 25.2,
+    "centr": 9,
+    "sentr": 0,
+    "dem_total": 9
+  },
+  {
+    "unit": "CEDESP 1",
+    "period": "Manhã",
+    "course": "OPERADOR DE COMPUTADOR",
+    "meta": 20.0,
+    "matr": 21.0,
+    "freq_avg": 18.7,
+    "n_classes": 94,
+    "attend_rate": 93.5,
+    "evasao": 2.3,
+    "evasao_pct": 11.0,
+    "centr": 43,
+    "sentr": 1,
+    "dem_total": 44
+  },
+  {
+    "unit": "CEDESP 1",
+    "period": "Tarde",
+    "course": "CABELEIREIRO",
+    "meta": 20.0,
+    "matr": 23.0,
+    "freq_avg": 17.4,
+    "n_classes": 92,
+    "attend_rate": 87.0,
+    "evasao": 5.6,
+    "evasao_pct": 24.3,
+    "centr": 31,
+    "sentr": 0,
+    "dem_total": 31
+  },
+  {
+    "unit": "CEDESP 1",
+    "period": "Tarde",
+    "course": "MANICURE E PEDICURE",
+    "meta": 20.0,
+    "matr": 26.0,
+    "freq_avg": 20.8,
+    "n_classes": 90,
+    "attend_rate": 104.0,
+    "evasao": 5.2,
+    "evasao_pct": 20.0,
+    "centr": 18,
+    "sentr": 0,
+    "dem_total": 18
+  },
+  {
+    "unit": "CEDESP 1",
+    "period": "Tarde",
+    "course": "MONTADOR E REPARADOR DE COMPUTADORES",
+    "meta": 20.0,
+    "matr": 19.0,
+    "freq_avg": 16.2,
+    "n_classes": 94,
+    "attend_rate": 81.0,
+    "evasao": 2.8,
+    "evasao_pct": 14.7,
+    "centr": 8,
+    "sentr": 0,
+    "dem_total": 8
+  },
+  {
+    "unit": "CEDESP 1",
+    "period": "Tarde",
+    "course": "OPERADOR DE COMPUTADOR",
+    "meta": 20.0,
+    "matr": 18.0,
+    "freq_avg": 17.0,
+    "n_classes": 94,
+    "attend_rate": 85.0,
+    "evasao": 1.0,
+    "evasao_pct": 5.6,
+    "centr": 32,
+    "sentr": 0,
+    "dem_total": 32
+  },
+  {
+    "unit": "CEDESP 1",
+    "period": "Noite",
+    "course": "CABELEIREIRO",
+    "meta": 20.0,
+    "matr": 26.0,
+    "freq_avg": 17.4,
+    "n_classes": 92,
+    "attend_rate": 87.0,
+    "evasao": 8.6,
+    "evasao_pct": 33.1,
+    "centr": 35,
+    "sentr": 2,
+    "dem_total": 37
+  },
+  {
+    "unit": "CEDESP 1",
+    "period": "Noite",
+    "course": "MANICURE E PEDICURE",
+    "meta": 20.0,
+    "matr": 22.0,
+    "freq_avg": 17.9,
+    "n_classes": 89,
+    "attend_rate": 89.5,
+    "evasao": 4.1,
+    "evasao_pct": 18.6,
+    "centr": 14,
+    "sentr": 0,
+    "dem_total": 14
+  },
+  {
+    "unit": "CEDESP 1",
+    "period": "Noite",
+    "course": "MONTADOR E REPARADOR DE COMPUTADORES",
+    "meta": 20.0,
+    "matr": 19.0,
+    "freq_avg": 18.7,
+    "n_classes": 94,
+    "attend_rate": 93.5,
+    "evasao": 0.3,
+    "evasao_pct": 1.6,
+    "centr": 12,
+    "sentr": 0,
+    "dem_total": 12
+  },
+  {
+    "unit": "CEDESP 1",
+    "period": "Noite",
+    "course": "OPERADOR DE COMPUTADOR",
+    "meta": 20.0,
+    "matr": 17.0,
+    "freq_avg": 17.9,
+    "n_classes": 94,
+    "attend_rate": 89.5,
+    "evasao": -0.9,
+    "evasao_pct": -5.3,
+    "centr": 52,
+    "sentr": 81,
+    "dem_total": 133
+  },
+  {
+    "unit": "CEDESP 2",
+    "period": "Manhã",
+    "course": "COSTUREIRO INDUSTRIAL DO VESTUÁRIO",
+    "meta": 20.0,
+    "matr": 16.0,
+    "freq_avg": 14.3,
+    "n_classes": 92,
+    "attend_rate": 71.5,
+    "evasao": 1.7,
+    "evasao_pct": 10.6,
+    "centr": 51,
+    "sentr": 3,
+    "dem_total": 54
+  },
+  {
+    "unit": "CEDESP 2",
+    "period": "Manhã",
+    "course": "ORGANIZADOR DE EVENTOS",
+    "meta": 20.0,
+    "matr": 23.0,
+    "freq_avg": 17.4,
+    "n_classes": 93,
+    "attend_rate": 87.0,
+    "evasao": 5.6,
+    "evasao_pct": 24.3,
+    "centr": 8,
+    "sentr": 0,
+    "dem_total": 8
+  },
+  {
+    "unit": "CEDESP 2",
+    "period": "Tarde",
+    "course": "ALFAIATE",
+    "meta": 20.0,
+    "matr": 19.0,
+    "freq_avg": 16.6,
+    "n_classes": 92,
+    "attend_rate": 83.0,
+    "evasao": 2.4,
+    "evasao_pct": 12.6,
+    "centr": 9,
+    "sentr": 0,
+    "dem_total": 9
+  },
+  {
+    "unit": "CEDESP 2",
+    "period": "Tarde",
+    "course": "COSTUREIRO INDUSTRIAL DO VESTUÁRIO",
+    "meta": 20.0,
+    "matr": 22.0,
+    "freq_avg": 17.7,
+    "n_classes": 92,
+    "attend_rate": 88.5,
+    "evasao": 4.3,
+    "evasao_pct": 19.5,
+    "centr": 32,
+    "sentr": 0,
+    "dem_total": 32
+  },
+  {
+    "unit": "CEDESP 2",
+    "period": "Tarde",
+    "course": "DESENHISTA DE MODA",
+    "meta": 20.0,
+    "matr": 16.0,
+    "freq_avg": 15.8,
+    "n_classes": 93,
+    "attend_rate": 79.0,
+    "evasao": 0.2,
+    "evasao_pct": 1.2,
+    "centr": 4,
+    "sentr": 0,
+    "dem_total": 4
+  },
+  {
+    "unit": "CEDESP 2",
+    "period": "Tarde",
+    "course": "INSTALADOR DE SISTEMAS ELETRÔNICOS DE SEGURANÇA",
+    "meta": 20.0,
+    "matr": 17.0,
+    "freq_avg": 13.5,
+    "n_classes": 92,
+    "attend_rate": 67.5,
+    "evasao": 3.5,
+    "evasao_pct": 20.6,
+    "centr": 9,
+    "sentr": 0,
+    "dem_total": 9
+  },
+  {
+    "unit": "CEDESP 2",
+    "period": "Tarde",
+    "course": "ORGANIZADOR DE EVENTOS",
+    "meta": 20.0,
+    "matr": 12.0,
+    "freq_avg": 10.9,
+    "n_classes": 93,
+    "attend_rate": 54.5,
+    "evasao": 1.1,
+    "evasao_pct": 9.2,
+    "centr": 2,
+    "sentr": 0,
+    "dem_total": 2
+  },
+  {
+    "unit": "CEDESP 2",
+    "period": "Noite",
+    "course": "ALFAIATE",
+    "meta": 20.0,
+    "matr": 16.0,
+    "freq_avg": 13.4,
+    "n_classes": 93,
+    "attend_rate": 67.0,
+    "evasao": 2.6,
+    "evasao_pct": 16.2,
+    "centr": 7,
+    "sentr": 0,
+    "dem_total": 7
+  },
+  {
+    "unit": "CEDESP 2",
+    "period": "Noite",
+    "course": "COSTUREIRO INDUSTRIAL DO VESTUÁRIO",
+    "meta": 20.0,
+    "matr": 23.0,
+    "freq_avg": 19.6,
+    "n_classes": 93,
+    "attend_rate": 98.0,
+    "evasao": 3.4,
+    "evasao_pct": 14.8,
+    "centr": 79,
+    "sentr": 0,
+    "dem_total": 79
+  },
+  {
+    "unit": "CEDESP 2",
+    "period": "Noite",
+    "course": "DESENHISTA DE MODA",
+    "meta": 20.0,
+    "matr": 17.0,
+    "freq_avg": 15.0,
+    "n_classes": 93,
+    "attend_rate": 75.0,
+    "evasao": 2.0,
+    "evasao_pct": 11.8,
+    "centr": 3,
+    "sentr": 3,
+    "dem_total": 6
+  },
+  {
+    "unit": "CEDESP 2",
+    "period": "Noite",
+    "course": "ELETROMECÂNICO DE AUTOMÓVEIS  - B",
+    "meta": 20.0,
+    "matr": 28.0,
+    "freq_avg": 20.8,
+    "n_classes": 93,
+    "attend_rate": 104.0,
+    "evasao": 7.2,
+    "evasao_pct": 25.7,
+    "centr": 0,
+    "sentr": 0,
+    "dem_total": 0
+  },
+  {
+    "unit": "CEDESP 2",
+    "period": "Noite",
+    "course": "INSTALADOR DE SISTEMAS ELETRÔNICOS DE SEGURANÇA",
+    "meta": 20.0,
+    "matr": 21.0,
+    "freq_avg": 18.2,
+    "n_classes": 93,
+    "attend_rate": 91.0,
+    "evasao": 2.8,
+    "evasao_pct": 13.3,
+    "centr": 27,
+    "sentr": 0,
+    "dem_total": 27
+  },
+  {
+    "unit": "CEDESP 2",
+    "period": "Noite",
+    "course": "MODELISTA DE ROUPAS",
+    "meta": 20.0,
+    "matr": 22.0,
+    "freq_avg": 18.6,
+    "n_classes": 93,
+    "attend_rate": 93.0,
+    "evasao": 3.4,
+    "evasao_pct": 15.5,
+    "centr": 39,
+    "sentr": 5,
+    "dem_total": 44
+  },
+  {
+    "unit": "CEDESP 2",
+    "period": "Noite",
+    "course": "OPERADOR PARA INJETORA PARA TERMOPLÁSTICOS",
+    "meta": 20.0,
+    "matr": 19.0,
+    "freq_avg": 13.2,
+    "n_classes": 91,
+    "attend_rate": 66.0,
+    "evasao": 5.8,
+    "evasao_pct": 30.5,
+    "centr": 10,
+    "sentr": 0,
+    "dem_total": 10
+  },
+  {
+    "unit": "CEDESP 3",
+    "period": "Manhã",
+    "course": "AUXILIAR DE MANUTENÇÃO PREDIAL (ELETRICISTA) - TURMA A",
+    "meta": 20.0,
+    "matr": 18.0,
+    "freq_avg": 14.7,
+    "n_classes": 93,
+    "attend_rate": 73.5,
+    "evasao": 3.3,
+    "evasao_pct": 18.3,
+    "centr": 18,
+    "sentr": 4,
+    "dem_total": 22
+  },
+  {
+    "unit": "CEDESP 3",
+    "period": "Manhã",
+    "course": "MONTADOR DE EQUIPAMENTOS ELETROELETRÔNICOS",
+    "meta": 20.0,
+    "matr": 31.0,
+    "freq_avg": 16.6,
+    "n_classes": 93,
+    "attend_rate": 83.0,
+    "evasao": 14.4,
+    "evasao_pct": 46.5,
+    "centr": 4,
+    "sentr": 0,
+    "dem_total": 4
+  },
+  {
+    "unit": "CEDESP 3",
+    "period": "Tarde",
+    "course": "AUXILIAR DE MANUTENÇÃO PREDIAL (ELETRICISTA) - TURMA A",
+    "meta": 20.0,
+    "matr": 14.0,
+    "freq_avg": 11.5,
+    "n_classes": 93,
+    "attend_rate": 57.5,
+    "evasao": 2.5,
+    "evasao_pct": 17.9,
+    "centr": 10,
+    "sentr": 0,
+    "dem_total": 10
+  },
+  {
+    "unit": "CEDESP 3",
+    "period": "Tarde",
+    "course": "AUXILIAR DE MANUTENÇÃO PREDIAL (ELETRICISTA) - TURMA B",
+    "meta": 20.0,
+    "matr": 11.0,
+    "freq_avg": 7.9,
+    "n_classes": 89,
+    "attend_rate": 39.5,
+    "evasao": 3.1,
+    "evasao_pct": 28.2,
+    "centr": 0,
+    "sentr": 0,
+    "dem_total": 0
+  },
+  {
+    "unit": "CEDESP 3",
+    "period": "Tarde",
+    "course": "ELETROMECÂNICO DE AUTOMÓVEIS  - B",
+    "meta": 20.0,
+    "matr": 22.0,
+    "freq_avg": 19.5,
+    "n_classes": 93,
+    "attend_rate": 97.5,
+    "evasao": 2.5,
+    "evasao_pct": 11.4,
+    "centr": 17,
+    "sentr": 0,
+    "dem_total": 17
+  },
+  {
+    "unit": "CEDESP 3",
+    "period": "Tarde",
+    "course": "MONTADOR DE EQUIPAMENTOS ELETROELETRÔNICOS",
+    "meta": 20.0,
+    "matr": 15.0,
+    "freq_avg": 14.3,
+    "n_classes": 93,
+    "attend_rate": 71.5,
+    "evasao": 0.7,
+    "evasao_pct": 4.7,
+    "centr": 0,
+    "sentr": 0,
+    "dem_total": 0
+  },
+  {
+    "unit": "CEDESP 3",
+    "period": "Tarde",
+    "course": "MONTADOR DE PAINEIS ELÉTRICOS",
+    "meta": 20.0,
+    "matr": 18.0,
+    "freq_avg": 14.6,
+    "n_classes": 93,
+    "attend_rate": 73.0,
+    "evasao": 3.4,
+    "evasao_pct": 18.9,
+    "centr": 0,
+    "sentr": 0,
+    "dem_total": 0
+  },
+  {
+    "unit": "CEDESP 3",
+    "period": "Noite",
+    "course": "AUXILIAR DE MANUTENÇÃO PREDIAL (ELETRICISTA) - TURMA A",
+    "meta": 20.0,
+    "matr": 22.0,
+    "freq_avg": 20.3,
+    "n_classes": 93,
+    "attend_rate": 101.5,
+    "evasao": 1.7,
+    "evasao_pct": 7.7,
+    "centr": 135,
+    "sentr": 71,
+    "dem_total": 206
+  },
+  {
+    "unit": "CEDESP 3",
+    "period": "Noite",
+    "course": "AUXILIAR DE MANUTENÇÃO PREDIAL (ELETRICISTA) - TURMA B",
+    "meta": 20.0,
+    "matr": 22.0,
+    "freq_avg": 15.7,
+    "n_classes": 92,
+    "attend_rate": 78.5,
+    "evasao": 6.3,
+    "evasao_pct": 28.6,
+    "centr": 0,
+    "sentr": 0,
+    "dem_total": 0
+  },
+  {
+    "unit": "CEDESP 3",
+    "period": "Noite",
+    "course": "ELETRICISTA INDUSTRIAL",
+    "meta": 20.0,
+    "matr": 24.0,
+    "freq_avg": 20.2,
+    "n_classes": 93,
+    "attend_rate": 101.0,
+    "evasao": 3.8,
+    "evasao_pct": 15.8,
+    "centr": 0,
+    "sentr": 33,
+    "dem_total": 33
+  },
+  {
+    "unit": "CEDESP 3",
+    "period": "Noite",
+    "course": "MONTADOR DE EQUIPAMENTOS ELETROELETRÔNICOS",
+    "meta": 20.0,
+    "matr": 31.0,
+    "freq_avg": 3.0,
+    "n_classes": 71,
+    "attend_rate": 15.0,
+    "evasao": 28.0,
+    "evasao_pct": 90.3,
+    "centr": 6,
+    "sentr": 78,
+    "dem_total": 84
+  },
+  {
+    "unit": "CEDESP 3",
+    "period": "Noite",
+    "course": "MONTADOR DE PAINEIS ELÉTRICOS",
+    "meta": 20.0,
+    "matr": 27.0,
+    "freq_avg": 20.1,
+    "n_classes": 81,
+    "attend_rate": 100.5,
+    "evasao": 6.9,
+    "evasao_pct": 25.6,
+    "centr": 0,
+    "sentr": 17,
+    "dem_total": 17
+  },
+  {
+    "unit": "CEDESP 4",
+    "period": "Manhã",
+    "course": "ASSISTENTE ADMINISTRATIVO - A",
+    "meta": 20.0,
+    "matr": 23.0,
+    "freq_avg": 18.0,
+    "n_classes": 92,
+    "attend_rate": 90.0,
+    "evasao": 5.0,
+    "evasao_pct": 21.7,
+    "centr": 46,
+    "sentr": 0,
+    "dem_total": 46
+  },
+  {
+    "unit": "CEDESP 4",
+    "period": "Manhã",
+    "course": "ASSISTENTE ADMINISTRATIVO - B",
+    "meta": 20.0,
+    "matr": 22.0,
+    "freq_avg": 18.8,
+    "n_classes": 92,
+    "attend_rate": 94.0,
+    "evasao": 3.2,
+    "evasao_pct": 14.5,
+    "centr": 0,
+    "sentr": 0,
+    "dem_total": 0
+  },
+  {
+    "unit": "CEDESP 4",
+    "period": "Manhã",
+    "course": "ASSISTENTE DE RECURSOS HUMANOS",
+    "meta": 20.0,
+    "matr": 20.0,
+    "freq_avg": 17.6,
+    "n_classes": 93,
+    "attend_rate": 88.0,
+    "evasao": 2.4,
+    "evasao_pct": 12.0,
+    "centr": 13,
+    "sentr": 0,
+    "dem_total": 13
+  },
+  {
+    "unit": "CEDESP 4",
+    "period": "Manhã",
+    "course": "COZINHEIRO INDUSTRIAL",
+    "meta": 20.0,
+    "matr": 21.0,
+    "freq_avg": 16.6,
+    "n_classes": 89,
+    "attend_rate": 83.0,
+    "evasao": 4.4,
+    "evasao_pct": 21.0,
+    "centr": 7,
+    "sentr": 5,
+    "dem_total": 12
+  },
+  {
+    "unit": "CEDESP 4",
+    "period": "Tarde",
+    "course": "ASSISTENTE ADMINISTRATIVO - A",
+    "meta": 20.0,
+    "matr": 20.0,
+    "freq_avg": 17.0,
+    "n_classes": 92,
+    "attend_rate": 85.0,
+    "evasao": 3.0,
+    "evasao_pct": 15.0,
+    "centr": 59,
+    "sentr": 0,
+    "dem_total": 59
+  },
+  {
+    "unit": "CEDESP 4",
+    "period": "Tarde",
+    "course": "ASSISTENTE ADMINISTRATIVO - B",
+    "meta": 20.0,
+    "matr": 22.0,
+    "freq_avg": 16.9,
+    "n_classes": 92,
+    "attend_rate": 84.5,
+    "evasao": 5.1,
+    "evasao_pct": 23.2,
+    "centr": 0,
+    "sentr": 0,
+    "dem_total": 0
+  },
+  {
+    "unit": "CEDESP 4",
+    "period": "Tarde",
+    "course": "ASSISTENTE DE RECURSOS HUMANOS",
+    "meta": 20.0,
+    "matr": 25.0,
+    "freq_avg": 17.9,
+    "n_classes": 89,
+    "attend_rate": 89.5,
+    "evasao": 7.1,
+    "evasao_pct": 28.4,
+    "centr": 20,
+    "sentr": 0,
+    "dem_total": 20
+  },
+  {
+    "unit": "CEDESP 4",
+    "period": "Tarde",
+    "course": "COZINHEIRO INDUSTRIAL",
+    "meta": 20.0,
+    "matr": 18.0,
+    "freq_avg": 14.9,
+    "n_classes": 91,
+    "attend_rate": 74.5,
+    "evasao": 3.1,
+    "evasao_pct": 17.2,
+    "centr": 12,
+    "sentr": 0,
+    "dem_total": 12
+  },
+  {
+    "unit": "CEDESP 4",
+    "period": "Noite",
+    "course": "ASSISTENTE ADMINISTRATIVO - A",
+    "meta": 20.0,
+    "matr": 24.0,
+    "freq_avg": 19.7,
+    "n_classes": 93,
+    "attend_rate": 98.5,
+    "evasao": 4.3,
+    "evasao_pct": 17.9,
+    "centr": 77,
+    "sentr": 0,
+    "dem_total": 77
+  },
+  {
+    "unit": "CEDESP 4",
+    "period": "Noite",
+    "course": "ASSISTENTE ADMINISTRATIVO - B",
+    "meta": 20.0,
+    "matr": 27.0,
+    "freq_avg": 23.1,
+    "n_classes": 92,
+    "attend_rate": 115.5,
+    "evasao": 3.9,
+    "evasao_pct": 14.4,
+    "centr": 0,
+    "sentr": 0,
+    "dem_total": 0
+  },
+  {
+    "unit": "CEDESP 4",
+    "period": "Noite",
+    "course": "ASSISTENTE DE RECURSOS HUMANOS",
+    "meta": 20.0,
+    "matr": 28.0,
+    "freq_avg": 22.7,
+    "n_classes": 93,
+    "attend_rate": 113.5,
+    "evasao": 5.3,
+    "evasao_pct": 18.9,
+    "centr": 45,
+    "sentr": 0,
+    "dem_total": 45
+  },
+  {
+    "unit": "CEDESP 4",
+    "period": "Noite",
+    "course": "COZINHEIRO INDUSTRIAL",
+    "meta": 20.0,
+    "matr": 22.0,
+    "freq_avg": 15.7,
+    "n_classes": 89,
+    "attend_rate": 78.5,
+    "evasao": 6.3,
+    "evasao_pct": 28.6,
+    "centr": 41,
+    "sentr": 0,
+    "dem_total": 41
+  },
+  {
+    "unit": "CEDESP 5",
+    "period": "Manhã",
+    "course": "AUXILIAR DE MANUTENÇÃO PREDIAL (ELETRICISTA) - TURMA B",
+    "meta": 20.0,
+    "matr": 27.0,
+    "freq_avg": 7.9,
+    "n_classes": 93,
+    "attend_rate": 39.5,
+    "evasao": 19.1,
+    "evasao_pct": 70.7,
+    "centr": 0,
+    "sentr": 0,
+    "dem_total": 0
+  },
+  {
+    "unit": "CEDESP 5",
+    "period": "Manhã",
+    "course": "PEDREIRO DE ALVENARIA",
+    "meta": 20.0,
+    "matr": 11.0,
+    "freq_avg": 9.9,
+    "n_classes": 92,
+    "attend_rate": 49.5,
+    "evasao": 1.1,
+    "evasao_pct": 10.0,
+    "centr": 8,
+    "sentr": 1,
+    "dem_total": 9
+  },
+  {
+    "unit": "CEDESP 5",
+    "period": "Manhã",
+    "course": "PROGRAMADOR DE SISTEMAS",
+    "meta": 20.0,
+    "matr": 25.0,
+    "freq_avg": 20.4,
+    "n_classes": 93,
+    "attend_rate": 102.0,
+    "evasao": 4.6,
+    "evasao_pct": 18.4,
+    "centr": 13,
+    "sentr": 0,
+    "dem_total": 13
+  },
+  {
+    "unit": "CEDESP 5",
+    "period": "Manhã",
+    "course": "PROGRAMADOR WEB",
+    "meta": 20.0,
+    "matr": 25.0,
+    "freq_avg": 17.1,
+    "n_classes": 93,
+    "attend_rate": 85.5,
+    "evasao": 7.9,
+    "evasao_pct": 31.6,
+    "centr": 10,
+    "sentr": 0,
+    "dem_total": 10
+  },
+  {
+    "unit": "CEDESP 5",
+    "period": "Tarde",
+    "course": "EDITOR DE PROJETOS VISUAIS GRÁFICOS",
+    "meta": 20.0,
+    "matr": 26.0,
+    "freq_avg": 20.3,
+    "n_classes": 91,
+    "attend_rate": 101.5,
+    "evasao": 5.7,
+    "evasao_pct": 21.9,
+    "centr": 10,
+    "sentr": 0,
+    "dem_total": 10
+  },
+  {
+    "unit": "CEDESP 5",
+    "period": "Tarde",
+    "course": "PROGRAMADOR DE SISTEMAS",
+    "meta": 20.0,
+    "matr": 23.0,
+    "freq_avg": 21.5,
+    "n_classes": 92,
+    "attend_rate": 107.5,
+    "evasao": 1.5,
+    "evasao_pct": 6.5,
+    "centr": 29,
+    "sentr": 0,
+    "dem_total": 29
+  },
+  {
+    "unit": "CEDESP 5",
+    "period": "Tarde",
+    "course": "PROGRAMADOR WEB",
+    "meta": 20.0,
+    "matr": 27.0,
+    "freq_avg": 24.3,
+    "n_classes": 93,
+    "attend_rate": 121.5,
+    "evasao": 2.7,
+    "evasao_pct": 10.0,
+    "centr": 20,
+    "sentr": 0,
+    "dem_total": 20
+  },
+  {
+    "unit": "CEDESP 5",
+    "period": "Tarde",
+    "course": "SERÍGRAFO",
+    "meta": 20.0,
+    "matr": 15.0,
+    "freq_avg": 12.1,
+    "n_classes": 92,
+    "attend_rate": 60.5,
+    "evasao": 2.9,
+    "evasao_pct": 19.3,
+    "centr": 6,
+    "sentr": 0,
+    "dem_total": 6
+  },
+  {
+    "unit": "CEDESP 5",
+    "period": "Noite",
+    "course": "ANIMADOR DE STOP MOTION",
+    "meta": 20.0,
+    "matr": 22.0,
+    "freq_avg": 18.6,
+    "n_classes": 93,
+    "attend_rate": 93.0,
+    "evasao": 3.4,
+    "evasao_pct": 15.5,
+    "centr": 9,
+    "sentr": 0,
+    "dem_total": 9
+  },
+  {
+    "unit": "CEDESP 5",
+    "period": "Noite",
+    "course": "EDITOR DE PROJETOS VISUAIS GRÁFICOS",
+    "meta": 20.0,
+    "matr": 26.0,
+    "freq_avg": 18.5,
+    "n_classes": 91,
+    "attend_rate": 92.5,
+    "evasao": 7.5,
+    "evasao_pct": 28.8,
+    "centr": 9,
+    "sentr": 0,
+    "dem_total": 9
+  },
+  {
+    "unit": "CEDESP 5",
+    "period": "Noite",
+    "course": "PEDREIRO DE ALVENARIA",
+    "meta": 20.0,
+    "matr": 22.0,
+    "freq_avg": 16.4,
+    "n_classes": 93,
+    "attend_rate": 82.0,
+    "evasao": 5.6,
+    "evasao_pct": 25.5,
+    "centr": 52,
+    "sentr": 0,
+    "dem_total": 52
+  },
+  {
+    "unit": "CEDESP 5",
+    "period": "Noite",
+    "course": "PROGRAMADOR DE SISTEMAS",
+    "meta": 20.0,
+    "matr": 23.0,
+    "freq_avg": 18.1,
+    "n_classes": 92,
+    "attend_rate": 90.5,
+    "evasao": 4.9,
+    "evasao_pct": 21.3,
+    "centr": 31,
+    "sentr": 0,
+    "dem_total": 31
+  },
+  {
+    "unit": "CEDESP 5",
+    "period": "Noite",
+    "course": "PROGRAMADOR WEB",
+    "meta": 20.0,
+    "matr": 23.0,
+    "freq_avg": 17.2,
+    "n_classes": 91,
+    "attend_rate": 86.0,
+    "evasao": 5.8,
+    "evasao_pct": 25.2,
+    "centr": 12,
+    "sentr": 0,
+    "dem_total": 12
+  },
+  {
+    "unit": "CEDESP 5",
+    "period": "Noite",
+    "course": "SERÍGRAFO",
+    "meta": 20.0,
+    "matr": 19.0,
+    "freq_avg": 16.2,
+    "n_classes": 91,
+    "attend_rate": 81.0,
+    "evasao": 2.8,
+    "evasao_pct": 14.7,
+    "centr": 7,
+    "sentr": 0,
+    "dem_total": 7
+  },
+  {
+    "unit": "CEDESP 6",
+    "period": "Manhã",
+    "course": "CONFEITEIRO (COM NOÇÕES DE SORVETERIA)",
+    "meta": 20.0,
+    "matr": 17.0,
+    "freq_avg": 13.9,
+    "n_classes": 93,
+    "attend_rate": 69.5,
+    "evasao": 3.1,
+    "evasao_pct": 18.2,
+    "centr": 42,
+    "sentr": 9,
+    "dem_total": 51
+  },
+  {
+    "unit": "CEDESP 6",
+    "period": "Manhã",
+    "course": "ELETROMECÂNICO DE AUTOMÓVEIS - B",
+    "meta": 20.0,
+    "matr": 22.0,
+    "freq_avg": 17.0,
+    "n_classes": 93,
+    "attend_rate": 85.0,
+    "evasao": 5.0,
+    "evasao_pct": 22.7,
+    "centr": 0,
+    "sentr": 0,
+    "dem_total": 0
+  },
+  {
+    "unit": "CEDESP 6",
+    "period": "Manhã",
+    "course": "ELETROMECÂNICO DE AUTOMÓVEIS - C",
+    "meta": 20.0,
+    "matr": 18.0,
+    "freq_avg": 10.0,
+    "n_classes": 90,
+    "attend_rate": 50.0,
+    "evasao": 8.0,
+    "evasao_pct": 44.4,
+    "centr": 0,
+    "sentr": 0,
+    "dem_total": 0
+  },
+  {
+    "unit": "CEDESP 6",
+    "period": "Manhã",
+    "course": "PADEIRO",
+    "meta": 20.0,
+    "matr": 27.0,
+    "freq_avg": 23.2,
+    "n_classes": 91,
+    "attend_rate": 116.0,
+    "evasao": 3.8,
+    "evasao_pct": 14.1,
+    "centr": 1,
+    "sentr": 0,
+    "dem_total": 1
+  },
+  {
+    "unit": "CEDESP 6",
+    "period": "Tarde",
+    "course": "CONFEITEIRO (COM NOÇÕES DE SORVETERIA)",
+    "meta": 20.0,
+    "matr": 24.0,
+    "freq_avg": 18.8,
+    "n_classes": 93,
+    "attend_rate": 94.0,
+    "evasao": 5.2,
+    "evasao_pct": 21.7,
+    "centr": 8,
+    "sentr": 0,
+    "dem_total": 8
+  },
+  {
+    "unit": "CEDESP 6",
+    "period": "Tarde",
+    "course": "PADEIRO",
+    "meta": 20.0,
+    "matr": 20.0,
+    "freq_avg": 16.4,
+    "n_classes": 93,
+    "attend_rate": 82.0,
+    "evasao": 3.6,
+    "evasao_pct": 18.0,
+    "centr": 0,
+    "sentr": 0,
+    "dem_total": 0
+  },
+  {
+    "unit": "CEDESP 6",
+    "period": "Noite",
+    "course": "CONFEITEIRO (COM NOÇÕES DE SORVETERIA)",
+    "meta": 20.0,
+    "matr": 26.0,
+    "freq_avg": 24.4,
+    "n_classes": 92,
+    "attend_rate": 122.0,
+    "evasao": 1.6,
+    "evasao_pct": 6.2,
+    "centr": 62,
+    "sentr": 95,
+    "dem_total": 157
+  },
+  {
+    "unit": "CEDESP 6",
+    "period": "Noite",
+    "course": "ELETROMECÂNICO DE AUTOMÓVEIS - A",
+    "meta": 20.0,
+    "matr": 25.0,
+    "freq_avg": 23.4,
+    "n_classes": 93,
+    "attend_rate": 117.0,
+    "evasao": 1.6,
+    "evasao_pct": 6.4,
+    "centr": 12,
+    "sentr": 53,
+    "dem_total": 65
+  },
+  {
+    "unit": "CEDESP 6",
+    "period": "Noite",
+    "course": "ELETROMECÂNICO DE AUTOMÓVEIS - C",
+    "meta": 20.0,
+    "matr": 22.0,
+    "freq_avg": 17.3,
+    "n_classes": 94,
+    "attend_rate": 86.5,
+    "evasao": 4.7,
+    "evasao_pct": 21.4,
+    "centr": 0,
+    "sentr": 0,
+    "dem_total": 0
+  },
+  {
+    "unit": "CEDESP 6",
+    "period": "Noite",
+    "course": "PADEIRO",
+    "meta": 20.0,
+    "matr": 20.0,
+    "freq_avg": 16.4,
+    "n_classes": 88,
+    "attend_rate": 82.0,
+    "evasao": 3.6,
+    "evasao_pct": 18.0,
+    "centr": 1,
+    "sentr": 12,
+    "dem_total": 13
+  },
+  {
+    "unit": "CEDESP 7",
+    "period": "Manhã",
+    "course": "ELETRICISTA DE SISTEMAS DE ENERGIAS RENOVÁVEIS",
+    "meta": 20.0,
+    "matr": 14.0,
+    "freq_avg": 11.6,
+    "n_classes": 92,
+    "attend_rate": 58.0,
+    "evasao": 2.4,
+    "evasao_pct": 17.1,
+    "centr": 3,
+    "sentr": 0,
+    "dem_total": 3
+  },
+  {
+    "unit": "CEDESP 7",
+    "period": "Manhã",
+    "course": "MECÂNICO DE USINAGEM (Eletromecânico de Automóveis)",
+    "meta": 20.0,
+    "matr": 22.0,
+    "freq_avg": 9.2,
+    "n_classes": 92,
+    "attend_rate": 46.0,
+    "evasao": 12.8,
+    "evasao_pct": 58.2,
+    "centr": 0,
+    "sentr": 0,
+    "dem_total": 0
+  },
+  {
+    "unit": "CEDESP 7",
+    "period": "Tarde",
+    "course": "ELETROMECÂNICO DE AUTOMÓVEIS  - A",
+    "meta": 20.0,
+    "matr": 27.0,
+    "freq_avg": 16.5,
+    "n_classes": 88,
+    "attend_rate": 82.5,
+    "evasao": 10.5,
+    "evasao_pct": 38.9,
+    "centr": 0,
+    "sentr": 0,
+    "dem_total": 0
+  },
+  {
+    "unit": "CEDESP 7",
+    "period": "Tarde",
+    "course": "MECÂNICO DE USINAGEM CONVENCIONAL",
+    "meta": 20.0,
+    "matr": 14.0,
+    "freq_avg": 7.7,
+    "n_classes": 90,
+    "attend_rate": 38.5,
+    "evasao": 6.3,
+    "evasao_pct": 45.0,
+    "centr": 1,
+    "sentr": 0,
+    "dem_total": 1
+  },
+  {
+    "unit": "CEDESP 7",
+    "period": "Noite",
+    "course": "ELETRICISTA DE SISTEMAS DE ENERGIAS RENOVÁVEIS",
+    "meta": 20.0,
+    "matr": 27.0,
+    "freq_avg": 14.0,
+    "n_classes": 90,
+    "attend_rate": 70.0,
+    "evasao": 13.0,
+    "evasao_pct": 48.1,
+    "centr": 32,
+    "sentr": 18,
+    "dem_total": 50
+  },
+  {
+    "unit": "CEDESP 7",
+    "period": "Noite",
+    "course": "MECÂNICO DE USINAGEM CONVENCIONAL",
+    "meta": 40.0,
+    "matr": 24.0,
+    "freq_avg": 17.3,
+    "n_classes": 93,
+    "attend_rate": 43.2,
+    "evasao": 6.7,
+    "evasao_pct": 27.9,
+    "centr": 20,
+    "sentr": 0,
+    "dem_total": 20
+  },
+  {
+    "unit": "CEDESP 7",
+    "period": "Noite",
+    "course": "OPERADOR DE FRESADORA COM CNC - A",
+    "meta": 20.0,
+    "matr": 25.0,
+    "freq_avg": 17.0,
+    "n_classes": 91,
+    "attend_rate": 85.0,
+    "evasao": 8.0,
+    "evasao_pct": 32.0,
+    "centr": 0,
+    "sentr": 13,
+    "dem_total": 13
+  },
+  {
+    "unit": "CEDESP 7",
+    "period": "Noite",
+    "course": "OPERADOR DE TORNO COM CNC",
+    "meta": 20.0,
+    "matr": 19.0,
+    "freq_avg": 11.9,
+    "n_classes": 91,
+    "attend_rate": 59.5,
+    "evasao": 7.1,
+    "evasao_pct": 37.4,
+    "centr": 1,
+    "sentr": 21,
+    "dem_total": 22
+  },
+  {
+    "unit": "CEDESP 7",
+    "period": "Noite",
+    "course": "OPERADOR E PROGRAMADOR DE SISTEMAS AUTOMATIZADOS DE SOLDAGEM - A",
+    "meta": 20.0,
+    "matr": 19.0,
+    "freq_avg": 10.4,
+    "n_classes": 93,
+    "attend_rate": 52.0,
+    "evasao": 8.6,
+    "evasao_pct": 45.3,
+    "centr": 11,
+    "sentr": 58,
+    "dem_total": 69
+  },
+  {
+    "unit": "CEDESP 7",
+    "period": "Noite",
+    "course": "OPERADOR E PROGRAMADOR DE SISTEMAS AUTOMATIZADOS DE SOLDAGEM - B",
+    "meta": 20.0,
+    "matr": 20.0,
+    "freq_avg": 8.7,
+    "n_classes": 92,
+    "attend_rate": 43.5,
+    "evasao": 11.3,
+    "evasao_pct": 56.5,
+    "centr": 0,
+    "sentr": 0,
+    "dem_total": 0
+  },
+  {
+    "unit": "CEDESP 7",
+    "period": "Noite",
+    "course": "OPERADOR E PROGRAMADOR DE SISTEMAS AUTOMATIZADOS DE SOLDAGEM - C",
+    "meta": 20.0,
+    "matr": 18.0,
+    "freq_avg": 13.7,
+    "n_classes": 93,
+    "attend_rate": 68.5,
+    "evasao": 4.3,
+    "evasao_pct": 23.9,
+    "centr": 0,
+    "sentr": 0,
+    "dem_total": 0
+  },
+  {
+    "unit": "CEDESP 8",
+    "period": "Manhã",
+    "course": "ANIMADOR DE STOP MOTION",
+    "meta": 20.0,
+    "matr": 27.0,
+    "freq_avg": 18.3,
+    "n_classes": 93,
+    "attend_rate": 91.5,
+    "evasao": 8.7,
+    "evasao_pct": 32.2,
+    "centr": 0,
+    "sentr": 0,
+    "dem_total": 0
+  },
+  {
+    "unit": "CEDESP 8",
+    "period": "Manhã",
+    "course": "AUXILIAR PEDAGÓGICO",
+    "meta": 20.0,
+    "matr": 34.0,
+    "freq_avg": 24.0,
+    "n_classes": 93,
+    "attend_rate": 120.0,
+    "evasao": 10.0,
+    "evasao_pct": 29.4,
+    "centr": 19,
+    "sentr": 102,
+    "dem_total": 121
+  },
+  {
+    "unit": "CEDESP 8",
+    "period": "Manhã",
+    "course": "CUIDADOR DE IDOSOS",
+    "meta": 20.0,
+    "matr": 30.0,
+    "freq_avg": 26.9,
+    "n_classes": 93,
+    "attend_rate": 134.5,
+    "evasao": 3.1,
+    "evasao_pct": 10.3,
+    "centr": 5,
+    "sentr": 72,
+    "dem_total": 77
+  },
+  {
+    "unit": "CEDESP 8",
+    "period": "Manhã",
+    "course": "OPERADOR DE COMPUTADOR",
+    "meta": 20.0,
+    "matr": 41.0,
+    "freq_avg": 28.9,
+    "n_classes": 93,
+    "attend_rate": 144.5,
+    "evasao": 12.1,
+    "evasao_pct": 29.5,
+    "centr": 1,
+    "sentr": 7,
+    "dem_total": 8
+  },
+  {
+    "unit": "CEDESP 8",
+    "period": "Tarde",
+    "course": "ANIMADOR DE STOP MOTION",
+    "meta": 20.0,
+    "matr": 32.0,
+    "freq_avg": 20.1,
+    "n_classes": 93,
+    "attend_rate": 100.5,
+    "evasao": 11.9,
+    "evasao_pct": 37.2,
+    "centr": 2,
+    "sentr": 0,
+    "dem_total": 2
+  },
+  {
+    "unit": "CEDESP 8",
+    "period": "Tarde",
+    "course": "AUXILIAR PEDAGÓGICO",
+    "meta": 20.0,
+    "matr": 35.0,
+    "freq_avg": 24.8,
+    "n_classes": 93,
+    "attend_rate": 124.0,
+    "evasao": 10.2,
+    "evasao_pct": 29.1,
+    "centr": 4,
+    "sentr": 22,
+    "dem_total": 26
+  },
+  {
+    "unit": "CEDESP 8",
+    "period": "Tarde",
+    "course": "CUIDADOR DE IDOSO",
+    "meta": 20.0,
+    "matr": 30.0,
+    "freq_avg": 23.7,
+    "n_classes": 93,
+    "attend_rate": 118.5,
+    "evasao": 6.3,
+    "evasao_pct": 21.0,
+    "centr": 1,
+    "sentr": 49,
+    "dem_total": 50
+  },
+  {
+    "unit": "CEDESP 8",
+    "period": "Tarde",
+    "course": "OPERADOR DE COMPUTADOR",
+    "meta": 20.0,
+    "matr": 39.0,
+    "freq_avg": 24.8,
+    "n_classes": 93,
+    "attend_rate": 124.0,
+    "evasao": 14.2,
+    "evasao_pct": 36.4,
+    "centr": 5,
+    "sentr": 17,
+    "dem_total": 22
+  }
+];
+
+let filterUnit='all', filterPeriod='all', sortMode='attend_rate', sortDir=-1, searchQuery='';
+
+function getColor(r){ return r>=100?'#2d7a4f':r>=80?'#c97c1a':'#c84b31'; }
+function getStatus(r){ return r>=100?{cls:'high',label:'✓ Meta atingida'}:r>=80?{cls:'mid',label:'⚠ Atenção média'}:{cls:'low',label:'✗ Atenção imediata'}; }
+function periodColor(p){ return p==='Manhã'?'#c97c1a':p==='Tarde'?'#2b5f8a':'#4a3a7a'; }
+
+function getFiltered(){
+  return RAW.filter(d=>{
+    if(filterUnit!=='all'&&d.unit!==filterUnit)return false;
+    if(filterPeriod!=='all'&&d.period!==filterPeriod)return false;
+    if(searchQuery&&!d.course.toLowerCase().includes(searchQuery)&&!d.unit.toLowerCase().includes(searchQuery))return false;
+    return true;
+  });
+}
+
+function getSorted(data){
+  return [...data].sort((a,b)=>{
+    const statusOrder={high:0,mid:1,low:2};
+    let av=a[sortMode], bv=b[sortMode];
+    if(sortMode==='status'){av=statusOrder[getStatus(a.attend_rate).cls]??3;bv=statusOrder[getStatus(b.attend_rate).cls]??3;}
+    if(typeof av==='string')return av.localeCompare(bv)*sortDir;
+    av=av??-Infinity; bv=bv??-Infinity;
+    return(av-bv)*sortDir;
+  });
+}
+
+Chart.defaults.color='#8a8279';
+Chart.defaults.font.family="'Poppins',sans-serif";
+Chart.defaults.borderColor='#d8d2c8';
+let charts={};
+
+function buildCharts(data){
+  Object.values(charts).forEach(c=>c&&c.destroy());
+  const sorted=[...data].sort((a,b)=>a.attend_rate-b.attend_rate).slice(0,20);
+
+  charts.bar=new Chart(document.getElementById('courseBarChart'),{
+    type:'bar',
+    data:{
+      labels:sorted.map(d=>d.course.length>32?d.course.substring(0,30)+'…':d.course),
+      datasets:[{label:'Taxa %',data:sorted.map(d=>d.attend_rate),backgroundColor:sorted.map(d=>getColor(d.attend_rate)+'cc'),borderColor:sorted.map(d=>getColor(d.attend_rate)),borderWidth:1,borderRadius:0}]
+    },
+    options:{indexAxis:'y',responsive:true,plugins:{legend:{display:false},tooltip:{backgroundColor:'#1a1612',borderColor:'#d8d2c8',borderWidth:1,callbacks:{label:ctx=>` ${ctx.raw.toFixed(1)}%  —  ${sorted[ctx.dataIndex].unit} · ${sorted[ctx.dataIndex].period}`}}},scales:{x:{min:0,max:120,grid:{color:'rgba(216,210,200,.4)'},ticks:{font:{size:10},callback:v=>v+'%'}},y:{grid:{display:false},ticks:{font:{size:10}}}}}
+  });
+
+  const bands=[
+    {label:'≥ 100% (Meta atingida)',min:100,max:Infinity,color:'#2d7a4f'},
+    {label:'80–99.9% (Atenção média)',min:80,max:100,color:'#c97c1a'},
+    {label:'< 80% (Atenção imediata)',min:0,max:80,color:'#c84b31'},
+  ];
+  charts.dist=new Chart(document.getElementById('distChart'),{
+    type:'doughnut',
+    data:{labels:bands.map(b=>b.label),datasets:[{data:bands.map(b=>data.filter(d=>d.attend_rate>=b.min&&d.attend_rate<b.max).length),backgroundColor:bands.map(b=>b.color+'cc'),borderColor:bands.map(b=>b.color),borderWidth:2,hoverOffset:8}]},
+    options:{responsive:true,cutout:'58%',plugins:{legend:{position:'right',labels:{boxWidth:12,padding:12,font:{size:11},usePointStyle:true}},tooltip:{backgroundColor:'#1a1612',borderColor:'#d8d2c8',borderWidth:1}}}
+  });
+
+  const units=[...new Set(RAW.map(d=>d.unit))];
+  const critImediata=units.map(u=>data.filter(d=>d.unit===u&&d.attend_rate<80).length);
+  const critMedia=units.map(u=>data.filter(d=>d.unit===u&&d.attend_rate>=80&&d.attend_rate<100).length);
+  const critOk=units.map(u=>data.filter(d=>d.unit===u&&d.attend_rate>=100).length);
+  charts.unit=new Chart(document.getElementById('unitCompChart'),{
+    type:'bar',
+    data:{labels:units.map(u=>u.replace('CEDESP ','C')),datasets:[
+      {label:'✗ Atenção imediata (<80%)',data:critImediata,backgroundColor:'rgba(200,75,49,.85)',borderColor:'#c84b31',borderWidth:1,borderRadius:0},
+      {label:'⚠ Atenção média (80–99%)',data:critMedia,backgroundColor:'rgba(201,124,26,.85)',borderColor:'#c97c1a',borderWidth:1,borderRadius:0},
+      {label:'✓ Meta atingida (≥100%)',data:critOk,backgroundColor:'rgba(45,122,79,.85)',borderColor:'#2d7a4f',borderWidth:1,borderRadius:0}
+    ]},
+    options:{responsive:true,plugins:{legend:{position:'top',labels:{boxWidth:10,padding:10,font:{size:10}}},tooltip:{backgroundColor:'#1a1612',borderColor:'#d8d2c8',borderWidth:1,callbacks:{label:ctx=>{const u=units[ctx.dataIndex];const total=data.filter(d=>d.unit===u).length;return` ${ctx.dataset.label.split(' ')[0]} ${ctx.raw} turma${ctx.raw!==1?'s':''} de ${total}`;}}}},scales:{x:{stacked:true,grid:{display:false},ticks:{font:{size:11}}},y:{stacked:true,grid:{color:'rgba(216,210,200,.4)'},ticks:{font:{size:10},stepSize:1}}}}
+  });
+
+  const periods=['Manhã','Tarde','Noite'];
+  const pAvgs=periods.map(p=>{const r=data.filter(d=>d.period===p);return r.length?+(r.reduce((s,x)=>s+x.attend_rate,0)/r.length).toFixed(1):0;});
+  charts.period=new Chart(document.getElementById('periodChart'),{
+    type:'bar',
+    data:{labels:['☀ Manhã','🌤 Tarde','🌙 Noite'],datasets:[{label:'Taxa média %',data:pAvgs,backgroundColor:periods.map(p=>periodColor(p)+'cc'),borderColor:periods.map(p=>periodColor(p)),borderWidth:1.5,borderRadius:0}]},
+    options:{responsive:true,plugins:{legend:{display:false},tooltip:{backgroundColor:'#1a1612',borderColor:'#d8d2c8',borderWidth:1}},scales:{x:{grid:{display:false},ticks:{font:{size:12}}},y:{min:40,max:100,grid:{color:'rgba(216,210,200,.4)'},ticks:{font:{size:10},callback:v=>v+'%'}}}}
+  });
+}
+
+// ── EVASION CHART ──
+let evasaoChart;
+function buildEvasaoChart(data){
+  if(evasaoChart)evasaoChart.destroy();
+  const withEvasao=data.filter(d=>d.matr&&d.evasao!=null).sort((a,b)=>b.evasao_pct-a.evasao_pct).slice(0,20);
+  const labels=withEvasao.map(d=>{const n=d.course.length>30?d.course.substring(0,28)+'…':d.course;return n+' ('+d.unit.replace('CEDESP ','C')+')';});
+  evasaoChart=new Chart(document.getElementById('evasaoChart'),{
+    type:'bar',
+    data:{labels,datasets:[{
+      label:'Evasão (alunos)',
+      data:withEvasao.map(d=>d.evasao),
+      backgroundColor:withEvasao.map(d=>d.evasao_pct>30?'rgba(200,75,49,.85)':d.evasao_pct>15?'rgba(201,124,26,.85)':'rgba(125,133,144,.6)'),
+      borderColor:withEvasao.map(d=>d.evasao_pct>30?'#c84b31':d.evasao_pct>15?'#c97c1a':'#7d8590'),
+      borderWidth:1,borderRadius:0
+    }]},
+    options:{
+      indexAxis:'y',responsive:true,
+      plugins:{
+        legend:{display:false},
+        tooltip:{backgroundColor:'#1a1612',borderColor:'#d8d2c8',borderWidth:1,
+          callbacks:{label:ctx=>{const d=withEvasao[ctx.dataIndex];return` ${d.evasao.toFixed(0)} alunos evadidos — ${d.evasao_pct.toFixed(1)}% · ${d.period}`;}}
+        }
+      },
+      scales:{
+        x:{grid:{color:'rgba(216,210,200,.3)'},ticks:{font:{size:10}}},
+        y:{grid:{display:false},ticks:{font:{size:10}}}
+      }
+    }
+  });
+}
+
+function buildTable(data){
+  const tbody=document.getElementById('courseTableBody');
+  tbody.innerHTML='';
+  const sorted=getSorted(data);
+  document.getElementById('resultCount').textContent=sorted.length+' cursos';
+  document.getElementById('emptyState').style.display=sorted.length?'none':'block';
+  sorted.forEach(d=>{
+    const st=getStatus(d.attend_rate);
+    const cap=Math.min(d.attend_rate,100);
+    const fc=getColor(d.attend_rate);
+    const pd=d.period.toLowerCase().replace('ã','a');
+    const tr=document.createElement('tr');
+    tr.innerHTML=`
+      <td><div class="course-name-cell">${d.course}</div></td>
+      <td><span class="unit-chip">${d.unit.replace('CEDESP ','C')}</span></td>
+      <td class="mono"><span class="period-dot ${pd}"></span>${d.period}</td>
+      <td class="right mono">${d.matr||'—'}</td>
+      <td class="right mono">${d.freq_avg.toFixed(1)}</td>
+      <td class="right mono">${d.n_classes}</td>
+      <td class="rate-cell"><div class="rate-wrap"><div class="rate-bar"><div class="rate-fill" style="width:${cap}%;background:${fc}"></div></div><div class="rate-pct" style="color:${fc}">${d.attend_rate.toFixed(1)}%</div></div></td>
+      <td class="right mono">${d.evasao_pct!=null?'<span style="color:'+(d.evasao_pct>30?'#c84b31':d.evasao_pct>15?'#c97c1a':'#7d8590')+'">'+d.evasao_pct.toFixed(1)+'%</span>':'—'}</td>
+      <td class="right">${(()=>{
+        const c=d.centr,s=d.sentr,t=d.dem_total;
+        if(!t)return'<span style="color:var(--text-muted)">—</span>';
+        const tag=c>0?'<span style="display:inline-flex;gap:3px;align-items:center">'
+          +'<span title="Com entrevista (aguardando vaga)" style="font-size:10px;padding:1px 5px;border-radius:2px;background:rgba(45,122,79,.15);color:#2d7a4f;font-family:JetBrains Mono,monospace">'+c+'✓</span>'
+          +(s>0?'<span title="Sem entrevista (só ficha)" style="font-size:10px;padding:1px 5px;border-radius:2px;background:rgba(88,166,255,.12);color:#58a6ff;font-family:JetBrains Mono,monospace">'+s+'~</span>':'')
+          +'</span>'
+          :'<span title="Só ficha, sem entrevista" style="font-size:10px;padding:1px 5px;border-radius:2px;background:rgba(88,166,255,.12);color:#58a6ff;font-family:JetBrains Mono,monospace">'+s+'~</span>';
+        return tag;
+      })()}</td>
+      <td><span class="status-flag ${st.cls}">${st.label}</span></td>
+    `;
+    tbody.appendChild(tr);
+  });
+}
+
+function updateKPIs(data){
+  document.getElementById('kpi-cursos').textContent=data.length;
+  const tm=data.reduce((s,d)=>s+(d.meta||0),0);
+  const wr=tm>0?(data.reduce((s,d)=>s+d.attend_rate*(d.meta||0),0)/tm).toFixed(1)+'%':'—';
+  document.getElementById('kpi-rate').textContent=wr;
+
+  document.getElementById('kpi-low').textContent=data.filter(d=>d.attend_rate<80).length;
+  const withEv=data.filter(d=>d.evasao_pct!=null);
+  const avgEv=withEv.length?(withEv.reduce((s,d)=>s+d.evasao_pct,0)/withEv.length).toFixed(1):'—';
+  document.getElementById('kpi-evasao').textContent=avgEv!=='—'?avgEv+'%':'—';
+  document.getElementById('hdr-cursos').textContent=data.length;
+  document.getElementById('hdr-avg').textContent=wr;
+  document.getElementById('hdr-matr').textContent=data.reduce((s,d)=>s+(d.matr||0),0);
+}
+
+function update(){
+  const f=getFiltered();
+  updateKPIs(f);
+  buildCharts(f);
+  buildEvasaoChart(f);
+  buildTable(f);
+}
+
+document.querySelectorAll('[data-filter="unit"]').forEach(btn=>{
+  btn.addEventListener('click',()=>{
+    document.querySelectorAll('[data-filter="unit"]').forEach(b=>b.classList.remove('active'));
+    btn.classList.add('active');filterUnit=btn.dataset.value;update();
+  });
+});
+document.querySelectorAll('[data-filter="period"]').forEach(btn=>{
+  btn.addEventListener('click',()=>{
+    document.querySelectorAll('[data-filter="period"]').forEach(b=>b.classList.remove('active'));
+    btn.classList.add('active');filterPeriod=btn.dataset.value;update();
+  });
+});
+document.querySelectorAll('#courseTable thead th[data-sort]').forEach(th=>{
+  th.addEventListener('click',()=>{
+    const col=th.dataset.sort;
+    if(sortMode===col){sortDir*=-1;}else{sortMode=col;sortDir=col==='attend_rate'?-1:1;}
+    document.querySelectorAll('#courseTable thead th').forEach(t=>{
+      t.classList.remove('sort-active');
+      const arr=t.querySelector('.sort-arrow');
+      if(arr)arr.textContent='↕';
+    });
+    th.classList.add('sort-active');
+    const arr=th.querySelector('.sort-arrow');
+    if(arr)arr.textContent=sortDir===-1?'↓':'↑';
+    buildTable(getFiltered());
+  });
+});
+(()=>{
+  const th=document.querySelector('#courseTable thead th[data-sort="attend_rate"]');
+  if(th){th.classList.add('sort-active');const arr=th.querySelector('.sort-arrow');if(arr)arr.textContent='↓';}
+})();
+document.getElementById('searchInput').addEventListener('input',e=>{searchQuery=e.target.value.toLowerCase().trim();update();});
+
+update();
+</script>
+</body>
+</html>
