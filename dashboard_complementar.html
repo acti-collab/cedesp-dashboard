@@ -101,7 +101,7 @@ footer{text-align:center;padding:32px;font-size:11px;color:var(--muted)}
     <div><div class="hd-title">Grade de Aulas Complementares</div>
     <div class="hd-sub">CEDESP Dom Bosco · 1º Semestre 2026 · Cruzamento com Frequência</div></div>
   </div>
-  <div class="hd-badge">📅 04/03/2026 às 07:57</div>
+  <div class="hd-badge">📅 04/03/2026 às 09:36</div>
 </header>
 <main>
 
@@ -195,23 +195,7 @@ footer{text-align:center;padding:32px;font-size:11px;color:var(--muted)}
 <!-- PROGRESSO POR CURSO -->
 <div>
   <div class="section-row"><div class="section-bar"></div><div class="section-title">Progresso por Curso</div><div class="section-line"></div></div>
-  <div class="filters" style="margin-bottom:14px">
-    <div class="flbl">Turno:</div>
-    <div class="chip-group" id="chips-turno-prog">
-      <button class="chip active" data-v="all">Todos</button>
-      <button class="chip" data-v="Manhã">Manhã</button>
-      <button class="chip" data-v="Tarde">Tarde</button>
-      <button class="chip" data-v="Noite">Noite</button>
-    </div>
-  </div>
-  <div class="card" style="padding:0;overflow:hidden">
-    <div class="tbl-wrap">
-      <table class="prog-tbl" id="progTable">
-        <thead><tr id="prog-hdr"></tr></thead>
-        <tbody id="progBody"></tbody>
-      </table>
-    </div>
-  </div>
+  <div id="progContainer"></div>
 </div>
 
 </main>
@@ -256,7 +240,7 @@ ALL_MONTHS.forEach(m=>{
 let fTurno='all',fSubj='all',fMonth='all',fFreq='all',fDate='',search='';
 let sortCol='date',sortDir=1,page=1;
 const PAGE=50;
-let fTurnoProg='all';
+
 
 function getFiltered(){
   return SCHEDULE.filter(s=>{
@@ -405,65 +389,104 @@ function renderHoje(){
 
 // PROGRESS TABLE
 function renderProg(){
-  const subjs=[...new Set(SCHEDULE.map(s=>s.subject))].sort();
-  const courses=COURSES.filter(c=>fTurnoProg==='all'||c.turno===fTurnoProg);
-
-  // Count scheduled per course/subject
+  // Build sched index: turno|cod -> subject -> {count, freqSum, freqN}
+  // count = aulas JÁ REALIZADAS (data <= hoje); freq = apenas dias com dado cruzado
+  const today=new Date().toISOString().split('T')[0];
   const sched={};
   SCHEDULE.forEach(s=>{
-    [{cod:s.cod1,nome:s.nome1,freq:s.freq1,matr:s.matr1,pct:s.pct1},
-     {cod:s.cod2,nome:s.nome2,freq:s.freq2,matr:s.matr2,pct:s.pct2}].forEach(x=>{
+    if(s.date>today) return;  // ignora aulas futuras
+    [{cod:s.cod1,pct:s.pct1},{cod:s.cod2,pct:s.pct2}].forEach(x=>{
       if(!x.cod) return;
-      const c=COURSES.find(c=>c.cod===x.cod&&c.turno===s.turno);
-      if(!c) return;
-      const k=`${s.turno}|${x.cod}`;
-      if(!sched[k]) sched[k]={};
-      if(!sched[k][s.subject]) sched[k][s.subject]={count:0,freqSum:0,freqN:0};
-      sched[k][s.subject].count++;
-      if(x.freq!=null&&x.matr){sched[k][s.subject].freqSum+=x.pct;sched[k][s.subject].freqN++;}
+      const key=`${s.turno}|${x.cod}`;
+      if(!sched[key]) sched[key]={};
+      if(!sched[key][s.subject]) sched[key][s.subject]={count:0,freqSum:0,freqN:0};
+      sched[key][s.subject].count++;
+      if(x.pct!=null){sched[key][s.subject].freqSum+=x.pct;sched[key][s.subject].freqN++;}
     });
   });
 
-  document.getElementById('prog-hdr').innerHTML=
-    '<th>Turno</th><th>Cod.</th><th style="min-width:180px">Curso</th>'+
-    subjs.map(s=>`<th style="text-align:center;min-width:90px">${s}</th>`).join('')+
-    '<th style="text-align:center">Total</th>';
+  // Normalise schedule subject names → REF planned keys
+  const SUBJ_NORM={
+    'Português':'Port.','Port(He)':'Port.','Port(Li)':'Port.','Port(-)':'Port.',
+    'Esporte':'Esp.','Esp(Br)':'Esp.','Esp(Em)':'Esp.',
+    'Matemática':'Mat.','Mat(Al)':'Mat.','Mat(Ti)':'Mat.','Mat(Fe)':'Mat.',
+    'Cidadania':'Cid.',
+    'ID':'ID/IA','ID/IA':'ID/IA',
+    'Artes':'Artes','OT':'OT',
+  };
+  const normSubj=s=>SUBJ_NORM[s]||s;
 
-  document.getElementById('progBody').innerHTML=courses.map(c=>{
-    const key=`${c.turno}|${c.cod}`;
-    const cs=sched[key]||{};
-    const tc=c.turno==='Manhã'?'M':c.turno==='Tarde'?'T':'N';
-    let totalDone=0,totalPlan=0;
-    const cells=subjs.map(s=>{
-      const done=cs[s]?.count||0;
-      const planned=c.planned[s]||0;
-      totalDone+=done; totalPlan+=planned;
-      if(!planned) return`<td style="text-align:center;color:var(--muted);font-size:10px">—</td>`;
-      const pct=Math.min(100,Math.round(done/planned*100));
-      const col=pct>=100?'var(--green)':pct>=50?'var(--amber)':'var(--red)';
-      const avgFreq=cs[s]?.freqN>0?(cs[s].freqSum/cs[s].freqN).toFixed(0)+'%':null;
-      return`<td>
-        <div style="display:flex;flex-direction:column;gap:2px">
-          <div style="display:flex;align-items:center;gap:5px">
-            <div style="width:44px;height:5px;background:var(--surface2);border-radius:3px;overflow:hidden">
-              <div style="width:${pct}%;height:100%;background:${col};border-radius:3px"></div>
+  const TURNO_CFG={
+    'Manhã': {icon:'☀',color:'#ea580c',border:'rgba(234,88,12,.3)',bg:'rgba(234,88,12,.06)'},
+    'Tarde': {icon:'🌤',color:'#0284c7',border:'rgba(2,132,199,.3)',bg:'rgba(2,132,199,.06)'},
+    'Noite': {icon:'🌙',color:'#7c3aed',border:'rgba(124,58,237,.3)',bg:'rgba(124,58,237,.06)'},
+  };
+
+  let html='';
+  ['Manhã','Tarde','Noite'].forEach(turno=>{
+    const courses=COURSES.filter(c=>c.turno===turno);
+    if(!courses.length) return;
+    const cfg=TURNO_CFG[turno];
+
+    // Only subjects that exist for this turno
+    const turnoSubjs=[...new Set(
+      SCHEDULE.filter(s=>s.turno===turno).map(s=>s.subject)
+    )].sort();
+
+    const headerCells='<th style="min-width:60px">Cod.</th><th style="min-width:190px">Curso</th>'+
+      turnoSubjs.map(s=>`<th style="text-align:center;min-width:100px">${s}</th>`).join('')+
+      '<th style="text-align:center;min-width:70px">Total</th>';
+
+    const rows=courses.map(c=>{
+      const key=`${turno}|${c.cod}`;
+      const cs=sched[key]||{};
+      let totalDone=0,totalPlan=0;
+      const cells=turnoSubjs.map(s=>{
+        const done    = cs[s]?.count  || 0;
+        const planned = c.planned[normSubj(s)] || 0;
+        totalDone+=done; totalPlan+=planned;
+        if(!planned) return`<td style="text-align:center;color:var(--muted);font-size:11px">—</td>`;
+        const pct = Math.min(100,Math.round(done/planned*100));
+        const col = pct>=100?'var(--green)':pct>=50?'var(--amber)':'var(--red)';
+        const avgF = cs[s]?.freqN>0?(cs[s].freqSum/cs[s].freqN).toFixed(0)+'%':null;
+        return`<td style="text-align:center">
+          <div style="display:inline-flex;flex-direction:column;align-items:center;gap:2px">
+            <div style="display:flex;align-items:center;gap:5px">
+              <div style="width:40px;height:5px;background:var(--surface2);border-radius:3px;overflow:hidden">
+                <div style="width:${pct}%;height:100%;background:${col};border-radius:3px"></div>
+              </div>
+              <span class="mono" style="font-size:9px;color:${col}">${done}/${planned}</span>
             </div>
-            <span class="mono" style="font-size:9px;color:${col}">${done}/${planned}</span>
+            ${avgF?`<span style="font-size:9px;color:var(--muted)">${avgF}</span>`:''}
           </div>
-          ${avgFreq?`<span style="font-size:9px;color:var(--muted)">freq média: ${avgFreq}</span>`:''}
-        </div>
-      </td>`;
+        </td>`;
+      }).join('');
+      const totPct  = totalPlan?Math.round(totalDone/totalPlan*100):0;
+      const totCol  = totPct>=100?'var(--green)':totPct>=50?'var(--amber)':'var(--red)';
+      return`<tr>
+        <td><span class="cod-badge">${c.cod}</span></td>
+        <td style="font-size:11px">${c.nome.substring(0,48)}</td>
+        ${cells}
+        <td style="text-align:center"><span class="mono" style="font-size:11px;color:${totCol};font-weight:700">${totPct}%</span></td>
+      </tr>`;
     }).join('');
-    const totPct=totalPlan?Math.round(totalDone/totalPlan*100):0;
-    const totCol=totPct>=100?'var(--green)':totPct>=50?'var(--amber)':'var(--red)';
-    return`<tr>
-      <td><span class="turno-${tc}" style="font-size:10px;padding:2px 7px;border-radius:3px;font-weight:500">${c.turno}</span></td>
-      <td><span class="cod-badge">${c.cod}</span></td>
-      <td style="font-size:11px;max-width:180px">${c.nome.substring(0,45)}</td>
-      ${cells}
-      <td style="text-align:center"><span class="mono" style="font-size:11px;color:${totCol};font-weight:600">${totPct}%</span></td>
-    </tr>`;
-  }).join('');
+
+    html+=`<div style="margin-bottom:24px">
+      <div style="display:flex;align-items:center;gap:10px;padding:10px 16px;background:${cfg.bg};border:1px solid ${cfg.border};border-radius:6px 6px 0 0;border-bottom:none">
+        <span style="font-size:15px">${cfg.icon}</span>
+        <span style="font-size:13px;font-weight:600;color:${cfg.color}">${turno}</span>
+        <span style="font-size:11px;color:var(--muted)">${courses.length} cursos · ${turnoSubjs.length} matérias</span>
+      </div>
+      <div style="overflow-x:auto;border:1px solid ${cfg.border};border-radius:0 0 6px 6px;background:var(--surface)">
+        <table style="width:100%;border-collapse:collapse;font-size:12px">
+          <thead><tr style="background:${cfg.color};color:#fff">${headerCells}</tr></thead>
+          <tbody style="">${rows}</tbody>
+        </table>
+      </div>
+    </div>`;
+  });
+
+  document.getElementById('progContainer').innerHTML=html;
 }
 
 // CHARTS
@@ -593,12 +616,7 @@ document.querySelectorAll('#mainTable thead th[data-sort]').forEach(th=>{
     page=1;renderTable();
   });
 });
-document.querySelectorAll('#chips-turno-prog .chip').forEach(b=>{
-  b.addEventListener('click',()=>{
-    document.querySelectorAll('#chips-turno-prog .chip').forEach(x=>x.classList.remove('active'));
-    b.classList.add('active'); fTurnoProg=b.dataset.v; renderProg();
-  });
-});
+// turno-prog chips removed (sections now always show all 3 turnos separately)
 
 // INIT
 renderHoje(); renderTable(); renderProg(); renderCharts();
