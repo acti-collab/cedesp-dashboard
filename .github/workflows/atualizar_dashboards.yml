@@ -50,5 +50,5 @@ jobs:
           git add dashboard_cursos_frequencia.html
           git add dashboard_cedesp_2026.html
           git add dashboard_complementar.html
-          git commit -m "Dashboards atualizados - $(TZ=America/Sao_Paulo date '+%d/%m/%Y %H:%M')"
+          git commit -m "Dashboards atualizados - $(date -u -d '3 hours ago' '+%d/%m/%Y %H:%M')"
           git push
