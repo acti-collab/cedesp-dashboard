@@ -4,7 +4,7 @@ Dashboard Grade de Aulas Complementares — CEDESP Dom Bosco
 Cruza grade com frequência da planilha principal.
 """
 import sys, json, re, glob, os
-from datetime import datetime
+from datetime import datetime, timezone, timedelta
 import pandas as pd
 
 SKIP_DATES = {'30/01','30/1'}
@@ -21,7 +21,8 @@ def date_to_str(val):
     return None
 
 MANUAL_MAP = {
-    'BARBEIRO': 'BARBEIRO',
+    'BARBEIRO': 'CABELEIREIRO - Noções de Barbearia',
+    'CABELEIREIRO': 'CABELEIREIRO - Noções de Barbearia',
     'PROGRAMADOR DE WEB': 'PROGRAMADOR WEB',
     'AUXILIAR ADMINISTRATIVO - TURMA A': 'ASSISTENTE ADMINISTRATIVO - A',
     'AUXILIAR ADMINISTRATIVO - TURMA B': 'ASSISTENTE ADMINISTRATIVO - B',
@@ -31,6 +32,25 @@ MANUAL_MAP = {
     'OP. E PROGR. DE SISTEMAS AUTOMATIZADOS DE SOLDAGEM A': 'OPERADOR E PROGRAMADOR DE SISTEMAS AUTOMATIZADOS DE SOLDAGEM - A',
     'OP. E PROGR. DE SISTEMAS AUTOMATIZADOS DE SOLDAGEM B': 'OPERADOR E PROGRAMADOR DE SISTEMAS AUTOMATIZADOS DE SOLDAGEM - B',
     'OP. E PROGR. DE SISTEMAS AUTOMATIZADOS DE SOLDAGEM C': 'OPERADOR E PROGRAMADOR DE SISTEMAS AUTOMATIZADOS DE SOLDAGEM - C',
+    'OP. E PROGR. DE SISTEMAS AUTOMATIZADOS (MECATRONICA 39)': 'OPERADOR E PROGRAMADOR DE SISTEMAS AUTOMATIZADOS DE SOLDAGEM - A',
+    'OP. E PROGR. DE SISTEMAS AUTOMATIZADOS (MECATRONICA 40)': 'OPERADOR E PROGRAMADOR DE SISTEMAS AUTOMATIZADOS DE SOLDAGEM - B',
+    'OP. E PROGR. DE SISTEMAS AUTOMATIZADOS (MECATRONICA 41)': 'OPERADOR E PROGRAMADOR DE SISTEMAS AUTOMATIZADOS DE SOLDAGEM - C',
+}
+
+# Mapeamento direto por código → nome exato na planilha de frequência
+# Usar quando normalize() remove partes importantes do nome (números, parênteses etc.)
+COD_MAP = {
+    '39':  'OPERADOR E PROGRAMADOR DE SISTEMAS AUTOMATIZADOS DE SOLDAGEM - A',
+    '40':  'OPERADOR E PROGRAMADOR DE SISTEMAS AUTOMATIZADOS DE SOLDAGEM - B',
+    '41':  'OPERADOR E PROGRAMADOR DE SISTEMAS AUTOMATIZADOS DE SOLDAGEM - C',
+    '10A': 'AUXILIAR DE MANUTENÇÃO PREDIAL (ELETRICISTA) - TURMA A',
+    '10B': 'AUXILIAR DE MANUTENÇÃO PREDIAL (ELETRICISTA) - TURMA B',
+    '9':   'OPERADOR PARA INJETORA PARA TERMOPLÁSTICOS',
+    '12':  'MONTADOR DE PAINEIS ELÉTRICOS',
+    '15':  'ASSISTENTE ADMINISTRATIVO - A',
+    '17':  'ASSISTENTE DE RECURSOS HUMANOS',
+    '18':  'ASSISTENTE ADMINISTRATIVO - B',
+    '24':  'EDITOR DE PROJETOS VISUAIS GRÁFICOS',
 }
 
 def normalize(s):
@@ -141,7 +161,13 @@ def enriquecer(schedule, all_freq, course_meta, course_freq_avg):
         e=dict(s)
         for w in ['1','2']:
             nome=s[f'nome{w}']
-            fk=find_freq_key(nome,all_freq,freq_keys) if nome else None
+            cod=s.get(f'cod{w}')
+            # Try COD_MAP first (bypasses normalize for tricky names)
+            if cod and cod in COD_MAP:
+                mapped = COD_MAP[cod]
+                fk = mapped if mapped in all_freq else None
+            else:
+                fk=find_freq_key(nome,all_freq,freq_keys) if nome else None
             freq_on_date = all_freq[fk].get(s['date']) if fk else None
             freq_avg     = course_freq_avg.get(fk)     if fk else None
             matr         = course_meta.get(fk)         if fk else None
@@ -827,7 +853,7 @@ if __name__ == '__main__':
     com_freq = sum(1 for s in enriched if s.get('freq1') is not None or s.get('freq2') is not None)
     print(f"   {len(schedule)} aulas | {com_freq} com frequência cruzada")
 
-    data_at = datetime.now().strftime('%d/%m/%Y às %H:%M')
+    data_at = datetime.now(timezone(timedelta(hours=-3))).strftime('%d/%m/%Y às %H:%M')
     html = gerar_html(courses, enriched, data_at)
 
     out = 'dashboard_complementar.html'
