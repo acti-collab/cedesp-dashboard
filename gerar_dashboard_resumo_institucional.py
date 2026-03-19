@@ -15,7 +15,7 @@ Saída:
 import sys
 import os
 import json
-from datetime import datetime
+from datetime import datetime, timezone, timedelta
 import pandas as pd
 
 # ── CONFIGURAÇÃO ──────────────────────────────────────────────────────────────
@@ -831,7 +831,7 @@ def gerar_html(units, horarios, freq_por_periodo, data_atualizacao):
 
 def main():
     caminho = sys.argv[1] if len(sys.argv) > 1 else PLANILHA_PADRAO
-    data_atualizacao = datetime.now().strftime("%d/%m/%Y às %H:%M")
+    data_atualizacao = datetime.now(timezone(timedelta(hours=-3))).strftime("%d/%m/%Y às %H:%M")
 
     print(f"\n{'='*55}")
     print(f"  Dashboard Resumo CEDESP — Gerador Automático")
