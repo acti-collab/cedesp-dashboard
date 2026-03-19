@@ -16,7 +16,7 @@ Saída:
 import sys
 import json
 import os
-from datetime import datetime
+from datetime import datetime, timezone, timedelta
 import pandas as pd
 
 # ── CONFIGURAÇÃO ──────────────────────────────────────────────────────────────
@@ -510,7 +510,7 @@ function buildCharts(data){{
       labels:sorted.map(d=>d.course.length>32?d.course.substring(0,30)+'…':d.course),
       datasets:[{{label:'Taxa %',data:sorted.map(d=>d.attend_rate),backgroundColor:sorted.map(d=>getColor(d.attend_rate)+'cc'),borderColor:sorted.map(d=>getColor(d.attend_rate)),borderWidth:1,borderRadius:0}}]
     }},
-    options:{{indexAxis:'y',responsive:true,plugins:{{legend:{{display:false}},tooltip:{{backgroundColor:'#1a1612',borderColor:'#d8d2c8',borderWidth:1,callbacks:{{label:ctx=>` ${{ctx.raw.toFixed(1)}}%  —  ${{sorted[ctx.dataIndex].unit}} · ${{sorted[ctx.dataIndex].period}}`}}}}}},scales:{{x:{{min:0,max:120,grid:{{color:'rgba(216,210,200,.4)'}},ticks:{{font:{{size:10}},callback:v=>v+'%'}}}},y:{{grid:{{display:false}},ticks:{{font:{{size:10}}}}}}}}}}
+    options:{{indexAxis:'y',responsive:true,plugins:{{legend:{{display:false}},tooltip:{{backgroundColor:'#1a1612',borderColor:'#d8d2c8',borderWidth:1,callbacks:{{label:ctx=>{{const d=sorted[ctx.dataIndex];return[` ${{ctx.raw.toFixed(1)}}%  —  ${{d.unit}} · ${{d.period}}`,` Presença média: ${{d.freq_avg}} alunos/dia`];}}}}}}}},scales:{{x:{{min:0,max:120,grid:{{color:'rgba(216,210,200,.4)'}},ticks:{{font:{{size:10}},callback:v=>v+'%'}}}},y:{{grid:{{display:false}},ticks:{{font:{{size:10}}}}}}}}}}
   }});
 
   const bands=[
@@ -703,7 +703,7 @@ update();
 
 def main():
     caminho = sys.argv[1] if len(sys.argv) > 1 else PLANILHA_PADRAO
-    data_atualizacao = datetime.now().strftime("%d/%m/%Y às %H:%M")
+    data_atualizacao = datetime.now(timezone(timedelta(hours=-3))).strftime("%d/%m/%Y às %H:%M")
 
     print(f"\n{'='*55}")
     print(f"  Dashboard CEDESP — Gerador Automático")
@@ -733,3 +733,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+
