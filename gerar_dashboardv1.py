@@ -170,24 +170,46 @@ def extrair_cursos(sheets):
                     v = row.iloc[c]
                     return float(v) if pd.notna(v) and isinstance(v, (int, float)) else None
 
-                meta = safe_float(meta_col)
-                matr = safe_float(matr_col)
+                meta      = safe_float(meta_col)
+                matr      = safe_float(matr_col)
+                inseridos = safe_float(ins_col)
 
                 # Frequências diárias — toda coluna FREQ com valor numérico = 1 aula
                 day_freqs = []
                 last_date = None
                 last_date_display = None
+                daily = []  # list of (sort_date, display_date, freq)
                 for col_idx, sort_date, display_date in freq_cols:
                     if col_idx < len(row):
                         v = row.iloc[col_idx]
                         if pd.notna(v) and isinstance(v, (int, float)):
                             day_freqs.append(float(v))
+                            daily.append((sort_date, display_date, float(v)))
                             last_date = sort_date
                             last_date_display = display_date
 
                 freq_avg    = round(sum(day_freqs) / len(day_freqs), 1) if day_freqs else 0
                 n_classes   = len(day_freqs)
                 last_freq   = int(day_freqs[-1]) if day_freqs else None
+
+                # Weekly aggregates (for trend chart) — compact format
+                from datetime import datetime, timedelta
+                week_agg = {}
+                for (sd, dd, fr) in daily:
+                    try:
+                        parts = sd.split('/')
+                        month, day_n = int(parts[0]), int(parts[1])
+                        dt = datetime(2026, month, day_n)
+                        dow = dt.weekday()
+                        week_start = dt - timedelta(days=dow)
+                        wk = week_start.strftime('%d/%m')
+                        if wk not in week_agg:
+                            week_agg[wk] = [0, 0]
+                        week_agg[wk][0] += fr
+                        week_agg[wk][1] += 1
+                    except Exception:
+                        pass
+                week_avgs = {wk: round(v[0]/v[1], 1) for wk, v in week_agg.items()}
                 attend_rate = round(freq_avg / meta * 100, 1) if meta and meta > 0 and freq_avg > 0 else 0
                 evasao      = round(matr - freq_avg, 1) if matr else None
                 evasao_pct  = round(evasao / matr * 100, 1) if matr and evasao is not None else None
@@ -202,11 +224,14 @@ def extrair_cursos(sheets):
                     "course":       course_name,
                     "meta":         meta,
                     "matr":         matr,
+                    "inseridos":    inseridos,
                     "freq_avg":     freq_avg,
                     "n_classes":    n_classes,
                     "attend_rate":  attend_rate,
                     "evasao":       evasao,
+                    "daily":        [[sd, dd, int(fr)] for sd, dd, fr in daily],
                     "last_freq":    last_freq,
+                    "week_avgs":    week_avgs,
                     "last_date":    last_date,
                     "last_date_display": last_date_display,
                     "evasao_pct":   evasao_pct,
@@ -327,6 +352,7 @@ footer{{border-top:1px solid var(--border);padding:20px 48px;display:flex;justif
   <div class="header-right">
     <div class="header-stat"><div class="hs-val" id="hdr-cursos">—</div><div class="hs-label">CURSOS</div></div>
     <div class="header-stat"><div class="hs-val" id="hdr-avg">—</div><div class="hs-label">FREQ. MÉDIA</div></div>
+    <div class="header-stat"><div class="hs-val" id="hdr-ins">—</div><div class="hs-label">INSERIDOS</div></div>
     <div class="header-stat"><div class="hs-val" id="hdr-matr">—</div><div class="hs-label">MATRÍCULAS</div></div>
   </div>
 </header>
@@ -410,10 +436,11 @@ footer{{border-top:1px solid var(--border);padding:20px 48px;display:flex;justif
         <th data-sort="course">Curso <span class="sort-arrow">↕</span></th>
         <th data-sort="unit">Unidade <span class="sort-arrow">↕</span></th>
         <th data-sort="period">Período <span class="sort-arrow">↕</span></th>
+        <th class="right" data-sort="inseridos">Inseridos <span class="sort-arrow">↕</span></th>
         <th class="right" data-sort="matr">Matr. <span class="sort-arrow">↕</span></th>
         <th class="right" data-sort="freq_avg">Freq. Média/dia <span class="sort-arrow">↕</span></th>
         <th class="right" data-sort="n_classes">Aulas <span class="sort-arrow">↕</span></th>
-        <th data-sort="attend_rate">Taxa s\/ Meta <span class="sort-arrow">↕</span></th>
+        <th data-sort="attend_rate">Taxa s/ Meta <span class="sort-arrow">↕</span></th>
         <th class="right" data-sort="evasao_pct">Evasão <span class="sort-arrow">↕</span></th>
         <th class="right" data-sort="dem_total">Demanda <span class="sort-arrow">↕</span></th>
         <th data-sort="status">Status <span class="sort-arrow">↕</span></th>
@@ -438,16 +465,11 @@ footer{{border-top:1px solid var(--border);padding:20px 48px;display:flex;justif
     <canvas id="distChart" height="320"></canvas>
   </div>
 </div>
-<div class="charts-grid" style="grid-template-columns:1fr 1fr">
+<div class="charts-grid" style="grid-template-columns:1fr">
   <div class="chart-box">
-    <div class="chart-box-title">Cursos Críticos por Unidade</div>
-    <div class="chart-box-sub">Nº de turmas por faixa de atenção em cada CEDESP</div>
-    <canvas id="unitCompChart" height="240"></canvas>
-  </div>
-  <div class="chart-box">
-    <div class="chart-box-title">Frequência por Horário</div>
-    <div class="chart-box-sub">Taxa média por período do dia</div>
-    <canvas id="periodChart" height="240"></canvas>
+    <div class="chart-box-title">Tendência de Frequência Semanal</div>
+    <div class="chart-box-sub">Evolução da presença média semana a semana ao longo do semestre</div>
+    <canvas id="trendChart" height="110"></canvas>
   </div>
 </div>
 
@@ -524,26 +546,61 @@ function buildCharts(data){{
     options:{{responsive:true,cutout:'58%',plugins:{{legend:{{position:'right',labels:{{boxWidth:12,padding:12,font:{{size:11}},usePointStyle:true}}}},tooltip:{{backgroundColor:'#1a1612',borderColor:'#d8d2c8',borderWidth:1}}}}}}
   }});
 
-  const units=[...new Set(RAW.map(d=>d.unit))];
-  const critImediata=units.map(u=>data.filter(d=>d.unit===u&&d.attend_rate<80).length);
-  const critMedia=units.map(u=>data.filter(d=>d.unit===u&&d.attend_rate>=80&&d.attend_rate<100).length);
-  const critOk=units.map(u=>data.filter(d=>d.unit===u&&d.attend_rate>=100).length);
-  charts.unit=new Chart(document.getElementById('unitCompChart'),{{
-    type:'bar',
-    data:{{labels:units.map(u=>u.replace('CEDESP ','C')),datasets:[
-      {{label:'✗ Atenção imediata (<80%)',data:critImediata,backgroundColor:'rgba(200,75,49,.85)',borderColor:'#c84b31',borderWidth:1,borderRadius:0}},
-      {{label:'⚠ Atenção média (80–99%)',data:critMedia,backgroundColor:'rgba(201,124,26,.85)',borderColor:'#c97c1a',borderWidth:1,borderRadius:0}},
-      {{label:'✓ Meta atingida (≥100%)',data:critOk,backgroundColor:'rgba(45,122,79,.85)',borderColor:'#2d7a4f',borderWidth:1,borderRadius:0}}
-    ]}},
-    options:{{responsive:true,plugins:{{legend:{{position:'top',labels:{{boxWidth:10,padding:10,font:{{size:10}}}}}},tooltip:{{backgroundColor:'#1a1612',borderColor:'#d8d2c8',borderWidth:1,callbacks:{{label:ctx=>{{const u=units[ctx.dataIndex];const total=data.filter(d=>d.unit===u).length;return` ${{ctx.dataset.label.split(' ')[0]}} ${{ctx.raw}} turma${{ctx.raw!==1?'s':''}} de ${{total}}`;}}}}}}}},scales:{{x:{{stacked:true,grid:{{display:false}},ticks:{{font:{{size:11}}}}}},y:{{stacked:true,grid:{{color:'rgba(216,210,200,.4)'}},ticks:{{font:{{size:10}},stepSize:1}}}}}}}}
+  // Tendência de Frequência Semanal
+  const weekMap={{}};
+  data.forEach(d=>{{
+    if(!d.daily) return;
+    d.daily.forEach(([sd, dd, fr])=>{{
+      if(!sd) return;
+      const parts=sd.split('/');
+      if(parts.length<2) return;
+      const month=parseInt(parts[0]), day=parseInt(parts[1]);
+      const dt=new Date(2026, month-1, day);
+      const dow=dt.getDay()||7;
+      const weekStart=new Date(dt); weekStart.setDate(dt.getDate()-dow+1);
+      // Label: "Sem 1 Fev", "Sem 2 Fev" etc.
+      const MONTHS=['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
+      const m=weekStart.getMonth(); // 0-based
+      // Which week of the month? (1st day of month = week 1)
+      const firstDayOfMonth=new Date(weekStart.getFullYear(), m, 1);
+      const weekOfMonth=Math.ceil((weekStart.getDate()+firstDayOfMonth.getDay())/7);
+      const wk=`Sem ${{weekOfMonth}} ${{MONTHS[m]}}`;
+      const sk=`${{String(weekStart.getMonth()+1).padStart(2,'0')}}/${{String(weekStart.getDate()).padStart(2,'0')}}`;
+      if(!weekMap[wk]) weekMap[wk]={{sum:0,n:0,sortKey:sk}};
+      weekMap[wk].sum+=fr; weekMap[wk].n++;
+    }});
   }});
-
-  const periods=['Manhã','Tarde','Noite'];
-  const pAvgs=periods.map(p=>{{const r=data.filter(d=>d.period===p);return r.length?+(r.reduce((s,x)=>s+x.attend_rate,0)/r.length).toFixed(1):0;}});
-  charts.period=new Chart(document.getElementById('periodChart'),{{
-    type:'bar',
-    data:{{labels:['☀ Manhã','🌤 Tarde','🌙 Noite'],datasets:[{{label:'Taxa média %',data:pAvgs,backgroundColor:periods.map(p=>periodColor(p)+'cc'),borderColor:periods.map(p=>periodColor(p)),borderWidth:1.5,borderRadius:0}}]}},
-    options:{{responsive:true,plugins:{{legend:{{display:false}},tooltip:{{backgroundColor:'#1a1612',borderColor:'#d8d2c8',borderWidth:1}}}},scales:{{x:{{grid:{{display:false}},ticks:{{font:{{size:12}}}}}},y:{{min:40,max:100,grid:{{color:'rgba(216,210,200,.4)'}},ticks:{{font:{{size:10}},callback:v=>v+'%'}}}}}}}}
+  // Sort by first date seen in each week bucket (stored as sortKey)
+  const weeks=Object.keys(weekMap).sort((a,b)=>{{
+    const ka=weekMap[a].sortKey||''; const kb=weekMap[b].sortKey||'';
+    return ka<kb?-1:ka>kb?1:0;
+  }});
+  const weekAvgs=weeks.map(w=>+(weekMap[w].sum/weekMap[w].n).toFixed(1));
+  const weekMeta=weeks.map(()=>{{
+    const tm=data.reduce((s,d)=>s+(d.meta||0),0);
+    return +((tm||0)/(data.length||1)).toFixed(1);
+  }});
+  const trendColor=weekAvgs.length<2||weekAvgs[weekAvgs.length-1]>=weekAvgs[0]?'#2d7a4f':'#c84b31';
+  charts.unit=new Chart(document.getElementById('trendChart'),{{
+    type:'line',
+    data:{{labels:weeks,datasets:[
+      {{label:'Presença média',data:weekAvgs,borderColor:trendColor,backgroundColor:trendColor+'22',borderWidth:2.5,pointRadius:4,pointHoverRadius:6,tension:0.35,fill:true,spanGaps:true}},
+      {{label:'Meta média',data:weekMeta,borderColor:'#c97c1a',backgroundColor:'transparent',borderWidth:1.5,borderDash:[6,4],pointRadius:0,tension:0,fill:false}}
+    ]}},
+    options:{{responsive:true,plugins:{{
+      legend:{{position:'top',labels:{{boxWidth:12,padding:14,font:{{size:10}}}}}},
+      tooltip:{{backgroundColor:'#1a1612',borderColor:'#d8d2c8',borderWidth:1,callbacks:{{
+        label:ctx=>ctx.datasetIndex===0?` Presença média: ${{ctx.raw}} alunos/dia`:` Meta média: ${{ctx.raw}} alunos/dia`
+      }}}}
+    }},scales:{{
+      x:{{grid:{{display:false}},ticks:{{font:{{size:10}}}}}},
+      y:{{
+          grid:{{color:'rgba(216,210,200,.4)'}},
+          ticks:{{font:{{size:10}}}},
+          min:weekAvgs.length?Math.floor(Math.min(...weekAvgs,...weekMeta)*0.95):0,
+          max:weekAvgs.length?Math.ceil(Math.max(...weekAvgs,...weekMeta)*1.05):100,
+        }}
+    }}}}
   }});
 }}
 
@@ -594,6 +651,7 @@ function buildTable(data){{
       <td><div class="course-name-cell">${{d.course}}</div></td>
       <td><span class="unit-chip">${{d.unit.replace('CEDESP ','C')}}</span></td>
       <td class="mono"><span class="period-dot ${{pd}}"></span>${{d.period}}</td>
+      <td class="right mono">${{d.inseridos||'—'}}</td>
       <td class="right mono">${{d.matr||'—'}}</td>
       <td class="right mono">${{d.freq_avg.toFixed(1)}}</td>
       <td class="right mono">${{d.n_classes}}</td>
@@ -628,6 +686,7 @@ function updateKPIs(data){{
   document.getElementById('hdr-cursos').textContent=data.length;
   document.getElementById('hdr-avg').textContent=wr;
   document.getElementById('hdr-matr').textContent=data.reduce((s,d)=>s+(d.matr||0),0);
+  document.getElementById('hdr-ins').textContent=data.reduce((s,d)=>s+(d.inseridos||0),0);
   // Snapshot do Dia
   const maxAulas=data.reduce((m,d)=>Math.max(m,d.n_classes||0),0);
   // Find the most recent date across all courses, sum only those on that date
@@ -641,7 +700,7 @@ function updateKPIs(data){{
   const panel=document.getElementById('snapshot-panel');
   if(maxAulas>0||totalLastFreq>0){{
     panel.style.display='block';
-    const fmtDate=d=>{{if(!d)return'';const p=d.match(/(\d+)\/(\d+)/);if(p)return d;return d;}};
+    const fmtDate=d=>{{if(!d)return'';const p=d.match(/(\\d+)\\/(\\d+)/);if(p)return d;return d;}};
   const latestDisplay=data.find(d=>d.last_date===latestDate)?.last_date_display||'';
   document.getElementById('snapshot-date').textContent=latestDisplay?'· '+latestDisplay:'';
   document.getElementById('snap-last-freq').textContent=totalLastFreq||'—';
@@ -733,4 +792,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-
