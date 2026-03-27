@@ -1,0 +1,493 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Quadro de Atendimento — Obra Social Dom Bosco</title>
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<style>
+:root {
+  --bg:#f4f5f7;--surface:#fff;--surface2:#eef0f5;--border:#dde1ea;
+  --text:#1a1c2e;--muted:#7a7f9a;--ink:#21438e;--accent:#c84b31;
+  --blue:#1565c0;--blue2:#1976d2;--blue3:#42a5f5;
+  --pink:#c2185b;--pink2:#e91e63;--pink3:#f06292;
+  --green:#2d7a4f;--orange:#c97c1a;--yellow:#e8c547;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:var(--bg);color:var(--text);font-family:'Poppins',sans-serif;min-height:100vh}
+
+/* HEADER */
+header{background:var(--ink);color:#f5f2ee;padding:0 48px;display:flex;align-items:stretch;justify-content:space-between;height:76px;position:sticky;top:0;z-index:100;box-shadow:0 2px 12px rgba(0,0,0,.25)}
+.hdr-left{display:flex;align-items:center;gap:16px}
+.hdr-accent{width:4px;height:40px;background:var(--accent);border-radius:2px}
+.hdr-title{font-weight:800;font-size:17px;letter-spacing:-.3px;line-height:1.25}
+.hdr-sub{font-family:'JetBrains Mono',monospace;font-size:10px;color:rgba(245,242,238,.4);margin-top:3px;letter-spacing:.5px}
+.hdr-right{display:flex;align-items:center;gap:28px}
+.hdr-stat{text-align:right}
+.hdr-val{font-size:22px;font-weight:700;letter-spacing:-.5px;color:var(--yellow)}
+.hdr-lbl{font-family:'JetBrains Mono',monospace;font-size:10px;color:rgba(245,242,238,.4);letter-spacing:.5px}
+
+/* TOOLBAR */
+.toolbar{background:var(--surface);border-bottom:1px solid var(--border);padding:12px 48px;display:flex;align-items:center;gap:10px;flex-wrap:wrap;position:sticky;top:76px;z-index:99}
+.filter-lbl{font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--muted);letter-spacing:.5px;text-transform:uppercase}
+.fbtn{padding:5px 14px;border-radius:3px;border:1px solid var(--border);background:transparent;color:var(--muted);font-family:Poppins,sans-serif;font-size:12px;cursor:pointer;transition:all .15s}
+.fbtn:hover{border-color:var(--ink);color:var(--ink)}
+.fbtn.on{background:var(--ink);color:#fff;border-color:var(--ink)}
+.spacer{flex:1}
+.badge{font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--muted);background:var(--surface2);border:1px solid var(--border);padding:3px 10px;border-radius:3px}
+.ibtn{display:inline-flex;align-items:center;gap:6px;padding:6px 16px;border-radius:3px;border:1.5px solid var(--ink);background:transparent;color:var(--ink);font-family:Poppins,sans-serif;font-size:12px;font-weight:600;cursor:pointer;transition:all .15s}
+.ibtn:hover{background:var(--ink);color:#fff}
+.ibtn.red{border-color:var(--accent);color:var(--accent)}
+.ibtn.red:hover{background:var(--accent);color:#fff}
+
+/* LAYOUT */
+main{padding:32px 48px 64px;max-width:1440px;margin:0 auto}
+.section-hdr{display:flex;align-items:center;gap:12px;margin:40px 0 20px}
+.section-hdr:first-child{margin-top:0}
+.s-title{font-size:13px;font-weight:700;letter-spacing:.8px;text-transform:uppercase;color:var(--muted);white-space:nowrap}
+.s-rule{flex:1;height:1px;background:var(--border)}
+
+/* TOP KPI ROW */
+.kpi-row{display:grid;grid-template-columns:repeat(4,1fr);gap:1px;background:var(--border);border:1px solid var(--border);margin-bottom:8px}
+.kpi-cell{background:var(--surface);padding:22px 26px}
+.kpi-lbl{font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--muted);letter-spacing:.8px;text-transform:uppercase;margin-bottom:8px}
+.kpi-val{font-size:38px;font-weight:800;letter-spacing:-2px;line-height:1;margin-bottom:4px}
+.kpi-desc{font-size:12px;color:var(--muted)}
+
+/* UNIT CARDS */
+.unit-card{background:var(--surface);border:1px solid var(--border);padding:18px 22px;display:flex;justify-content:space-between;align-items:center;margin-bottom:8px}
+.uc-name{font-weight:700;font-size:14px;margin-bottom:3px}
+.uc-sub{font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--muted)}
+.uc-stats{display:flex;gap:28px}
+.uc-s{text-align:right}
+.uc-sv{font-size:20px;font-weight:700;letter-spacing:-.5px}
+.uc-sl{font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--muted)}
+
+/* CHART BOXES */
+.g2{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:16px}
+.g3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px;margin-bottom:16px}
+.box{background:var(--surface);border:1px solid var(--border);padding:22px}
+.box-title{font-size:13px;font-weight:700;margin-bottom:3px}
+.box-sub{font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--muted);margin-bottom:18px}
+
+/* TABLE */
+.tbl-wrap{background:var(--surface);border:1px solid var(--border);overflow:hidden;margin-bottom:16px}
+table{width:100%;border-collapse:collapse}
+thead th{padding:10px 16px;text-align:left;font-family:'JetBrains Mono',monospace;font-size:10px;letter-spacing:.8px;text-transform:uppercase;color:var(--muted);background:var(--surface2);border-bottom:1px solid var(--border);white-space:nowrap}
+th.r{text-align:right}
+tbody tr{border-bottom:1px solid var(--border);transition:background .1s}
+tbody tr:last-child{border-bottom:none}
+tbody tr:hover{background:var(--surface2)}
+tbody tr.tfoot{background:var(--surface2);font-weight:700}
+td{padding:9px 16px;font-size:13px}
+td.mono{font-family:'JetBrains Mono',monospace;font-size:12px}
+td.r{text-align:right}
+.bar-wrap{display:flex;align-items:center;gap:8px}
+.bar-bg{flex:1;height:5px;background:var(--surface2);min-width:80px}
+.bar-fill{height:100%}
+
+/* ── ISSP-STYLE GENDER/AGE SECTION ── */
+.gender-kpi-row{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:20px}
+.gkpi{border-radius:4px;padding:28px 36px;color:#fff;position:relative;overflow:hidden;min-height:140px}
+.gkpi.masc{background:linear-gradient(135deg,#1565c0 0%,#42a5f5 100%)}
+.gkpi.fem{background:linear-gradient(135deg,#c2185b 0%,#f06292 100%)}
+.gkpi-circle{position:absolute;right:-24px;top:-24px;width:130px;height:130px;border-radius:50%;background:rgba(255,255,255,.09)}
+.gkpi-val{font-size:60px;font-weight:800;letter-spacing:-3px;line-height:1;position:relative}
+.gkpi-lbl{font-size:18px;font-weight:600;opacity:.92;margin-top:6px}
+.gkpi-pct{font-family:'JetBrains Mono',monospace;font-size:12px;opacity:.65;margin-top:3px}
+
+.pct-row{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:20px}
+.pct-card{background:#e8eaf6;border-radius:4px;padding:22px 16px;text-align:center}
+.pct-val{font-size:44px;font-weight:700;color:#546e7a;letter-spacing:-1.5px;line-height:1}
+.pct-grp{font-size:13px;font-weight:600;color:#455a64;margin-top:8px}
+.pct-range{font-size:11px;color:#90a4ae;margin-top:3px}
+
+.age-charts{display:grid;grid-template-columns:1.5fr 1fr;gap:16px;margin-bottom:20px}
+
+/* FILE PANEL */
+.file-panel{background:var(--surface);border:1px solid var(--border);padding:14px 20px;margin-bottom:16px;display:none}
+.drop-zone{border:2px dashed var(--border);border-radius:4px;padding:24px;text-align:center;color:var(--muted);cursor:pointer;display:none}
+.drop-zone.show{display:block}
+.drop-zone.active{border-color:var(--ink);background:rgba(33,67,142,.04)}
+
+footer{border-top:1px solid var(--border);padding:18px 48px;display:flex;justify-content:space-between;align-items:center;margin-top:40px}
+.ftxt{font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--muted)}
+@media(max-width:900px){header,.toolbar,main,footer{padding-left:20px;padding-right:20px}.g2,.g3,.age-charts,.gender-kpi-row,.pct-row,.kpi-row{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="hdr-left">
+    <div class="hdr-accent"></div>
+    <div>
+      <div class="hdr-title">Quadro de Atendimento</div>
+      <div class="hdr-sub">OBRA SOCIAL DOM BOSCO · INSPETORIA SALESIANA</div>
+    </div>
+  </div>
+  <div class="hdr-right">
+    <div class="hdr-stat"><div class="hdr-val" id="hdr-atendidos">—</div><div class="hdr-lbl">ATENDIDOS</div></div>
+    <div class="hdr-stat"><div class="hdr-val" id="hdr-atendimentos">—</div><div class="hdr-lbl">ATENDIMENTOS</div></div>
+    <div class="hdr-stat"><div class="hdr-val" id="hdr-refeicoes">—</div><div class="hdr-lbl">REFEIÇÕES</div></div>
+  </div>
+</header>
+
+<div class="toolbar">
+  <span class="filter-lbl">Unidade:</span>
+  <button class="fbtn on" data-unit="all">Todas</button>
+  <div id="unit-btns"></div>
+  <div class="spacer"></div>
+  <span class="badge" id="badge">📅 27/03/2026 às 11:37</span>
+  <button class="ibtn" id="importBtn">⬆ Adicionar planilha</button>
+  <button class="ibtn red" id="clearBtn">✕ Limpar</button>
+  <input type="file" id="fileInput" accept=".xlsx,.xls" multiple style="display:none">
+</div>
+
+<main>
+  <div id="file-panel" class="file-panel"></div>
+  <div id="drop-zone" class="drop-zone">
+    <div style="font-size:22px;margin-bottom:6px">📂</div>
+    <div style="font-weight:600;font-size:14px;color:var(--ink)">Arraste arquivos Excel aqui</div>
+    <div style="font-size:12px;margin-top:4px">Cada arquivo somado ao consolidado</div>
+  </div>
+
+  <!-- ── KPIs Gerais ── -->
+  <div class="kpi-row">
+    <div class="kpi-cell"><div class="kpi-lbl">Atendidos no ano</div><div class="kpi-val" id="kpi-a" style="color:var(--ink)">—</div><div class="kpi-desc">pessoas atendidas (interno)</div></div>
+    <div class="kpi-cell"><div class="kpi-lbl">Total atendimentos</div><div class="kpi-val" id="kpi-b" style="color:#1d6f8a">—</div><div class="kpi-desc">registros de atendimento</div></div>
+    <div class="kpi-cell"><div class="kpi-lbl">Refeições servidas</div><div class="kpi-val" id="kpi-c" style="color:var(--green)">—</div><div class="kpi-desc">alimentação fornecida</div></div>
+    <div class="kpi-cell"><div class="kpi-lbl">Entradas no ano</div><div class="kpi-val" id="kpi-d" style="color:var(--orange)">—</div><div class="kpi-desc">novos ingressos</div></div>
+  </div>
+
+  <!-- ── Unidades ── -->
+  <div class="section-hdr"><div class="s-title">Resumo por Unidade</div><div class="s-rule"></div></div>
+  <div id="unit-cards"></div>
+
+  <!-- ── ISSP-style: Sexo ── -->
+  <div class="section-hdr"><div class="s-title">Atendidos por Sexo e Faixa Etária</div><div class="s-rule"></div></div>
+  <div class="gender-kpi-row">
+    <div class="gkpi masc"><div class="gkpi-circle"></div><div class="gkpi-val" id="g-m">—</div><div class="gkpi-lbl">Masculino</div><div class="gkpi-pct" id="g-mpct">—% do total</div></div>
+    <div class="gkpi fem"><div class="gkpi-circle"></div><div class="gkpi-val" id="g-f">—</div><div class="gkpi-lbl">Feminino</div><div class="gkpi-pct" id="g-fpct">—% do total</div></div>
+  </div>
+  <div class="pct-row">
+    <div class="pct-card"><div class="pct-val" id="pct-criancas">—</div><div class="pct-grp">Crianças</div><div class="pct-range">0 a 12 anos incompletos</div></div>
+    <div class="pct-card"><div class="pct-val" id="pct-adol">—</div><div class="pct-grp">Adolescentes</div><div class="pct-range">12 a 18 anos incompletos</div></div>
+    <div class="pct-card"><div class="pct-val" id="pct-jovens">—</div><div class="pct-grp">Jovens</div><div class="pct-range">18 a 29 anos incompletos</div></div>
+    <div class="pct-card"><div class="pct-val" id="pct-adultos">—</div><div class="pct-grp">Adultos</div><div class="pct-range">29 anos ou mais</div></div>
+  </div>
+  <div class="age-charts">
+    <div class="box"><div class="box-title">Atendidos por Faixa Etária e Sexo</div><div class="box-sub">Masculino e Feminino por grupo · valores absolutos</div><canvas id="ageBarChart" height="220"></canvas></div>
+    <div class="box"><div class="box-title">Distribuição por Faixa Etária</div><div class="box-sub">Proporção por grupo etário</div><canvas id="ageDonutChart" height="220"></canvas></div>
+  </div>
+
+  <!-- ── Evolução Mensal ── -->
+  <div class="section-hdr"><div class="s-title">Evolução Mensal</div><div class="s-rule"></div></div>
+  <div class="box" style="margin-bottom:16px"><div class="box-title">Pessoas Atendidas por Mês</div><div class="box-sub">Atendidos, entradas e saídas ao longo do ano</div><canvas id="monthlyChart" height="95"></canvas></div>
+  <div class="g2">
+    <div class="box"><div class="box-title">Atendimentos por Mês</div><div class="box-sub">Total de registros de atendimento</div><canvas id="atendChart" height="200"></canvas></div>
+    <div class="box"><div class="box-title">Refeições por Mês</div><div class="box-sub">Total de refeições servidas</div><canvas id="refChart" height="200"></canvas></div>
+  </div>
+
+  <!-- ── Motivos de Saída ── -->
+  <div class="section-hdr"><div class="s-title">Motivos de Saída</div><div class="s-rule"></div></div>
+  <div class="g2">
+    <div class="box"><div class="box-title">Distribuição dos Desligamentos</div><div class="box-sub">Por tipo de saída registrada</div><canvas id="motivosChart" height="260"></canvas></div>
+    <div class="box"><div class="box-title">Faixa Etária Detalhada</div><div class="box-sub">Todas as faixas do quadro de atendimento</div><canvas id="faixaChart" height="260"></canvas></div>
+  </div>
+
+  <!-- ── Tabela Mensal ── -->
+  <div class="section-hdr"><div class="s-title">Tabela Mensal Detalhada</div><div class="s-rule"></div></div>
+  <div class="tbl-wrap">
+    <table><thead><tr>
+      <th>Mês</th><th class="r">Entrada</th><th class="r">Saída</th>
+      <th class="r">Atendidos</th><th class="r">Atendimentos</th><th class="r">Refeições</th><th>Ocupação</th>
+    </tr></thead><tbody id="tblBody"></tbody></table>
+  </div>
+
+</main>
+<footer>
+  <div class="ftxt">Obra Social Dom Bosco · Dashboard de Atendimento</div>
+  <div class="ftxt" id="ftxt-date">27/03/2026 às 11:37</div>
+</footer>
+
+<script>
+let DADOS = [{"unidade": "DOM BOSCO", "atendidos_ano": 37, "atendimentos_ano": 12868, "refeicoes_ano": 22640, "remanescentes_ini": 14, "entradas_ano": 23, "motivos": {"TRANSFERÊNCIA": 1, "REINTEGRAÇÃO": 16, "ADOÇÃO": 2, "SAIDA NÃO AUTORIZADA": 1}, "monthly": [{"mes": "JANEIRO", "mes_idx": 0, "entrada": 0, "saida": 0, "dias_uteis": 31, "atendidos": 14, "atendimentos": 434, "ref_diarias": 4, "ref_alim": 1736}, {"mes": "FEVEREIRO", "mes_idx": 1, "entrada": 0, "saida": 0, "dias_uteis": 28, "atendidos": 14, "atendimentos": 392, "ref_diarias": 4, "ref_alim": 1568}, {"mes": "MARÇO", "mes_idx": 2, "entrada": 2, "saida": 1, "dias_uteis": 31, "atendidos": 15, "atendimentos": 465, "ref_diarias": 4, "ref_alim": 1860}, {"mes": "ABRIL", "mes_idx": 3, "entrada": 5, "saida": 5, "dias_uteis": 30, "atendidos": 15, "atendimentos": 450, "ref_diarias": 4, "ref_alim": 1800}, {"mes": "MAIO", "mes_idx": 4, "entrada": 4, "saida": 4, "dias_uteis": 31, "atendidos": 15, "atendimentos": 465, "ref_diarias": 4, "ref_alim": 1860}, {"mes": "JUNHO", "mes_idx": 5, "entrada": 0, "saida": 0, "dias_uteis": 30, "atendidos": 15, "atendimentos": 450, "ref_diarias": 4, "ref_alim": 1800}, {"mes": "JULHO", "mes_idx": 6, "entrada": 3, "saida": 4, "dias_uteis": 31, "atendidos": 14, "atendimentos": 434, "ref_diarias": 4, "ref_alim": 1736}, {"mes": "AGOSTO", "mes_idx": 7, "entrada": 5, "saida": 2, "dias_uteis": 31, "atendidos": 17, "atendimentos": 527, "ref_diarias": 4, "ref_alim": 2108}, {"mes": "SETEMBRO", "mes_idx": 8, "entrada": 0, "saida": 0, "dias_uteis": 30, "atendidos": 17, "atendimentos": 510, "ref_diarias": 4, "ref_alim": 2040}, {"mes": "OUTUBRO", "mes_idx": 9, "entrada": 0, "saida": 1, "dias_uteis": 31, "atendidos": 16, "atendimentos": 496, "ref_diarias": 4, "ref_alim": 1984}, {"mes": "NOVEMBRO", "mes_idx": 10, "entrada": 3, "saida": 2, "dias_uteis": 30, "atendidos": 17, "atendimentos": 510, "ref_diarias": 4, "ref_alim": 2040}, {"mes": "DEZEMBRO", "mes_idx": 11, "entrada": 1, "saida": 1, "dias_uteis": 31, "atendidos": 17, "atendimentos": 527, "ref_diarias": 4, "ref_alim": 2108}], "faixa_etaria": {"0 a 05 anos": {"M": 5, "F": 5, "total": 10}, "06 a 11 anos": {"M": 8, "F": 5, "total": 13}, "12 a 14 anos": {"M": 1, "F": 7, "total": 8}, "15 a 17 anos": {"M": 2, "F": 4, "total": 6}, "18 a 24 anos": {"M": 0, "F": 0, "total": 0}, "25 a 29 anos": {"M": 0, "F": 0, "total": 0}, "30 a 49 anos": {"M": 0, "F": 0, "total": 0}, "50 a 59 anos": {"M": 0, "F": 0, "total": 0}, "60 a 64 anos": {"M": 0, "F": 0, "total": 0}, "65 a 69 anos": {"M": 0, "F": 0, "total": 0}, "70 a 74 anos": {"M": 0, "F": 0, "total": 0}, "75 ou mais": {"M": 0, "F": 0, "total": 0}}}, {"unidade": "BOM PASTOR", "atendidos_ano": 0, "atendimentos_ano": 0, "refeicoes_ano": 0, "remanescentes_ini": 0, "entradas_ano": 0, "motivos": {}, "monthly": [{"mes": "JANEIRO", "mes_idx": 0, "entrada": 0, "saida": 0, "dias_uteis": 0, "atendidos": 0, "atendimentos": 0, "ref_diarias": 0, "ref_alim": 0}, {"mes": "FEVEREIRO", "mes_idx": 1, "entrada": 0, "saida": 0, "dias_uteis": 0, "atendidos": 0, "atendimentos": 0, "ref_diarias": 0, "ref_alim": 0}, {"mes": "MARÇO", "mes_idx": 2, "entrada": 0, "saida": 0, "dias_uteis": 0, "atendidos": 0, "atendimentos": 0, "ref_diarias": 0, "ref_alim": 0}, {"mes": "ABRIL", "mes_idx": 3, "entrada": 0, "saida": 0, "dias_uteis": 0, "atendidos": 0, "atendimentos": 0, "ref_diarias": 0, "ref_alim": 0}, {"mes": "MAIO", "mes_idx": 4, "entrada": 0, "saida": 0, "dias_uteis": 0, "atendidos": 0, "atendimentos": 0, "ref_diarias": 0, "ref_alim": 0}, {"mes": "JUNHO", "mes_idx": 5, "entrada": 0, "saida": 0, "dias_uteis": 0, "atendidos": 0, "atendimentos": 0, "ref_diarias": 0, "ref_alim": 0}, {"mes": "JULHO", "mes_idx": 6, "entrada": 0, "saida": 0, "dias_uteis": 0, "atendidos": 0, "atendimentos": 0, "ref_diarias": 0, "ref_alim": 0}, {"mes": "AGOSTO", "mes_idx": 7, "entrada": 0, "saida": 0, "dias_uteis": 0, "atendidos": 0, "atendimentos": 0, "ref_diarias": 0, "ref_alim": 0}, {"mes": "SETEMBRO", "mes_idx": 8, "entrada": 0, "saida": 0, "dias_uteis": 0, "atendidos": 0, "atendimentos": 0, "ref_diarias": 0, "ref_alim": 0}, {"mes": "OUTUBRO", "mes_idx": 9, "entrada": 0, "saida": 0, "dias_uteis": 0, "atendidos": 0, "atendimentos": 0, "ref_diarias": 0, "ref_alim": 0}, {"mes": "NOVEMBRO", "mes_idx": 10, "entrada": 0, "saida": 0, "dias_uteis": 0, "atendidos": 0, "atendimentos": 0, "ref_diarias": 0, "ref_alim": 0}, {"mes": "DEZEMBRO", "mes_idx": 11, "entrada": 0, "saida": 0, "dias_uteis": 0, "atendidos": 0, "atendimentos": 0, "ref_diarias": 0, "ref_alim": 0}], "faixa_etaria": {"0 a 05 anos": {"M": 0, "F": 0, "total": 0}, "06 a 11 anos": {"M": 0, "F": 0, "total": 0}, "12 a 14 anos": {"M": 0, "F": 0, "total": 0}, "15 a 17 anos": {"M": 0, "F": 0, "total": 0}, "18 a 24 anos": {"M": 0, "F": 0, "total": 0}, "25 a 29 anos": {"M": 0, "F": 0, "total": 0}, "30 a 49 anos": {"M": 0, "F": 0, "total": 0}, "50 a 59 anos": {"M": 0, "F": 0, "total": 0}, "60 a 64 anos": {"M": 0, "F": 0, "total": 0}, "65 a 69 anos": {"M": 0, "F": 0, "total": 0}, "70 a 74 anos": {"M": 0, "F": 0, "total": 0}, "75 ou mais": {"M": 0, "F": 0, "total": 0}}}, {"unidade": "APARECIDA", "atendidos_ano": 0, "atendimentos_ano": 0, "refeicoes_ano": 0, "remanescentes_ini": 0, "entradas_ano": 0, "motivos": {}, "monthly": [{"mes": "JANEIRO", "mes_idx": 0, "entrada": 0, "saida": 0, "dias_uteis": 0, "atendidos": 0, "atendimentos": 0, "ref_diarias": 0, "ref_alim": 0}, {"mes": "FEVEREIRO", "mes_idx": 1, "entrada": 0, "saida": 0, "dias_uteis": 0, "atendidos": 0, "atendimentos": 0, "ref_diarias": 0, "ref_alim": 0}, {"mes": "MARÇO", "mes_idx": 2, "entrada": 0, "saida": 0, "dias_uteis": 0, "atendidos": 0, "atendimentos": 0, "ref_diarias": 0, "ref_alim": 0}, {"mes": "ABRIL", "mes_idx": 3, "entrada": 0, "saida": 0, "dias_uteis": 0, "atendidos": 0, "atendimentos": 0, "ref_diarias": 0, "ref_alim": 0}, {"mes": "MAIO", "mes_idx": 4, "entrada": 0, "saida": 0, "dias_uteis": 0, "atendidos": 0, "atendimentos": 0, "ref_diarias": 0, "ref_alim": 0}, {"mes": "JUNHO", "mes_idx": 5, "entrada": 0, "saida": 0, "dias_uteis": 0, "atendidos": 0, "atendimentos": 0, "ref_diarias": 0, "ref_alim": 0}, {"mes": "JULHO", "mes_idx": 6, "entrada": 0, "saida": 0, "dias_uteis": 0, "atendidos": 0, "atendimentos": 0, "ref_diarias": 0, "ref_alim": 0}, {"mes": "AGOSTO", "mes_idx": 7, "entrada": 0, "saida": 0, "dias_uteis": 0, "atendidos": 0, "atendimentos": 0, "ref_diarias": 0, "ref_alim": 0}, {"mes": "SETEMBRO", "mes_idx": 8, "entrada": 0, "saida": 0, "dias_uteis": 0, "atendidos": 0, "atendimentos": 0, "ref_diarias": 0, "ref_alim": 0}, {"mes": "OUTUBRO", "mes_idx": 9, "entrada": 0, "saida": 0, "dias_uteis": 0, "atendidos": 0, "atendimentos": 0, "ref_diarias": 0, "ref_alim": 0}, {"mes": "NOVEMBRO", "mes_idx": 10, "entrada": 0, "saida": 0, "dias_uteis": 0, "atendidos": 0, "atendimentos": 0, "ref_diarias": 0, "ref_alim": 0}, {"mes": "DEZEMBRO", "mes_idx": 11, "entrada": 0, "saida": 0, "dias_uteis": 0, "atendidos": 0, "atendimentos": 0, "ref_diarias": 0, "ref_alim": 0}], "faixa_etaria": {"0 a 05 anos": {"M": 0, "F": 0, "total": 0}, "06 a 11 anos": {"M": 0, "F": 0, "total": 0}, "12 a 14 anos": {"M": 0, "F": 0, "total": 0}, "15 a 17 anos": {"M": 0, "F": 0, "total": 0}, "18 a 24 anos": {"M": 0, "F": 0, "total": 0}, "25 a 29 anos": {"M": 0, "F": 0, "total": 0}, "30 a 49 anos": {"M": 0, "F": 0, "total": 0}, "50 a 59 anos": {"M": 0, "F": 0, "total": 0}, "60 a 64 anos": {"M": 0, "F": 0, "total": 0}, "65 a 69 anos": {"M": 0, "F": 0, "total": 0}, "70 a 74 anos": {"M": 0, "F": 0, "total": 0}, "75 ou mais": {"M": 0, "F": 0, "total": 0}}}];
+const AGE_GROUPS = {"crianças": ["0 a 05 anos", "06 a 11 anos"], "adolescentes": ["12 a 14 anos", "15 a 17 anos"], "jovens": ["18 a 24 anos", "25 a 29 anos"], "adultos": ["30 a 49 anos", "50 a 59 anos", "60 a 64 anos", "65 a 69 anos", "70 a 74 anos", "75 ou mais"]};
+const MONTHS_PT = ['JANEIRO','FEVEREIRO','MARÇO','ABRIL','MAIO','JUNHO','JULHO','AGOSTO','SETEMBRO','OUTUBRO','NOVEMBRO','DEZEMBRO'];
+const MONTHS_SH = ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
+const MOTIVOS = ['ABANDONO','TRANCAMENTO','CANCELAMENTO','DESABRIGO','EXTINÇÃO MEDIDA','REINCIDÊNCIA','FALECIMENTO','TRANSFERÊNCIA','REINTEGRAÇÃO','ADOÇÃO','SAIDA NÃO AUTORIZADA'];
+const AGE_KEYS = ['0 a 05 anos','06 a 11 anos','12 a 14 anos','15 a 17 anos','18 a 24 anos','25 a 29 anos','30 a 49 anos','50 a 59 anos','60 a 64 anos','65 a 69 anos','70 a 74 anos','75 ou mais'];
+const COLORS = ['#21438e','#2d7a4f','#c97c1a','#c84b31','#6b4fa0','#1d6f8a','#c44b8a','#4a7a3d'];
+const fmt = n => (n||0).toLocaleString('pt-BR');
+const pct = (n,t) => t>0 ? (n/t*100).toFixed(1)+'%' : '—';
+
+let activeUnit = 'all', charts = {}, importedFiles = [];
+
+function getFiltered() { return activeUnit==='all' ? DADOS : DADOS.filter(u=>u.unidade===activeUnit); }
+
+// ── Merge helpers ──────────────────────────────────────────────────────────
+function mergeMonthly(units) {
+  const m={};
+  units.forEach(u=>(u.monthly||[]).forEach(mo=>{
+    if(!m[mo.mes]) m[mo.mes]={mes:mo.mes,mes_idx:mo.mes_idx,entrada:0,saida:0,atendidos:0,atendimentos:0,ref_alim:0};
+    m[mo.mes].entrada+=mo.entrada; m[mo.mes].saida+=mo.saida;
+    m[mo.mes].atendidos+=mo.atendidos; m[mo.mes].atendimentos+=mo.atendimentos; m[mo.mes].ref_alim+=mo.ref_alim;
+  }));
+  return Object.values(m).sort((a,b)=>a.mes_idx-b.mes_idx);
+}
+function mergeMotivos(units) {
+  const m={};
+  units.forEach(u=>Object.entries(u.motivos||{}).forEach(([k,v])=>{m[k]=(m[k]||0)+v;}));
+  return m;
+}
+function mergeFaixa(units) {
+  const m={};
+  AGE_KEYS.forEach(k=>{m[k]={M:0,F:0,total:0};});
+  units.forEach(u=>Object.entries(u.faixa_etaria||{}).forEach(([k,v])=>{
+    if(m[k]){m[k].M+=v.M||0; m[k].F+=v.F||0; m[k].total+=v.total||0;}
+  }));
+  return m;
+}
+function faixaToGroups(faixa) {
+  const g={};
+  Object.entries(AGE_GROUPS).forEach(([grp,bands])=>{
+    g[grp]={M:0,F:0};
+    bands.forEach(b=>{if(faixa[b]){g[grp].M+=faixa[b].M||0; g[grp].F+=faixa[b].F||0;}} );
+  });
+  return g;
+}
+
+// ── KPIs ──────────────────────────────────────────────────────────────────
+function updateKPIs(data, faixa) {
+  const a=data.reduce((s,u)=>s+u.atendidos_ano,0);
+  const b=data.reduce((s,u)=>s+u.atendimentos_ano,0);
+  const c=data.reduce((s,u)=>s+u.refeicoes_ano,0);
+  const d=data.reduce((s,u)=>s+(u.entradas_ano||0),0);
+  document.getElementById('kpi-a').textContent=fmt(a);
+  document.getElementById('kpi-b').textContent=fmt(b);
+  document.getElementById('kpi-c').textContent=fmt(c);
+  document.getElementById('kpi-d').textContent=fmt(d);
+  document.getElementById('hdr-atendidos').textContent=fmt(a);
+  document.getElementById('hdr-atendimentos').textContent=fmt(b);
+  document.getElementById('hdr-refeicoes').textContent=fmt(c);
+  // Gender totals from faixa
+  const totalM=Object.values(faixa).reduce((s,v)=>s+v.M,0);
+  const totalF=Object.values(faixa).reduce((s,v)=>s+v.F,0);
+  const total=totalM+totalF;
+  document.getElementById('g-m').textContent=fmt(totalM);
+  document.getElementById('g-f').textContent=fmt(totalF);
+  document.getElementById('g-mpct').textContent=pct(totalM,total)+' do total';
+  document.getElementById('g-fpct').textContent=pct(totalF,total)+' do total';
+  // Group pcts
+  const grps=faixaToGroups(faixa);
+  const tc=(grps.crianças.M+grps.crianças.F), ta=(grps.adolescentes.M+grps.adolescentes.F);
+  const tj=(grps.jovens.M+grps.jovens.F), tad=(grps.adultos.M+grps.adultos.F);
+  document.getElementById('pct-criancas').textContent=pct(tc,total);
+  document.getElementById('pct-adol').textContent=pct(ta,total);
+  document.getElementById('pct-jovens').textContent=pct(tj,total);
+  document.getElementById('pct-adultos').textContent=pct(tad,total);
+}
+
+// ── Unit cards ─────────────────────────────────────────────────────────────
+function buildUnitCards(data) {
+  const el=document.getElementById('unit-cards'); el.innerHTML='';
+  data.forEach((u,i)=>{
+    const d=document.createElement('div'); d.className='unit-card';
+    d.innerHTML=`<div><div class="uc-name" style="color:${COLORS[i%COLORS.length]}">${u.unidade}</div><div class="uc-sub">Remanescentes: ${u.remanescentes_ini} · Entradas: ${u.entradas_ano||0}</div></div>
+      <div class="uc-stats">
+        <div class="uc-s"><div class="uc-sv" style="color:${COLORS[i%COLORS.length]}">${fmt(u.atendidos_ano)}</div><div class="uc-sl">ATENDIDOS</div></div>
+        <div class="uc-s"><div class="uc-sv" style="color:#1d6f8a">${fmt(u.atendimentos_ano)}</div><div class="uc-sl">ATENDIMENTOS</div></div>
+        <div class="uc-s"><div class="uc-sv" style="color:#2d7a4f">${fmt(u.refeicoes_ano)}</div><div class="uc-sl">REFEIÇÕES</div></div>
+      </div>`;
+    el.appendChild(d);
+  });
+}
+
+// ── Charts ─────────────────────────────────────────────────────────────────
+Chart.defaults.color='#7a7f9a'; Chart.defaults.font.family="'Poppins',sans-serif"; Chart.defaults.borderColor='#dde1ea';
+const ttip = {backgroundColor:'#1a1c2e',borderColor:'#dde1ea',borderWidth:1,titleColor:'#fff',bodyColor:'#c8cad8'};
+function dc(id) { if(charts[id]){ charts[id].destroy(); delete charts[id]; } }
+
+function buildAgeCharts(faixa) {
+  const grps=faixaToGroups(faixa);
+  const grpLabels=['Crianças','Adolescentes','Jovens','Adultos'];
+  const grpKeys=['crianças','adolescentes','jovens','adultos'];
+  const gM=grpKeys.map(k=>grps[k].M), gF=grpKeys.map(k=>grps[k].F);
+  const total=gM.reduce((s,v)=>s+v,0)+gF.reduce((s,v)=>s+v,0);
+  dc('ageBar');
+  charts.ageBar=new Chart(document.getElementById('ageBarChart'),{
+    type:'bar',
+    data:{labels:grpLabels,datasets:[
+      {label:'Masculino',data:gM,backgroundColor:'rgba(21,101,192,.82)',borderColor:'#1565c0',borderWidth:1.5,borderRadius:3},
+      {label:'Feminino', data:gF,backgroundColor:'rgba(194,24,91,.82)', borderColor:'#c2185b',borderWidth:1.5,borderRadius:3}
+    ]},
+    options:{responsive:true,plugins:{legend:{position:'top',labels:{boxWidth:14,padding:16,font:{size:12}}},
+      tooltip:{...ttip,callbacks:{label:ctx=>` ${fmt(ctx.raw)} pessoas (${pct(ctx.raw,total)})`}}},
+      scales:{x:{grid:{display:false},ticks:{font:{size:12}}},y:{grid:{color:'rgba(221,225,234,.5)'},ticks:{font:{size:11},precision:0}}}}
+  });
+  // Donut — split M/F as two datasets (inner/outer)
+  const donutMC=['rgba(21,101,192,.9)','rgba(25,118,210,.75)','rgba(66,165,245,.65)','rgba(100,181,246,.5)'];
+  const donutFC=['rgba(194,24,91,.9)','rgba(233,30,99,.75)','rgba(240,98,146,.65)','rgba(248,187,208,.5)'];
+  dc('ageDonut');
+  charts.ageDonut=new Chart(document.getElementById('ageDonutChart'),{
+    type:'doughnut',
+    data:{
+      labels:[...grpLabels.map(l=>l+' (M)'),...grpLabels.map(l=>l+' (F)')],
+      datasets:[
+        {label:'Masc',  data:gM,backgroundColor:donutMC,borderColor:'#fff',borderWidth:2,weight:1},
+        {label:'Fem',   data:gF,backgroundColor:donutFC,borderColor:'#fff',borderWidth:2,weight:1.55}
+      ]
+    },
+    options:{responsive:true,cutout:'42%',plugins:{legend:{display:false},
+      tooltip:{...ttip,callbacks:{label:ctx=>` ${ctx.label}: ${fmt(ctx.raw)} (${pct(ctx.raw,total)})`}}}}
+  });
+}
+
+function buildMonthCharts(monthly) {
+  const labels=monthly.map(m=>MONTHS_SH[MONTHS_PT.indexOf(m.mes)]||m.mes.slice(0,3));
+  dc('monthly');
+  charts.monthly=new Chart(document.getElementById('monthlyChart'),{type:'line',data:{labels,datasets:[
+    {label:'Atendidos',data:monthly.map(m=>m.atendidos),borderColor:'#21438e',backgroundColor:'rgba(33,67,142,.1)',borderWidth:2.5,pointRadius:4,tension:0.35,fill:true},
+    {label:'Entradas', data:monthly.map(m=>m.entrada), borderColor:'#2d7a4f',backgroundColor:'transparent',borderWidth:2,pointRadius:4,tension:0.35},
+    {label:'Saídas',   data:monthly.map(m=>m.saida),   borderColor:'#c84b31',backgroundColor:'transparent',borderWidth:2,pointRadius:4,tension:0.35},
+  ]},options:{responsive:true,plugins:{legend:{position:'top',labels:{boxWidth:12,padding:14,font:{size:11}}},tooltip:ttip},
+    scales:{x:{grid:{display:false},ticks:{font:{size:11}}},y:{grid:{color:'rgba(221,225,234,.5)'},ticks:{font:{size:11},precision:0}}}}  });
+  dc('atend');
+  charts.atend=new Chart(document.getElementById('atendChart'),{type:'bar',data:{labels,datasets:[{label:'Atendimentos',data:monthly.map(m=>m.atendimentos),backgroundColor:'rgba(29,111,138,.72)',borderColor:'#1d6f8a',borderWidth:1,borderRadius:2}]},
+    options:{responsive:true,plugins:{legend:{display:false},tooltip:ttip},scales:{x:{grid:{display:false},ticks:{font:{size:10}}},y:{grid:{color:'rgba(221,225,234,.5)'},ticks:{font:{size:10},precision:0}}}} });
+  dc('ref');
+  charts.ref=new Chart(document.getElementById('refChart'),{type:'bar',data:{labels,datasets:[{label:'Refeições',data:monthly.map(m=>m.ref_alim),backgroundColor:'rgba(45,122,79,.72)',borderColor:'#2d7a4f',borderWidth:1,borderRadius:2}]},
+    options:{responsive:true,plugins:{legend:{display:false},tooltip:ttip},scales:{x:{grid:{display:false},ticks:{font:{size:10}}},y:{grid:{color:'rgba(221,225,234,.5)'},ticks:{font:{size:10},precision:0}}}} });
+}
+
+function buildMotivosFaixaCharts(motivos, faixa) {
+  const mLabels=Object.keys(motivos).filter(k=>motivos[k]>0), mVals=mLabels.map(k=>motivos[k]);
+  const mc=['#c84b31','#c97c1a','#21438e','#2d7a4f','#6b4fa0','#1d6f8a','#c44b8a','#8a5c21','#4a3a7a','#4a7a3d','#555'];
+  dc('motivos');
+  if(mLabels.length) charts.motivos=new Chart(document.getElementById('motivosChart'),{
+    type:'doughnut',data:{labels:mLabels,datasets:[{data:mVals,backgroundColor:mc.map(c=>c+'cc'),borderColor:mc,borderWidth:2,hoverOffset:6}]},
+    options:{responsive:true,cutout:'48%',plugins:{legend:{position:'right',labels:{boxWidth:12,padding:8,font:{size:10}}},tooltip:ttip}} });
+  const mD=AGE_KEYS.map(k=>(faixa[k]||{}).M||0), fD=AGE_KEYS.map(k=>(faixa[k]||{}).F||0);
+  const bands=['0–5','6–11','12–14','15–17','18–24','25–29','30–49','50–59','60–64','65–69','70–74','75+'];
+  dc('faixa');
+  charts.faixa=new Chart(document.getElementById('faixaChart'),{type:'bar',data:{labels:bands,datasets:[
+    {label:'Masculino',data:mD,backgroundColor:'rgba(33,67,142,.75)',borderColor:'#21438e',borderWidth:1},
+    {label:'Feminino', data:fD,backgroundColor:'rgba(196,75,138,.75)',borderColor:'#c44b8a',borderWidth:1}
+  ]},options:{indexAxis:'y',responsive:true,plugins:{legend:{position:'top',labels:{boxWidth:12,padding:10,font:{size:10}}},tooltip:ttip},
+    scales:{x:{grid:{color:'rgba(221,225,234,.5)'},ticks:{font:{size:10},precision:0}},y:{grid:{display:false},ticks:{font:{size:10}}}}} });
+}
+
+function buildTable(monthly) {
+  const max=Math.max(...monthly.map(m=>m.atendimentos),1);
+  const tbody=document.getElementById('tblBody'); tbody.innerHTML='';
+  let tE=0,tS=0,tAt=0,tAm=0,tR=0;
+  monthly.forEach(m=>{
+    tE+=m.entrada;tS+=m.saida;tAt+=m.atendidos;tAm+=m.atendimentos;tR+=m.ref_alim;
+    const p=Math.round(m.atendimentos/max*100);
+    const tr=document.createElement('tr');
+    tr.innerHTML=`<td style="font-weight:600">${MONTHS_SH[MONTHS_PT.indexOf(m.mes)]||m.mes.slice(0,3)}</td>
+      <td class="r mono" style="color:#2d7a4f">${m.entrada}</td><td class="r mono" style="color:#c84b31">${m.saida}</td>
+      <td class="r mono" style="color:#21438e;font-weight:600">${m.atendidos}</td>
+      <td class="r mono">${fmt(m.atendimentos)}</td><td class="r mono">${fmt(m.ref_alim)}</td>
+      <td><div class="bar-wrap"><div class="bar-bg"><div class="bar-fill" style="width:${p}%;background:#21438e"></div></div>
+        <span style="font-family:JetBrains Mono,monospace;font-size:11px;min-width:34px">${p}%</span></div></td>`;
+    tbody.appendChild(tr);
+  });
+  const tr=document.createElement('tr'); tr.className='tfoot';
+  tr.innerHTML=`<td>TOTAL</td><td class="r mono" style="color:#2d7a4f">${tE}</td><td class="r mono" style="color:#c84b31">${tS}</td><td class="r mono" style="color:#21438e">${tAt}</td><td class="r mono">${fmt(tAm)}</td><td class="r mono">${fmt(tR)}</td><td></td>`;
+  tbody.appendChild(tr);
+}
+
+// ── Main render ────────────────────────────────────────────────────────────
+function render() {
+  const data=getFiltered();
+  const monthly=mergeMonthly(data), motivos=mergeMotivos(data), faixa=mergeFaixa(data);
+  updateKPIs(data, faixa);
+  buildUnitCards(data);
+  buildAgeCharts(faixa);
+  buildMonthCharts(monthly);
+  buildMotivosFaixaCharts(motivos, faixa);
+  buildTable(monthly);
+}
+
+// ── Unit filter buttons ───────────────────────────────────────────────────
+function buildUnitBtns() {
+  const el=document.getElementById('unit-btns'); el.innerHTML='';
+  DADOS.forEach(u=>{
+    const b=document.createElement('button'); b.className='fbtn'; b.textContent=u.unidade; b.dataset.unit=u.unidade;
+    b.addEventListener('click',()=>{activeUnit=u.unidade;document.querySelectorAll('[data-unit]').forEach(x=>x.classList.remove('on'));b.classList.add('on');render();});
+    el.appendChild(b);
+  });
+}
+document.querySelector('[data-unit="all"]').addEventListener('click',()=>{
+  activeUnit='all'; document.querySelectorAll('[data-unit]').forEach(b=>b.classList.remove('on'));
+  document.querySelector('[data-unit="all"]').classList.add('on'); render();
+});
+
+// ── Excel Import (SheetJS) ────────────────────────────────────────────────
+const MMAP={};MONTHS_PT.forEach((m,i)=>MMAP[m]=i);
+const AK=['0 a 05 anos','06 a 11 anos','12 a 14 anos','15 a 17 anos','18 a 24 anos','25 a 29 anos','30 a 49 anos','50 a 59 anos','60 a 64 anos','65 a 69 anos','70 a 74 anos','75 ou mais'];
+function si(v){const n=parseInt(v);return isNaN(n)?0:n;}
+function parseSheet(ws, nome) {
+  if(!ws['!ref'])return null;
+  const rng=XLSX.utils.decode_range(ws['!ref']);
+  const G=[];
+  for(let r=rng.s.r;r<=rng.e.r;r++){const row=[];for(let c=rng.s.c;c<=rng.e.c;c++){const cell=ws[XLSX.utils.encode_cell({r,c})];row.push(cell?cell.v:null);}G.push(row);}
+  const g=(r,c)=>G[r]?.[c]??null, ssi=(r,c)=>si(g(r,c));
+  const u={unidade:nome,atendidos_ano:ssi(0,22),atendimentos_ano:ssi(1,22),refeicoes_ano:ssi(2,22),remanescentes_ini:ssi(4,6),entradas_ano:ssi(137,28),motivos:{},monthly:[],faixa_etaria:{}};
+  for(let r=146;r<=157;r++){const mes=String(g(r,3)||'').trim().toUpperCase();if(MONTHS_PT.includes(mes))u.monthly.push({mes,mes_idx:MMAP[mes],entrada:ssi(r,4),saida:ssi(r,5),dias_uteis:ssi(r,6),atendidos:ssi(r,7),atendimentos:ssi(r,8),ref_diarias:ssi(r,9),ref_alim:ssi(r,10)});}
+  u.monthly.sort((a,b)=>a.mes_idx-b.mes_idx);
+  for(let r=146;r<=161;r++){const lbl=String(g(r,0)||'').toUpperCase();for(const m of MOTIVOS)if(lbl.includes(m))u.motivos[m]=ssi(r,1);}
+  let fr=-1;for(let r=133;r<142;r++)if(String(g(r,0)||'').toLowerCase().includes('atendidas no ano')){fr=r;break;}
+  const ac=[4,6,8,10,12,14,16,18,20,22,24,26];
+  if(fr>=0)AK.forEach((k,i)=>{const mc=ac[i],fc=mc+1,M=ssi(fr,mc),F=ssi(fr,fc);u.faixa_etaria[k]={M,F,total:M+F};});
+  return u;
+}
+function addUnits(newUnits,fileName) {
+  newUnits.forEach(nu=>{const i=DADOS.findIndex(u=>u.unidade===nu.unidade);if(i>=0)DADOS.splice(i,1);DADOS.push(nu);});
+  const fi=importedFiles.findIndex(f=>f.fileName===fileName);if(fi>=0)importedFiles.splice(fi,1);
+  importedFiles.push({fileName,units:newUnits.map(u=>u.unidade)});
+}
+function loadExcel(file) {
+  const r=new FileReader();
+  r.onload=e=>{
+    try{
+      const wb=XLSX.read(e.target.result,{type:'array'});
+      const nu=wb.SheetNames.map(n=>parseSheet(wb.Sheets[n],n)).filter(Boolean);
+      addUnits(nu,file.name);
+      buildUnitBtns(); render();
+      const p=document.getElementById('file-panel'); p.style.display='block';
+      p.innerHTML='<div style="font-family:JetBrains Mono,monospace;font-size:11px;font-weight:600;color:var(--ink);text-transform:uppercase;margin-bottom:8px">Arquivos carregados</div>'
+        +importedFiles.map(f=>`<div style="font-size:12px;padding:5px 0;border-bottom:1px solid var(--border)">📄 <strong>${f.fileName}</strong> → ${f.units.join(', ')}</div>`).join('');
+      document.getElementById('badge').textContent=`📅 ${DADOS.length} unidade(s) carregada(s)`;
+    }catch(e){alert('Erro: '+e.message);}
+  };
+  r.readAsArrayBuffer(file);
+}
+document.getElementById('importBtn').addEventListener('click',()=>document.getElementById('fileInput').click());
+document.getElementById('fileInput').addEventListener('change',e=>{Array.from(e.target.files).forEach(f=>loadExcel(f));e.target.value='';});
+document.getElementById('clearBtn').addEventListener('click',()=>{
+  if(!DADOS.length||!confirm('Limpar todos os dados?'))return;
+  DADOS=[];importedFiles=[];activeUnit='all';
+  document.getElementById('file-panel').style.display='none';
+  document.getElementById('unit-btns').innerHTML='';
+  document.querySelector('[data-unit="all"]').classList.add('on');
+  document.getElementById('badge').textContent='📅 Nenhuma unidade';
+  render();
+});
+// Drag & drop
+document.addEventListener('dragover',e=>{e.preventDefault();document.getElementById('drop-zone').classList.add('show','active');});
+document.addEventListener('dragleave',e=>{if(!e.relatedTarget)document.getElementById('drop-zone').classList.remove('active');});
+document.addEventListener('drop',e=>{
+  e.preventDefault();document.getElementById('drop-zone').classList.remove('active','show');
+  Array.from(e.dataTransfer.files).filter(f=>f.name.endsWith('.xlsx')||f.name.endsWith('.xls')).forEach(f=>loadExcel(f));
+});
+
+// ── Init ──────────────────────────────────────────────────────────────────
+buildUnitBtns();
+render();
+</script>
+</body>
+</html>
