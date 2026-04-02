@@ -329,6 +329,13 @@ footer{{text-align:center;padding:32px;font-size:11px;color:var(--muted)}}
   </div>
 </div>
 
+<div class="card" style="margin-bottom:28px">
+  <div class="card-title">Evolução por Matéria Complementar</div>
+  <div class="card-sub">Média mensal de presença por disciplina — 100% = comportamento normal do curso</div>
+  <div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:12px" id="materia-legend-chips"></div>
+  <canvas id="evolMateriaChart" height="160"></canvas>
+</div>
+
 <!-- FILTROS + TABELA -->
 <div style="margin-bottom:28px">
   <div class="section-row"><div class="section-bar"></div><div class="section-title">Grade Completa</div><div class="section-line"></div></div>
@@ -751,8 +758,7 @@ function renderCharts(){{
         tooltip:{{
           backgroundColor:'#1a2340',borderColor:'#cdd5e8',borderWidth:1,
           callbacks:{{label:ctx=>`${{ctx.dataset.label}}: ${{ctx.raw!=null?ctx.raw+'%':'sem dados'}}`}}
-        }},
-        annotation:{{}}
+        }}
       }},
       scales:{{
         x:{{grid:{{display:false}}}},
@@ -764,6 +770,79 @@ function renderCharts(){{
       }}
     }}
   }});
+
+  // ── Evolução por Matéria ──
+  const SUBJ_PALETTE={{'Artes':'#e63827','Português':'#21438e','Esporte':'#1a7a3e','Matemática':'#7c3aed',
+    'Cidadania':'#0284c7','ID':'#c97c1a','OT':'#be185d',
+    'Esp(Br)':'#1a7a3e','Esp(Em)':'#16a34a','Mat(Al)':'#7c3aed','Mat(Ti)':'#6d28d9','Mat(Fe)':'#8b5cf6',
+    'Port(He)':'#21438e','Port(Li)':'#1d4ed8','Port(-)':'#3b82f6'
+  }};
+
+  const allSubjs=[...new Set(SCHEDULE.map(s=>s.subject))].sort();
+  const subjDatasets=allSubjs.map(subj=>{{
+    const data=monthsAll.map(m=>{{
+      const vals=[];
+      SCHEDULE.filter(s=>s.subject===subj&&s.date.startsWith(m)).forEach(s=>{{
+        if(s.pct1!=null) vals.push(s.pct1);
+        if(s.pct2!=null) vals.push(s.pct2);
+      }});
+      return vals.length?+(vals.reduce((a,b)=>a+b,0)/vals.length).toFixed(1):null;
+    }});
+    const col=SUBJ_PALETTE[subj]||'#888';
+    return{{
+      label:subj, data,
+      borderColor:col, backgroundColor:col+'22',
+      borderWidth:2, pointRadius:4, pointHoverRadius:6,
+      tension:0.35, fill:false, spanGaps:true,
+      hidden: false,
+    }};
+  }});
+
+  const evolMateriaChartObj = new Chart(document.getElementById('evolMateriaChart'),{{
+    type:'line',
+    data:{{labels:monthsAll.map(m=>MONTH_LABELS[m.split('-')[1]]||m), datasets:subjDatasets}},
+    options:{{
+      responsive:true,
+      plugins:{{
+        legend:{{display:false}},
+        tooltip:{{
+          backgroundColor:'#1a2340',borderColor:'#cdd5e8',borderWidth:1,
+          callbacks:{{label:ctx=>`${{ctx.dataset.label}}: ${{ctx.raw!=null?ctx.raw+'%':'sem dados'}}`}}
+        }}
+      }},
+      scales:{{
+        x:{{grid:{{display:false}}}},
+        y:{{
+          min:40,max:140,
+          grid:{{color:'rgba(0,0,0,.06)'}},
+          ticks:{{callback:v=>v+'%'}},
+        }}
+      }}
+    }}
+  }});
+
+  // Build legend chips for materia chart
+  const legendContainer=document.getElementById('materia-legend-chips');
+  if(legendContainer){{
+    allSubjs.forEach(function(subj,i){{
+      const col=SUBJ_PALETTE[subj]||'#888';
+      const btn=document.createElement('button');
+      btn.textContent=subj;
+      btn.style.cssText='padding:3px 12px;border-radius:20px;font-size:11px;font-weight:500;cursor:pointer;transition:.15s;'+
+        'border:1.5px solid '+col+';background:'+col+'22;color:'+col+';font-family:Poppins,sans-serif';
+      btn.dataset.active='true';
+      btn.addEventListener('click',function(){{
+        const ds=evolMateriaChartObj.data.datasets[i];
+        ds.hidden=!ds.hidden;
+        btn.dataset.active=ds.hidden?'false':'true';
+        btn.style.background=ds.hidden?'transparent':col+'22';
+        btn.style.opacity=ds.hidden?'0.4':'1';
+        evolMateriaChartObj.update();
+      }});
+      legendContainer.appendChild(btn);
+    }});
+  }}
+
 }}
 
 // EVENTS
@@ -864,3 +943,4 @@ if __name__ == '__main__':
     print("="*55)
     print("  ✅  Concluído!")
     print("="*55 + "\n")
+
