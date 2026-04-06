@@ -1,0 +1,326 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CEDESP Dom Bosco — Central de Dashboards</title>
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+* { box-sizing:border-box; margin:0; padding:0 }
+:root {
+  --blue:#21438e; --blue2:#1a3570; --blue3:#2d5bb5;
+  --red:#e63827; --green:#1a7a3e; --amber:#c97c1a;
+  --bg:#eef1f8; --surface:#fff; --border:#d0d8ea;
+  --text:#1a2340; --muted:#5c6b8a;
+  --sidebar:260px;
+}
+body { font-family:'Poppins',sans-serif; background:var(--bg); color:var(--text); height:100vh; display:flex; overflow:hidden }
+
+/* ── SIDEBAR ── */
+aside {
+  width:var(--sidebar); min-width:var(--sidebar);
+  background:var(--blue); color:#fff;
+  display:flex; flex-direction:column;
+  height:100vh; overflow:hidden;
+  box-shadow:4px 0 20px rgba(0,0,0,.15);
+}
+.sidebar-logo {
+  padding:20px 20px 16px;
+  border-bottom:1px solid rgba(255,255,255,.1);
+}
+.sidebar-logo img { height:52px; width:auto; border-radius:8px; display:block }
+.sidebar-section {
+  padding:20px 16px 8px;
+  font-size:9px; font-weight:700; letter-spacing:1.2px;
+  text-transform:uppercase; color:rgba(255,255,255,.4);
+}
+.nav-item {
+  display:flex; align-items:center; gap:12px;
+  padding:11px 16px; margin:2px 8px;
+  border-radius:8px; cursor:pointer;
+  font-size:13px; font-weight:500;
+  color:rgba(255,255,255,.75);
+  transition:.15s; text-decoration:none;
+  border:none; background:transparent; width:calc(100% - 16px);
+  text-align:left;
+}
+.nav-item:hover { background:rgba(255,255,255,.1); color:#fff }
+.nav-item.active { background:rgba(255,255,255,.15); color:#fff; font-weight:600 }
+.nav-item .nav-icon { font-size:16px; width:20px; text-align:center; flex-shrink:0 }
+.nav-item .nav-badge {
+  margin-left:auto; font-size:9px; font-weight:700;
+  background:var(--red); color:#fff;
+  padding:2px 7px; border-radius:10px; letter-spacing:.3px;
+}
+.sidebar-footer {
+  margin-top:auto; padding:16px 20px;
+  border-top:1px solid rgba(255,255,255,.1);
+  font-size:10px; color:rgba(255,255,255,.35);
+  line-height:1.6;
+}
+
+/* ── MAIN ── */
+main { flex:1; display:flex; flex-direction:column; overflow:hidden }
+
+/* ── TOP BAR ── */
+.topbar {
+  background:var(--surface); border-bottom:1px solid var(--border);
+  padding:0 28px; height:56px;
+  display:flex; align-items:center; justify-content:space-between;
+  flex-shrink:0;
+}
+.topbar-title { font-size:15px; font-weight:600; color:var(--text) }
+.topbar-meta { font-size:11px; color:var(--muted) }
+.topbar-right { display:flex; align-items:center; gap:16px }
+
+/* ── HOME SCREEN ── */
+#home-screen {
+  flex:1; overflow-y:auto; padding:28px;
+}
+.kpi-row {
+  display:grid; grid-template-columns:repeat(4,1fr); gap:16px; margin-bottom:28px;
+}
+.kpi-card {
+  background:var(--surface); border:1px solid var(--border);
+  border-radius:10px; padding:20px 22px;
+  border-left:4px solid var(--blue);
+}
+.kpi-card.red { border-left-color:var(--red) }
+.kpi-card.green { border-left-color:var(--green) }
+.kpi-card.amber { border-left-color:var(--amber) }
+.kpi-label { font-size:10px; font-weight:600; text-transform:uppercase; letter-spacing:.8px; color:var(--muted); margin-bottom:8px }
+.kpi-val { font-size:28px; font-weight:700; letter-spacing:-1px; line-height:1 }
+.kpi-sub { font-size:11px; color:var(--muted); margin-top:6px }
+
+.dash-grid {
+  display:grid; grid-template-columns:repeat(2,1fr); gap:20px;
+}
+.dash-card {
+  background:var(--surface); border:1px solid var(--border);
+  border-radius:12px; overflow:hidden;
+  cursor:pointer; transition:.2s;
+  box-shadow:0 2px 8px rgba(0,0,0,.04);
+}
+.dash-card:hover {
+  box-shadow:0 8px 24px rgba(33,67,142,.12);
+  transform:translateY(-2px);
+  border-color:var(--blue3);
+}
+.dash-card-header {
+  padding:20px 22px 16px;
+  display:flex; align-items:flex-start; gap:14px;
+}
+.dash-icon {
+  width:44px; height:44px; border-radius:10px;
+  display:flex; align-items:center; justify-content:center;
+  font-size:20px; flex-shrink:0;
+}
+.dash-card-title { font-size:14px; font-weight:600; margin-bottom:4px }
+.dash-card-desc { font-size:11px; color:var(--muted); line-height:1.5 }
+.dash-card-footer {
+  padding:12px 22px; background:var(--bg);
+  border-top:1px solid var(--border);
+  display:flex; align-items:center; justify-content:space-between;
+  font-size:11px; color:var(--muted);
+}
+.dash-open-btn {
+  padding:6px 16px; background:var(--blue); color:#fff;
+  border:none; border-radius:6px; font-family:'Poppins',sans-serif;
+  font-size:11px; font-weight:600; cursor:pointer;
+  transition:.15s; letter-spacing:.3px;
+}
+.dash-open-btn:hover { background:var(--blue2) }
+
+/* ── IFRAME VIEW ── */
+#iframe-view {
+  display:none; flex:1; flex-direction:column; overflow:hidden;
+}
+.iframe-topbar {
+  background:var(--surface); border-bottom:1px solid var(--border);
+  padding:0 20px; height:44px;
+  display:flex; align-items:center; gap:12px;
+  flex-shrink:0;
+}
+.iframe-back {
+  padding:5px 14px; border:1px solid var(--border);
+  border-radius:6px; background:transparent;
+  font-family:'Poppins',sans-serif; font-size:12px;
+  cursor:pointer; color:var(--text); transition:.15s;
+  display:flex; align-items:center; gap:6px;
+}
+.iframe-back:hover { background:var(--blue); color:#fff; border-color:var(--blue) }
+.iframe-name { font-size:13px; font-weight:600; color:var(--text) }
+#dash-frame { flex:1; border:none; width:100%; height:100% }
+</style>
+</head>
+<body>
+
+<!-- SIDEBAR -->
+<aside>
+  <div class="sidebar-logo">
+    <img src="data:image/webp;base64," alt="Obra Social Dom Bosco">
+  </div>
+
+  <div class="sidebar-section">Navegação</div>
+  <button class="nav-item active" onclick="showHome()" id="nav-home">
+    <span class="nav-icon">🏠</span> Início
+  </button>
+
+  <div class="sidebar-section">Dashboards</div>
+  <button class="nav-item" onclick="openDash('dashboard_cedesp_2026.html','📊 Resumo Institucional','resumo')" id="nav-resumo">
+    <span class="nav-icon">📊</span> Resumo Institucional
+  </button>
+  <button class="nav-item" onclick="openDash('dashboard_cursos_frequencia.html','📈 Frequência por Curso','freq')" id="nav-freq">
+    <span class="nav-icon">📈</span> Frequência por Curso
+  </button>
+  <button class="nav-item" onclick="openDash('dashboard_complementar.html','🗓 Grade Complementar','comp')" id="nav-comp">
+    <span class="nav-icon">🗓</span> Grade Complementar
+  </button>
+  <button class="nav-item" onclick="openDash('dashboard_educador.html','👨‍🏫 Dashboard do Educador','educ')" id="nav-educ">
+    <span class="nav-icon">👨‍🏫</span> Dashboard do Educador
+  </button>
+
+  <div class="sidebar-footer">
+    CEDESP Dom Bosco Itaquera<br>
+    1º Semestre 2026<br>
+    Atualizado em 02/04/2026 às 08:01
+  </div>
+</aside>
+
+<!-- MAIN -->
+<main>
+
+  <!-- TOP BAR -->
+  <div class="topbar">
+    <div>
+      <div class="topbar-title" id="page-title">Central de Dashboards</div>
+      <div class="topbar-meta">CEDESP Dom Bosco Itaquera · 1º Semestre 2026</div>
+    </div>
+    <div class="topbar-right">
+      <span style="font-size:11px;color:var(--muted)">📅 02/04/2026 às 08:01</span>
+    </div>
+  </div>
+
+  <!-- HOME SCREEN -->
+  <div id="home-screen">
+
+    <div class="kpi-row">
+      <div class="kpi-card">
+        <div class="kpi-label">Dashboards Disponíveis</div>
+        <div class="kpi-val" style="color:var(--blue)">4</div>
+        <div class="kpi-sub">painéis ativos</div>
+      </div>
+      <div class="kpi-card red">
+        <div class="kpi-label">Unidades CEDESP</div>
+        <div class="kpi-val" style="color:var(--red)">8</div>
+        <div class="kpi-sub">sede + metrô</div>
+      </div>
+      <div class="kpi-card green">
+        <div class="kpi-label">Cursos Ativos</div>
+        <div class="kpi-val" style="color:var(--green)">94</div>
+        <div class="kpi-sub">turmas com frequência</div>
+      </div>
+      <div class="kpi-card amber">
+        <div class="kpi-label">Semestre</div>
+        <div class="kpi-val" style="color:var(--amber)">1º</div>
+        <div class="kpi-sub">Fevereiro — Junho 2026</div>
+      </div>
+    </div>
+
+    <div class="dash-grid">
+      <div class="dash-card" onclick="openDash('dashboard_cedesp_2026.html','📊 Resumo Institucional','resumo')">
+        <div class="dash-card-header">
+          <div class="dash-icon" style="background:rgba(33,67,142,.1)">📊</div>
+          <div>
+            <div class="dash-card-title">Resumo Institucional</div>
+            <div class="dash-card-desc">Visão geral das 8 unidades CEDESP — metas, matrículas, frequência e distribuição por horário. Indicadores de performance consolidados.</div>
+          </div>
+        </div>
+        <div class="dash-card-footer">
+          <span>8 unidades · KPIs gerais</span>
+          <button class="dash-open-btn">Abrir →</button>
+        </div>
+      </div>
+
+      <div class="dash-card" onclick="openDash('dashboard_cursos_frequencia.html','📈 Frequência por Curso','freq')">
+        <div class="dash-card-header">
+          <div class="dash-icon" style="background:rgba(230,56,39,.1)">📈</div>
+          <div>
+            <div class="dash-card-title">Frequência por Curso</div>
+            <div class="dash-card-desc">Análise detalhada por turma — taxa de frequência, evasão, tendência semanal e inseridos. Filtros por unidade e período.</div>
+          </div>
+        </div>
+        <div class="dash-card-footer">
+          <span>94 cursos · Dados do dia</span>
+          <button class="dash-open-btn">Abrir →</button>
+        </div>
+      </div>
+
+      <div class="dash-card" onclick="openDash('dashboard_complementar.html','🗓 Grade Complementar','comp')">
+        <div class="dash-card-header">
+          <div class="dash-icon" style="background:rgba(26,122,62,.1)">🗓</div>
+          <div>
+            <div class="dash-card-title">Grade Complementar</div>
+            <div class="dash-card-desc">Cruzamento entre a grade de aulas complementares e a presença registrada. Evolução por turno e por matéria ao longo do semestre.</div>
+          </div>
+        </div>
+        <div class="dash-card-footer">
+          <span>1.976 aulas · 3 turnos</span>
+          <button class="dash-open-btn">Abrir →</button>
+        </div>
+      </div>
+
+      <div class="dash-card" onclick="openDash('dashboard_educador.html','👨‍🏫 Dashboard do Educador','educ')">
+        <div class="dash-card-header">
+          <div class="dash-icon" style="background:rgba(124,58,237,.1)">👨‍🏫</div>
+          <div>
+            <div class="dash-card-title">Dashboard do Educador</div>
+            <div class="dash-card-desc">Grade diária por turno, busca por curso com calendário de aulas e busca por módulo. Focado no uso individual pelo educador.</div>
+          </div>
+        </div>
+        <div class="dash-card-footer">
+          <span>Grade + Calendário mensal</span>
+          <button class="dash-open-btn">Abrir →</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- IFRAME VIEW -->
+  <div id="iframe-view">
+    <div class="iframe-topbar">
+      <button class="iframe-back" onclick="showHome()">← Voltar</button>
+      <span class="iframe-name" id="iframe-name"></span>
+    </div>
+    <iframe id="dash-frame" src="" allowfullscreen></iframe>
+  </div>
+
+</main>
+
+<script>
+function setActiveNav(id) {
+  document.querySelectorAll('.nav-item').forEach(b => b.classList.remove('active'));
+  document.getElementById(id).classList.add('active');
+}
+
+function openDash(file, name, navId) {
+  document.getElementById('home-screen').style.display = 'none';
+  const iv = document.getElementById('iframe-view');
+  iv.style.display = 'flex';
+  document.getElementById('dash-frame').src = file;
+  document.getElementById('iframe-name').textContent = name;
+  document.getElementById('page-title').textContent = name;
+  setActiveNav('nav-' + navId);
+}
+
+function showHome() {
+  document.getElementById('iframe-view').style.display = 'none';
+  document.getElementById('home-screen').style.display = 'block';
+  document.getElementById('page-title').textContent = 'Central de Dashboards';
+  setActiveNav('nav-home');
+  // Clear iframe to free memory
+  document.getElementById('dash-frame').src = '';
+}
+</script>
+</body>
+</html>
