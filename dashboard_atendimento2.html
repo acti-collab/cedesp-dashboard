@@ -102,7 +102,7 @@ td{padding:9px 16px;font-size:13px}td.mono{font-family:'JetBrains Mono',monospac
 .dz.show{display:block}.dz.active{border-color:var(--ink);background:rgba(33,67,142,.04)}
 footer{border-top:1px solid var(--border);padding:18px 48px;display:flex;justify-content:space-between;align-items:center;margin-top:40px}
 .ft{font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--muted)}
-@media(max-width:900px){header,.toolbar,main,footer{padding-left:20px;padding-right:20px}.g2,.ac,.gkr,.pr,.kr{grid-template-columns:1fr}}
+@media(max-width:900px){header,.toolbar,main,footer{padding-left:20px;padding-right:20px}.g2,.ac,.gkr,.pr,.kr{grid-template-columns:1fr}.tbl-grid{grid-template-columns:1fr!important}}
 </style>
 </head>
 <body>
@@ -123,7 +123,7 @@ footer{border-top:1px solid var(--border);padding:18px 48px;display:flex;justify
   </button>
   <div id="active-pills"></div>
   <div class="sp"></div>
-  <span class="bdg" id="bdg">📅 07/04/2026 às 10:35</span>
+  <span class="bdg" id="bdg">📅 07/04/2026 às 15:48</span>
   <button class="ib" id="importBtn">⬆ Adicionar planilha</button>
   <button class="ib red" id="clearBtn">✕ Limpar</button>
   <input type="file" id="fileInput" accept=".xlsx,.xls" multiple style="display:none">
@@ -165,41 +165,94 @@ footer{border-top:1px solid var(--border);padding:18px 48px;display:flex;justify
     <div class="gk m"><div class="gkc"></div><div class="gkv" id="gm">—</div><div class="gkl">Masculino</div><div class="gkp" id="gmp">—% do total</div></div>
     <div class="gk f"><div class="gkc"></div><div class="gkv" id="gf">—</div><div class="gkl">Feminino</div><div class="gkp" id="gfp">—% do total</div></div>
   </div>
+  <div id="sem-dados-aviso" style="display:none;background:#fff8e1;border:1px solid #f59e0b;border-radius:3px;padding:8px 16px;margin-bottom:12px;font-size:12px;color:#92400e;font-family:Poppins,sans-serif">
+    ⚠ <span id="sem-dados-msg"></span>
+  </div>
   <div class="pr">
     <div class="pc"><div class="pv" id="pc-criancas">—</div><div class="pg">Crianças</div><div class="pp">0 a 12 anos incompletos</div></div>
     <div class="pc"><div class="pv" id="pc-adol">—</div><div class="pg">Adolescentes</div><div class="pp">12 a 18 anos incompletos</div></div>
     <div class="pc"><div class="pv" id="pc-jovens">—</div><div class="pg">Jovens</div><div class="pp">18 a 29 anos incompletos</div></div>
     <div class="pc"><div class="pv" id="pc-adultos">—</div><div class="pg">Adultos</div><div class="pp">29 anos ou mais</div></div>
   </div>
-  <div class="ac">
-    <div class="bx"><div class="bt">Atendidos por Faixa Etária e Sexo</div><div class="bs">Masculino e Feminino por grupo · valores absolutos</div><canvas id="ageBar" height="220"></canvas></div>
-    <div class="bx" style="display:flex;flex-direction:column">
-      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:3px">
-        <div class="bt">Faixa Etária — Relatório ISSP</div>
-        <button id="copyFaixaBtn" style="display:inline-flex;align-items:center;gap:5px;padding:4px 12px;border:1.5px solid var(--ink);border-radius:3px;background:transparent;color:var(--ink);font-family:Poppins,sans-serif;font-size:11px;font-weight:600;cursor:pointer" onclick="copyFaixaTable()">📋 Copiar</button>
+  <!-- ── Tabelas ISSP + Externo lado a lado ── -->
+  <div style="display:grid;grid-template-columns:minmax(260px,1fr) minmax(420px,2fr);gap:16px;margin-bottom:16px;align-items:start">
+
+    <!-- ISSP Faixa Etária — azul institucional #21438e -->
+    <div style="overflow:hidden;border:1px solid #21438e">
+      <div style="background:#21438e;padding:10px 16px;display:flex;align-items:center;justify-content:space-between;gap:8px">
+        <div>
+          <div style="font-family:Poppins,sans-serif;font-size:13px;font-weight:700;color:#fff;white-space:nowrap">Faixa Etária — ISSP</div>
+          <div style="font-family:Poppins,sans-serif;font-size:10px;color:rgba(255,255,255,.75);margin-top:2px">Masculino e Feminino por grupo</div>
+        </div>
+        <button id="copyFaixaBtn" style="flex-shrink:0;padding:5px 12px;border:1.5px solid rgba(255,255,255,.7);border-radius:3px;background:transparent;color:#fff;font-family:Poppins,sans-serif;font-size:11px;font-weight:600;cursor:pointer" onclick="copyFaixaTable()">📋 Copiar</button>
       </div>
-      <div class="bs">Masculino e Feminino por grupo etário · formato ISSP</div>
-      <table id="faixaTbl" style="width:100%;border-collapse:collapse;margin-top:4px">
+      <table id="faixaTbl" style="width:100%;border-collapse:collapse">
         <thead>
           <tr>
-            <th rowspan="2" style="padding:8px 12px;text-align:left;background:#21438e;color:#fff;font-family:'JetBrains Mono',monospace;font-size:10px;letter-spacing:.4px;text-transform:uppercase;border-right:1px solid #1a3070">FAIXA ETÁRIA</th>
-            <th id="faixaColHead" colspan="2" style="padding:7px 12px;text-align:center;background:#1976d2;color:#fff;font-family:Poppins,sans-serif;font-size:11px;font-weight:700;border-bottom:1px solid #1565c0">—</th>
+            <th rowspan="2" style="padding:9px 14px;text-align:left;background:#1a3475;color:#fff;font-family:Poppins,sans-serif;font-size:10px;font-weight:700;letter-spacing:.3px;text-transform:uppercase;border-right:1px solid #21438e">FAIXA ETÁRIA</th>
+            <th id="faixaColHead" colspan="2" style="padding:8px 14px;text-align:center;background:#1a3475;color:#c8d8f8;font-family:Poppins,sans-serif;font-size:10px;font-weight:700;letter-spacing:.5px;border-left:1px solid #21438e;border-bottom:1px solid #21438e">—</th>
           </tr>
           <tr>
-            <th style="padding:7px 12px;text-align:center;background:#1565c0;color:#fff;font-family:Poppins,sans-serif;font-size:10px;font-weight:600;border-right:1px solid #1a3070">MASCULINO</th>
-            <th style="padding:7px 12px;text-align:center;background:#c2185b;color:#fff;font-family:Poppins,sans-serif;font-size:10px;font-weight:600">FEMININO</th>
+            <th style="padding:8px 14px;text-align:center;background:#21438e;color:#fff;font-family:Poppins,sans-serif;font-size:10px;font-weight:700;border-left:1px solid #1a3475;border-right:1px solid #1a3475">MASCULINO</th>
+            <th style="padding:8px 14px;text-align:center;background:#e63827;color:#fff;font-family:Poppins,sans-serif;font-size:10px;font-weight:700">FEMININO</th>
           </tr>
         </thead>
         <tbody id="faixaTblBody"></tbody>
         <tfoot>
           <tr style="background:#21438e">
-            <td style="padding:8px 12px;font-family:Poppins,sans-serif;font-size:11px;font-weight:700;color:#fff;text-align:right;border-right:1px solid #1a3070">TOTAIS</td>
-            <td id="fx-tot-m" style="padding:8px 12px;text-align:center;font-family:'JetBrains Mono',monospace;font-size:13px;font-weight:700;color:#fff;border-right:1px solid #1a3070">0</td>
-            <td id="fx-tot-f" style="padding:8px 12px;text-align:center;font-family:'JetBrains Mono',monospace;font-size:13px;font-weight:700;color:#fff">0</td>
+            <td style="padding:10px 14px;font-family:Poppins,sans-serif;font-size:11px;font-weight:700;color:#fff;text-align:right;border-right:1px solid #1a3475">TOTAIS</td>
+            <td id="fx-tot-m" style="padding:10px 14px;text-align:center;font-family:'JetBrains Mono',monospace;font-size:15px;font-weight:800;color:#fff;border-right:1px solid #1a3475">0</td>
+            <td id="fx-tot-f" style="padding:10px 14px;text-align:center;font-family:'JetBrains Mono',monospace;font-size:15px;font-weight:800;color:#fff">0</td>
           </tr>
         </tfoot>
       </table>
     </div>
+
+    <!-- Atendimento Externo — laranja institucional #f37f1f -->
+    <div style="overflow:hidden;border:1px solid #f37f1f">
+      <div style="background:#f37f1f;padding:10px 16px;display:flex;align-items:center;justify-content:space-between;gap:8px">
+        <div>
+          <div style="font-family:Poppins,sans-serif;font-size:13px;font-weight:700;color:#fff;white-space:nowrap">IV. Atendimento Externo</div>
+          <div style="font-family:Poppins,sans-serif;font-size:10px;color:rgba(255,255,255,.85);margin-top:2px">Pessoas não matriculadas · familiares · atend. extra</div>
+        </div>
+        <button id="copyExtBtn" style="flex-shrink:0;padding:5px 12px;border:1.5px solid rgba(255,255,255,.7);border-radius:3px;background:transparent;color:#fff;font-family:Poppins,sans-serif;font-size:11px;font-weight:600;cursor:pointer" onclick="copyExtTable()">📋 Copiar</button>
+      </div>
+      <div style="overflow-x:auto">
+      <table id="extTbl" style="width:100%;border-collapse:collapse;min-width:440px">
+        <thead>
+          <tr style="background:#21438e">
+            <th style="padding:8px 10px;text-align:left;color:#050;font-family:Poppins,sans-serif;font-size:10px;font-weight:700;letter-spacing:.3px;border-right:1px solid #1a3475;white-space:nowrap">MÊS</th>
+            <th style="padding:8px 10px;text-align:right;color:#050;font-family:Poppins,sans-serif;font-size:10px;font-weight:700;border-right:1px solid #1a3475;white-space:nowrap">PESSOAL/e</th>
+            <th style="padding:8px 10px;text-align:right;color:#050;font-family:Poppins,sans-serif;font-size:10px;font-weight:700;border-right:1px solid #1a3475;white-space:nowrap">TELEFONE</th>
+            <th style="padding:8px 10px;text-align:right;color:#050;font-family:Poppins,sans-serif;font-size:10px;font-weight:700;border-right:1px solid #1a3475;white-space:nowrap">VISITAS</th>
+            <th style="padding:8px 10px;text-align:right;color:#050;font-family:Poppins,sans-serif;font-size:10px;font-weight:700;border-right:1px solid #1a3475;white-space:nowrap">REUNIÕES</th>
+            <th style="padding:8px 10px;text-align:right;color:#050;font-family:Poppins,sans-serif;font-size:10px;font-weight:700;border-right:1px solid #1a3475;white-space:nowrap">EVENTOS</th>
+            <th style="padding:8px 10px;text-align:right;color:#050;font-family:Poppins,sans-serif;font-size:10px;font-weight:700;white-space:nowrap">PASSEIOS</th>
+          </tr>
+        </thead>
+        <tbody id="extTblBody"></tbody>
+        <tfoot>
+          <tr style="background:#21438e;border-top:2px solid #f37f1f">
+            <td style="padding:9px 10px;font-family:Poppins,sans-serif;font-size:11px;font-weight:700;color:#f37f1f;border-right:1px solid #1a3475">TOTAL</td>
+            <td id="ext-pessoal"  style="padding:9px 10px;text-align:right;font-family:'JetBrains Mono',monospace;font-size:12px;font-weight:700;color:#fff;border-right:1px solid #1a3475">0</td>
+            <td id="ext-telefone" style="padding:9px 10px;text-align:right;font-family:'JetBrains Mono',monospace;font-size:12px;font-weight:700;color:#fff;border-right:1px solid #1a3475">0</td>
+            <td id="ext-visitas"  style="padding:9px 10px;text-align:right;font-family:'JetBrains Mono',monospace;font-size:12px;font-weight:700;color:#fff;border-right:1px solid #1a3475">0</td>
+            <td id="ext-reunioes" style="padding:9px 10px;text-align:right;font-family:'JetBrains Mono',monospace;font-size:12px;font-weight:700;color:#fff;border-right:1px solid #1a3475">0</td>
+            <td id="ext-eventos"  style="padding:9px 10px;text-align:right;font-family:'JetBrains Mono',monospace;font-size:12px;font-weight:700;color:#fff;border-right:1px solid #1a3475">0</td>
+            <td id="ext-passeios" style="padding:9px 10px;text-align:right;font-family:'JetBrains Mono',monospace;font-size:12px;font-weight:700;color:#fff">0</td>
+          </tr>
+        </tfoot>
+      </table>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- Gráfico de barras — largura total, abaixo das tabelas -->
+  <div class="bx" style="margin-bottom:20px">
+    <div class="bt">Atendidos por Faixa Etária e Sexo</div>
+    <div class="bs">Masculino e Feminino por grupo · valores absolutos</div>
+    <canvas id="ageBar" height="90"></canvas>
   </div>
   <div class="sh"><div class="st">Evolução Mensal</div><div class="sr"></div></div>
   <div class="bx" style="margin-bottom:16px"><div class="bt">Pessoas Atendidas por Mês</div><div class="bs">Atendidos, entradas e saídas ao longo do ano</div><canvas id="mnChart" height="95"></canvas></div>
@@ -220,10 +273,10 @@ footer{border-top:1px solid var(--border);padding:18px 48px;display:flex;justify
 </main>
 <footer>
   <div class="ft">Obra Social Dom Bosco · Dashboard de Atendimento</div>
-  <div class="ft" id="fdate">07/04/2026 às 10:35</div>
+  <div class="ft" id="fdate">07/04/2026 às 15:48</div>
 </footer>
 <script>
-let D = [{"unidade": "CEI BOM PASTOR I", "atendidos_ano": 36, "atendimentos_ano": 15801, "refeicoes_ano": 79005, "remanescentes_ini": 102, "entradas_ano": 36, "motivos": {"CANCELAMENTO": 50, "TRANSFERÊNCIA": 9}, "monthly": [{"mes": "JANEIRO", "mes_idx": 0, "entrada": 0, "saida": 34, "dias_uteis": 0, "atendidos": 71, "atendimentos": 0, "ref_diarias": 0, "ref_alim": 0}, {"mes": "FEVEREIRO", "mes_idx": 1, "entrada": 14, "saida": 7, "dias_uteis": 18, "atendidos": 78, "atendimentos": 1404, "ref_diarias": 5, "ref_alim": 7020}, {"mes": "MARÇO", "mes_idx": 2, "entrada": 5, "saida": 4, "dias_uteis": 18, "atendidos": 79, "atendimentos": 1422, "ref_diarias": 5, "ref_alim": 7110}, {"mes": "ABRIL", "mes_idx": 3, "entrada": 1, "saida": 1, "dias_uteis": 20, "atendidos": 79, "atendimentos": 1580, "ref_diarias": 5, "ref_alim": 7900}, {"mes": "MAIO", "mes_idx": 4, "entrada": 4, "saida": 5, "dias_uteis": 20, "atendidos": 78, "atendimentos": 1560, "ref_diarias": 5, "ref_alim": 7800}, {"mes": "JUNHO", "mes_idx": 5, "entrada": 1, "saida": 0, "dias_uteis": 18, "atendidos": 79, "atendimentos": 1422, "ref_diarias": 5, "ref_alim": 7110}, {"mes": "JULHO", "mes_idx": 6, "entrada": 2, "saida": 0, "dias_uteis": 12, "atendidos": 81, "atendimentos": 972, "ref_diarias": 5, "ref_alim": 4860}, {"mes": "AGOSTO", "mes_idx": 7, "entrada": 2, "saida": 1, "dias_uteis": 20, "atendidos": 82, "atendimentos": 1640, "ref_diarias": 5, "ref_alim": 8200}, {"mes": "SETEMBRO", "mes_idx": 8, "entrada": 2, "saida": 6, "dias_uteis": 21, "atendidos": 78, "atendimentos": 1638, "ref_diarias": 5, "ref_alim": 8190}, {"mes": "OUTUBRO", "mes_idx": 9, "entrada": 4, "saida": 1, "dias_uteis": 19, "atendidos": 81, "atendimentos": 1539, "ref_diarias": 5, "ref_alim": 7695}, {"mes": "NOVEMBRO", "mes_idx": 10, "entrada": 1, "saida": 0, "dias_uteis": 17, "atendidos": 82, "atendimentos": 1394, "ref_diarias": 5, "ref_alim": 6970}, {"mes": "DEZEMBRO", "mes_idx": 11, "entrada": 0, "saida": 0, "dias_uteis": 15, "atendidos": 82, "atendimentos": 1230, "ref_diarias": 5, "ref_alim": 6150}], "faixa_etaria": {"0 a 05 anos": {"M": 18, "F": 18, "total": 36}, "06 a 11 anos": {"M": 0, "F": 0, "total": 0}, "12 a 14 anos": {"M": 0, "F": 0, "total": 0}, "15 a 17 anos": {"M": 0, "F": 0, "total": 0}, "18 a 24 anos": {"M": 0, "F": 0, "total": 0}, "25 a 29 anos": {"M": 0, "F": 0, "total": 0}, "30 a 49 anos": {"M": 0, "F": 0, "total": 0}, "50 a 59 anos": {"M": 0, "F": 0, "total": 0}, "60 a 64 anos": {"M": 0, "F": 0, "total": 0}, "65 a 69 anos": {"M": 0, "F": 0, "total": 0}, "70 a 74 anos": {"M": 0, "F": 0, "total": 0}, "75 ou mais": {"M": 0, "F": 0, "total": 0}}}, {"unidade": "BOM PASTOR III", "atendidos_ano": 120, "atendimentos_ano": 21873, "refeicoes_ano": 87960, "remanescentes_ini": 69, "entradas_ano": 51, "motivos": {"CANCELAMENTO": 16, "TRANSFERÊNCIA": 11}, "monthly": [{"mes": "JANEIRO", "mes_idx": 0, "entrada": 6, "saida": 0, "dias_uteis": 0, "atendidos": 75, "atendimentos": 0, "ref_diarias": 0, "ref_alim": 0}, {"mes": "FEVEREIRO", "mes_idx": 1, "entrada": 12, "saida": 5, "dias_uteis": 19, "atendidos": 82, "atendimentos": 1558, "ref_diarias": 5, "ref_alim": 7790}, {"mes": "MARÇO", "mes_idx": 2, "entrada": 5, "saida": 3, "dias_uteis": 18, "atendidos": 84, "atendimentos": 1512, "ref_diarias": 5, "ref_alim": 7560}, {"mes": "ABRIL", "mes_idx": 3, "entrada": 7, "saida": 5, "dias_uteis": 20, "atendidos": 86, "atendimentos": 1720, "ref_diarias": 5, "ref_alim": 8600}, {"mes": "MAIO", "mes_idx": 4, "entrada": 2, "saida": 2, "dias_uteis": 20, "atendidos": 86, "atendimentos": 1720, "ref_diarias": 5, "ref_alim": 8600}, {"mes": "JUNHO", "mes_idx": 5, "entrada": 2, "saida": 2, "dias_uteis": 18, "atendidos": 86, "atendimentos": 1548, "ref_diarias": 5, "ref_alim": 7740}, {"mes": "JULHO", "mes_idx": 6, "entrada": 3, "saida": 3, "dias_uteis": 12, "atendidos": 86, "atendimentos": 1032, "ref_diarias": 5, "ref_alim": 5160}, {"mes": "AGOSTO", "mes_idx": 7, "entrada": 3, "saida": 3, "dias_uteis": 21, "atendidos": 86, "atendimentos": 1806, "ref_diarias": 5, "ref_alim": 9030}, {"mes": "SETEMBRO", "mes_idx": 8, "entrada": 10, "saida": 3, "dias_uteis": 21, "atendidos": 93, "atendimentos": 1953, "ref_diarias": 5, "ref_alim": 9765}, {"mes": "OUTUBRO", "mes_idx": 9, "entrada": 0, "saida": 0, "dias_uteis": 19, "atendidos": 93, "atendimentos": 1767, "ref_diarias": 5, "ref_alim": 8835}, {"mes": "NOVEMBRO", "mes_idx": 10, "entrada": 0, "saida": 0, "dias_uteis": 17, "atendidos": 93, "atendimentos": 1581, "ref_diarias": 5, "ref_alim": 7905}, {"mes": "DEZEMBRO", "mes_idx": 11, "entrada": 1, "saida": 1, "dias_uteis": 15, "atendidos": 93, "atendimentos": 1395, "ref_diarias": 5, "ref_alim": 6975}], "faixa_etaria": {"0 a 05 anos": {"M": 67, "F": 53, "total": 120}, "06 a 11 anos": {"M": 0, "F": 0, "total": 0}, "12 a 14 anos": {"M": 0, "F": 0, "total": 0}, "15 a 17 anos": {"M": 0, "F": 0, "total": 0}, "18 a 24 anos": {"M": 0, "F": 0, "total": 0}, "25 a 29 anos": {"M": 0, "F": 0, "total": 0}, "30 a 49 anos": {"M": 0, "F": 0, "total": 0}, "50 a 59 anos": {"M": 0, "F": 0, "total": 0}, "60 a 64 anos": {"M": 0, "F": 0, "total": 0}, "65 a 69 anos": {"M": 0, "F": 0, "total": 0}, "70 a 74 anos": {"M": 0, "F": 0, "total": 0}, "75 ou mais": {"M": 0, "F": 0, "total": 0}}}, {"unidade": "BOM PASTOR II", "atendidos_ano": 104, "atendimentos_ano": 15705, "refeicoes_ano": 67730, "remanescentes_ini": 81, "entradas_ano": 23, "motivos": {"ABANDONO": 2, "CANCELAMENTO": 5, "TRANSFERÊNCIA": 29}, "monthly": [{"mes": "JANEIRO", "mes_idx": 0, "entrada": 3, "saida": 28, "dias_uteis": 0, "atendidos": 56, "atendimentos": 0, "ref_diarias": 0, "ref_alim": 0}, {"mes": "FEVEREIRO", "mes_idx": 1, "entrada": 10, "saida": 1, "dias_uteis": 18, "atendidos": 65, "atendimentos": 1170, "ref_diarias": 5, "ref_alim": 5850}, {"mes": "MARÇO", "mes_idx": 2, "entrada": 3, "saida": 0, "dias_uteis": 18, "atendidos": 68, "atendimentos": 1224, "ref_diarias": 5, "ref_alim": 6120}, {"mes": "ABRIL", "mes_idx": 3, "entrada": 0, "saida": 0, "dias_uteis": 19, "atendidos": 68, "atendimentos": 1292, "ref_diarias": 5, "ref_alim": 6460}, {"mes": "MAIO", "mes_idx": 4, "entrada": 0, "saida": 0, "dias_uteis": 20, "atendidos": 68, "atendimentos": 1360, "ref_diarias": 5, "ref_alim": 6800}, {"mes": "JUNHO", "mes_idx": 5, "entrada": 2, "saida": 2, "dias_uteis": 20, "atendidos": 68, "atendimentos": 1360, "ref_diarias": 5, "ref_alim": 6800}, {"mes": "JULHO", "mes_idx": 6, "entrada": 1, "saida": 1, "dias_uteis": 12, "atendidos": 68, "atendimentos": 816, "ref_diarias": 5, "ref_alim": 4080}, {"mes": "AGOSTO", "mes_idx": 7, "entrada": 2, "saida": 2, "dias_uteis": 21, "atendidos": 68, "atendimentos": 1428, "ref_diarias": 5, "ref_alim": 7140}, {"mes": "SETEMBRO", "mes_idx": 8, "entrada": 2, "saida": 2, "dias_uteis": 21, "atendidos": 68, "atendimentos": 1428, "ref_diarias": 5, "ref_alim": 7140}, {"mes": "OUTUBRO", "mes_idx": 9, "entrada": 0, "saida": 0, "dias_uteis": 19, "atendidos": 68, "atendimentos": 1292, "ref_diarias": 5, "ref_alim": 6460}, {"mes": "NOVEMBRO", "mes_idx": 10, "entrada": 0, "saida": 0, "dias_uteis": 17, "atendidos": 68, "atendimentos": 1156, "ref_diarias": 5, "ref_alim": 5780}, {"mes": "DEZEMBRO", "mes_idx": 11, "entrada": 0, "saida": 0, "dias_uteis": 15, "atendidos": 68, "atendimentos": 1020, "ref_diarias": 5, "ref_alim": 5100}], "faixa_etaria": {"0 a 05 anos": {"M": 47, "F": 57, "total": 104}, "06 a 11 anos": {"M": 0, "F": 0, "total": 0}, "12 a 14 anos": {"M": 0, "F": 0, "total": 0}, "15 a 17 anos": {"M": 0, "F": 0, "total": 0}, "18 a 24 anos": {"M": 0, "F": 0, "total": 0}, "25 a 29 anos": {"M": 0, "F": 0, "total": 0}, "30 a 49 anos": {"M": 0, "F": 0, "total": 0}, "50 a 59 anos": {"M": 0, "F": 0, "total": 0}, "60 a 64 anos": {"M": 0, "F": 0, "total": 0}, "65 a 69 anos": {"M": 0, "F": 0, "total": 0}, "70 a 74 anos": {"M": 0, "F": 0, "total": 0}, "75 ou mais": {"M": 0, "F": 0, "total": 0}}}, {"unidade": "CEI BOM PASTOR I PAIF", "atendidos_ano": 44, "atendimentos_ano": 2498, "refeicoes_ano": 0, "remanescentes_ini": 36, "entradas_ano": 8, "motivos": {"CANCELAMENTO": 28}, "monthly": [{"mes": "JANEIRO", "mes_idx": 0, "entrada": 0, "saida": 0, "dias_uteis": 4, "atendidos": 36, "atendimentos": 144, "ref_diarias": 0, "ref_alim": 0}, {"mes": "FEVEREIRO", "mes_idx": 1, "entrada": 2, "saida": 4, "dias_uteis": 4, "atendidos": 34, "atendimentos": 136, "ref_diarias": 0, "ref_alim": 0}, {"mes": "MARÇO", "mes_idx": 2, "entrada": 1, "saida": 1, "dias_uteis": 4, "atendidos": 34, "atendimentos": 136, "ref_diarias": 0, "ref_alim": 0}, {"mes": "ABRIL", "mes_idx": 3, "entrada": 1, "saida": 2, "dias_uteis": 4, "atendidos": 33, "atendimentos": 132, "ref_diarias": 0, "ref_alim": 0}, {"mes": "MAIO", "mes_idx": 4, "entrada": 0, "saida": 2, "dias_uteis": 4, "atendidos": 31, "atendimentos": 124, "ref_diarias": 0, "ref_alim": 0}, {"mes": "JUNHO", "mes_idx": 5, "entrada": 0, "saida": 2, "dias_uteis": 4, "atendidos": 29, "atendimentos": 116, "ref_diarias": 0, "ref_alim": 0}, {"mes": "JULHO", "mes_idx": 6, "entrada": 1, "saida": 0, "dias_uteis": 4, "atendidos": 30, "atendimentos": 120, "ref_diarias": 0, "ref_alim": 0}, {"mes": "AGOSTO", "mes_idx": 7, "entrada": 0, "saida": 1, "dias_uteis": 4, "atendidos": 29, "atendimentos": 116, "ref_diarias": 0, "ref_alim": 0}, {"mes": "SETEMBRO", "mes_idx": 8, "entrada": 3, "saida": 0, "dias_uteis": 4, "atendidos": 32, "atendimentos": 128, "ref_diarias": 0, "ref_alim": 0}, {"mes": "OUTUBRO", "mes_idx": 9, "entrada": 0, "saida": 2, "dias_uteis": 4, "atendidos": 30, "atendimentos": 120, "ref_diarias": 0, "ref_alim": 0}, {"mes": "NOVEMBRO", "mes_idx": 10, "entrada": 0, "saida": 13, "dias_uteis": 4, "atendidos": 17, "atendimentos": 68, "ref_diarias": 0, "ref_alim": 0}, {"mes": "DEZEMBRO", "mes_idx": 11, "entrada": 0, "saida": 1, "dias_uteis": 4, "atendidos": 16, "atendimentos": 64, "ref_diarias": 0, "ref_alim": 0}], "faixa_etaria": {"0 a 05 anos": {"M": 0, "F": 0, "total": 0}, "06 a 11 anos": {"M": 0, "F": 0, "total": 0}, "12 a 14 anos": {"M": 0, "F": 0, "total": 0}, "15 a 17 anos": {"M": 0, "F": 0, "total": 0}, "18 a 24 anos": {"M": 0, "F": 0, "total": 0}, "25 a 29 anos": {"M": 0, "F": 0, "total": 0}, "30 a 49 anos": {"M": 1, "F": 43, "total": 44}, "50 a 59 anos": {"M": 0, "F": 0, "total": 0}, "60 a 64 anos": {"M": 0, "F": 0, "total": 0}, "65 a 69 anos": {"M": 0, "F": 0, "total": 0}, "70 a 74 anos": {"M": 0, "F": 0, "total": 0}, "75 ou mais": {"M": 0, "F": 0, "total": 0}}}, {"unidade": "VOLUNTARIADO BOM PASTOR", "atendidos_ano": 3, "atendimentos_ano": 512, "refeicoes_ano": 0, "remanescentes_ini": 3, "entradas_ano": 0, "motivos": {"CANCELAMENTO": 1}, "monthly": [{"mes": "JANEIRO", "mes_idx": 0, "entrada": 0, "saida": 0, "dias_uteis": 2, "atendidos": 3, "atendimentos": 6, "ref_diarias": 0, "ref_alim": 0}, {"mes": "FEVEREIRO", "mes_idx": 1, "entrada": 0, "saida": 0, "dias_uteis": 19, "atendidos": 3, "atendimentos": 57, "ref_diarias": 0, "ref_alim": 0}, {"mes": "MARÇO", "mes_idx": 2, "entrada": 0, "saida": 0, "dias_uteis": 20, "atendidos": 3, "atendimentos": 60, "ref_diarias": 0, "ref_alim": 0}, {"mes": "ABRIL", "mes_idx": 3, "entrada": 0, "saida": 0, "dias_uteis": 22, "atendidos": 3, "atendimentos": 66, "ref_diarias": 0, "ref_alim": 0}, {"mes": "MAIO", "mes_idx": 4, "entrada": 0, "saida": 1, "dias_uteis": 20, "atendidos": 2, "atendimentos": 40, "ref_diarias": 0, "ref_alim": 0}, {"mes": "JUNHO", "mes_idx": 5, "entrada": 0, "saida": 0, "dias_uteis": 20, "atendidos": 2, "atendimentos": 40, "ref_diarias": 0, "ref_alim": 0}, {"mes": "JULHO", "mes_idx": 6, "entrada": 0, "saida": 0, "dias_uteis": 23, "atendidos": 2, "atendimentos": 46, "ref_diarias": 0, "ref_alim": 0}, {"mes": "AGOSTO", "mes_idx": 7, "entrada": 0, "saida": 0, "dias_uteis": 22, "atendidos": 2, "atendimentos": 44, "ref_diarias": 0, "ref_alim": 0}, {"mes": "SETEMBRO", "mes_idx": 8, "entrada": 0, "saida": 0, "dias_uteis": 21, "atendidos": 2, "atendimentos": 42, "ref_diarias": 0, "ref_alim": 0}, {"mes": "OUTUBRO", "mes_idx": 9, "entrada": 0, "saida": 0, "dias_uteis": 22, "atendidos": 2, "atendimentos": 44, "ref_diarias": 0, "ref_alim": 0}, {"mes": "NOVEMBRO", "mes_idx": 10, "entrada": 0, "saida": 0, "dias_uteis": 19, "atendidos": 2, "atendimentos": 38, "ref_diarias": 0, "ref_alim": 0}, {"mes": "DEZEMBRO", "mes_idx": 11, "entrada": 0, "saida": 0, "dias_uteis": 10, "atendidos": 2, "atendimentos": 20, "ref_diarias": 0, "ref_alim": 0}], "faixa_etaria": {"0 a 05 anos": {"M": 0, "F": 0, "total": 0}, "06 a 11 anos": {"M": 0, "F": 0, "total": 0}, "12 a 14 anos": {"M": 0, "F": 0, "total": 0}, "15 a 17 anos": {"M": 0, "F": 0, "total": 0}, "18 a 24 anos": {"M": 0, "F": 0, "total": 0}, "25 a 29 anos": {"M": 0, "F": 0, "total": 0}, "30 a 49 anos": {"M": 0, "F": 1, "total": 1}, "50 a 59 anos": {"M": 0, "F": 2, "total": 2}, "60 a 64 anos": {"M": 0, "F": 0, "total": 0}, "65 a 69 anos": {"M": 0, "F": 0, "total": 0}, "70 a 74 anos": {"M": 0, "F": 0, "total": 0}, "75 ou mais": {"M": 0, "F": 0, "total": 0}}}, {"unidade": "CAP CONTINUADA BOM PASTOR", "atendidos_ano": 66, "atendimentos_ano": 651, "refeicoes_ano": 1206, "remanescentes_ini": 54, "entradas_ano": 6, "motivos": {}, "monthly": [{"mes": "JANEIRO", "mes_idx": 0, "entrada": 0, "saida": 5, "dias_uteis": 0, "atendidos": 49, "atendimentos": 0, "ref_diarias": 2, "ref_alim": 0}, {"mes": "FEVEREIRO", "mes_idx": 1, "entrada": 5, "saida": 0, "dias_uteis": 0, "atendidos": 54, "atendimentos": 0, "ref_diarias": 2, "ref_alim": 0}, {"mes": "MARÇO", "mes_idx": 2, "entrada": 0, "saida": 3, "dias_uteis": 0, "atendidos": 51, "atendimentos": 0, "ref_diarias": 2, "ref_alim": 0}, {"mes": "ABRIL", "mes_idx": 3, "entrada": 0, "saida": 0, "dias_uteis": 0, "atendidos": 51, "atendimentos": 0, "ref_diarias": 2, "ref_alim": 0}, {"mes": "MAIO", "mes_idx": 4, "entrada": 0, "saida": 0, "dias_uteis": 0, "atendidos": 51, "atendimentos": 0, "ref_diarias": 2, "ref_alim": 0}, {"mes": "JUNHO", "mes_idx": 5, "entrada": 0, "saida": 0, "dias_uteis": 0, "atendidos": 51, "atendimentos": 0, "ref_diarias": 2, "ref_alim": 0}, {"mes": "JULHO", "mes_idx": 6, "entrada": 0, "saida": 0, "dias_uteis": 0, "atendidos": 51, "atendimentos": 0, "ref_diarias": 2, "ref_alim": 0}, {"mes": "AGOSTO", "mes_idx": 7, "entrada": 0, "saida": 1, "dias_uteis": 0, "atendidos": 50, "atendimentos": 0, "ref_diarias": 2, "ref_alim": 0}, {"mes": "SETEMBRO", "mes_idx": 8, "entrada": 0, "saida": 1, "dias_uteis": 0, "atendidos": 49, "atendimentos": 0, "ref_diarias": 2, "ref_alim": 0}, {"mes": "OUTUBRO", "mes_idx": 9, "entrada": 1, "saida": 1, "dias_uteis": 0, "atendidos": 49, "atendimentos": 0, "ref_diarias": 2, "ref_alim": 0}, {"mes": "NOVEMBRO", "mes_idx": 10, "entrada": 0, "saida": 0, "dias_uteis": 0, "atendidos": 49, "atendimentos": 0, "ref_diarias": 2, "ref_alim": 0}, {"mes": "DEZEMBRO", "mes_idx": 11, "entrada": 0, "saida": 1, "dias_uteis": 0, "atendidos": 48, "atendimentos": 0, "ref_diarias": 2, "ref_alim": 0}], "faixa_etaria": {"0 a 05 anos": {"M": 0, "F": 0, "total": 0}, "06 a 11 anos": {"M": 0, "F": 0, "total": 0}, "12 a 14 anos": {"M": 0, "F": 0, "total": 0}, "15 a 17 anos": {"M": 0, "F": 0, "total": 0}, "18 a 24 anos": {"M": 0, "F": 2, "total": 2}, "25 a 29 anos": {"M": 0, "F": 3, "total": 3}, "30 a 49 anos": {"M": 2, "F": 41, "total": 43}, "50 a 59 anos": {"M": 2, "F": 11, "total": 13}, "60 a 64 anos": {"M": 0, "F": 2, "total": 2}, "65 a 69 anos": {"M": 0, "F": 1, "total": 1}, "70 a 74 anos": {"M": 0, "F": 0, "total": 0}, "75 ou mais": {"M": 0, "F": 2, "total": 2}}}];
+let D = [{"unidade": "CEI BOM PASTOR I", "atendidos_ano": 36, "atendimentos_ano": 18135, "refeicoes_ano": 79005, "remanescentes_ini": 102, "entradas_ano": 36, "motivos": {"CANCELAMENTO": 50, "TRANSFERÊNCIA": 9}, "monthly": [{"mes": "JANEIRO", "mes_idx": 0, "entrada": 0, "saida": 34, "dias_uteis": 0, "atendidos": 71, "atendimentos": 0, "ref_diarias": 0, "ref_alim": 0}, {"mes": "FEVEREIRO", "mes_idx": 1, "entrada": 14, "saida": 7, "dias_uteis": 18, "atendidos": 78, "atendimentos": 1404, "ref_diarias": 5, "ref_alim": 7020}, {"mes": "MARÇO", "mes_idx": 2, "entrada": 5, "saida": 4, "dias_uteis": 18, "atendidos": 79, "atendimentos": 1422, "ref_diarias": 5, "ref_alim": 7110}, {"mes": "ABRIL", "mes_idx": 3, "entrada": 1, "saida": 1, "dias_uteis": 20, "atendidos": 79, "atendimentos": 1580, "ref_diarias": 5, "ref_alim": 7900}, {"mes": "MAIO", "mes_idx": 4, "entrada": 4, "saida": 5, "dias_uteis": 20, "atendidos": 78, "atendimentos": 1560, "ref_diarias": 5, "ref_alim": 7800}, {"mes": "JUNHO", "mes_idx": 5, "entrada": 1, "saida": 0, "dias_uteis": 18, "atendidos": 79, "atendimentos": 1422, "ref_diarias": 5, "ref_alim": 7110}, {"mes": "JULHO", "mes_idx": 6, "entrada": 2, "saida": 0, "dias_uteis": 12, "atendidos": 81, "atendimentos": 972, "ref_diarias": 5, "ref_alim": 4860}, {"mes": "AGOSTO", "mes_idx": 7, "entrada": 2, "saida": 1, "dias_uteis": 20, "atendidos": 82, "atendimentos": 1640, "ref_diarias": 5, "ref_alim": 8200}, {"mes": "SETEMBRO", "mes_idx": 8, "entrada": 2, "saida": 6, "dias_uteis": 21, "atendidos": 78, "atendimentos": 1638, "ref_diarias": 5, "ref_alim": 8190}, {"mes": "OUTUBRO", "mes_idx": 9, "entrada": 4, "saida": 1, "dias_uteis": 19, "atendidos": 81, "atendimentos": 1539, "ref_diarias": 5, "ref_alim": 7695}, {"mes": "NOVEMBRO", "mes_idx": 10, "entrada": 1, "saida": 0, "dias_uteis": 17, "atendidos": 82, "atendimentos": 1394, "ref_diarias": 5, "ref_alim": 6970}, {"mes": "DEZEMBRO", "mes_idx": 11, "entrada": 0, "saida": 0, "dias_uteis": 15, "atendidos": 82, "atendimentos": 1230, "ref_diarias": 5, "ref_alim": 6150}], "faixa_etaria": {"0 a 05 anos": {"M": 18, "F": 18, "total": 36}, "06 a 11 anos": {"M": 0, "F": 0, "total": 0}, "12 a 14 anos": {"M": 0, "F": 0, "total": 0}, "15 a 17 anos": {"M": 0, "F": 0, "total": 0}, "18 a 24 anos": {"M": 0, "F": 0, "total": 0}, "25 a 29 anos": {"M": 0, "F": 0, "total": 0}, "30 a 49 anos": {"M": 0, "F": 0, "total": 0}, "50 a 59 anos": {"M": 0, "F": 0, "total": 0}, "60 a 64 anos": {"M": 0, "F": 0, "total": 0}, "65 a 69 anos": {"M": 0, "F": 0, "total": 0}, "70 a 74 anos": {"M": 0, "F": 0, "total": 0}, "75 ou mais": {"M": 0, "F": 0, "total": 0}}, "atend_externo": [{"mes": "JANEIRO", "mes_idx": 0, "pessoal": 8, "telefone": 0, "visitas": 0, "reunioes": 0, "eventos": 0, "passeios": 0}, {"mes": "FEVEREIRO", "mes_idx": 1, "pessoal": 56, "telefone": 176, "visitas": 0, "reunioes": 83, "eventos": 15, "passeios": 0}, {"mes": "MARÇO", "mes_idx": 2, "pessoal": 55, "telefone": 79, "visitas": 0, "reunioes": 15, "eventos": 21, "passeios": 0}, {"mes": "ABRIL", "mes_idx": 3, "pessoal": 43, "telefone": 67, "visitas": 0, "reunioes": 76, "eventos": 16, "passeios": 15}, {"mes": "MAIO", "mes_idx": 4, "pessoal": 51, "telefone": 108, "visitas": 0, "reunioes": 18, "eventos": 67, "passeios": 45}, {"mes": "JUNHO", "mes_idx": 5, "pessoal": 40, "telefone": 48, "visitas": 0, "reunioes": 15, "eventos": 50, "passeios": 0}, {"mes": "JULHO", "mes_idx": 6, "pessoal": 29, "telefone": 44, "visitas": 0, "reunioes": 52, "eventos": 15, "passeios": 15}, {"mes": "AGOSTO", "mes_idx": 7, "pessoal": 47, "telefone": 60, "visitas": 3, "reunioes": 15, "eventos": 12, "passeios": 0}, {"mes": "SETEMBRO", "mes_idx": 8, "pessoal": 27, "telefone": 37, "visitas": 0, "reunioes": 18, "eventos": 30, "passeios": 30}, {"mes": "OUTUBRO", "mes_idx": 9, "pessoal": 42, "telefone": 40, "visitas": 0, "reunioes": 30, "eventos": 0, "passeios": 0}, {"mes": "NOVEMBRO", "mes_idx": 10, "pessoal": 47, "telefone": 53, "visitas": 5, "reunioes": 15, "eventos": 97, "passeios": 40}, {"mes": "DEZEMBRO", "mes_idx": 11, "pessoal": 91, "telefone": 97, "visitas": 0, "reunioes": 64, "eventos": 15, "passeios": 0}]}, {"unidade": "BOM PASTOR II", "atendidos_ano": 104, "atendimentos_ano": 15705, "refeicoes_ano": 67730, "remanescentes_ini": 81, "entradas_ano": 23, "motivos": {"ABANDONO": 2, "CANCELAMENTO": 5, "TRANSFERÊNCIA": 29}, "monthly": [{"mes": "JANEIRO", "mes_idx": 0, "entrada": 3, "saida": 28, "dias_uteis": 0, "atendidos": 56, "atendimentos": 0, "ref_diarias": 0, "ref_alim": 0}, {"mes": "FEVEREIRO", "mes_idx": 1, "entrada": 10, "saida": 1, "dias_uteis": 18, "atendidos": 65, "atendimentos": 1170, "ref_diarias": 5, "ref_alim": 5850}, {"mes": "MARÇO", "mes_idx": 2, "entrada": 3, "saida": 0, "dias_uteis": 18, "atendidos": 68, "atendimentos": 1224, "ref_diarias": 5, "ref_alim": 6120}, {"mes": "ABRIL", "mes_idx": 3, "entrada": 0, "saida": 0, "dias_uteis": 19, "atendidos": 68, "atendimentos": 1292, "ref_diarias": 5, "ref_alim": 6460}, {"mes": "MAIO", "mes_idx": 4, "entrada": 0, "saida": 0, "dias_uteis": 20, "atendidos": 68, "atendimentos": 1360, "ref_diarias": 5, "ref_alim": 6800}, {"mes": "JUNHO", "mes_idx": 5, "entrada": 2, "saida": 2, "dias_uteis": 20, "atendidos": 68, "atendimentos": 1360, "ref_diarias": 5, "ref_alim": 6800}, {"mes": "JULHO", "mes_idx": 6, "entrada": 1, "saida": 1, "dias_uteis": 12, "atendidos": 68, "atendimentos": 816, "ref_diarias": 5, "ref_alim": 4080}, {"mes": "AGOSTO", "mes_idx": 7, "entrada": 2, "saida": 2, "dias_uteis": 21, "atendidos": 68, "atendimentos": 1428, "ref_diarias": 5, "ref_alim": 7140}, {"mes": "SETEMBRO", "mes_idx": 8, "entrada": 2, "saida": 2, "dias_uteis": 21, "atendidos": 68, "atendimentos": 1428, "ref_diarias": 5, "ref_alim": 7140}, {"mes": "OUTUBRO", "mes_idx": 9, "entrada": 0, "saida": 0, "dias_uteis": 19, "atendidos": 68, "atendimentos": 1292, "ref_diarias": 5, "ref_alim": 6460}, {"mes": "NOVEMBRO", "mes_idx": 10, "entrada": 0, "saida": 0, "dias_uteis": 17, "atendidos": 68, "atendimentos": 1156, "ref_diarias": 5, "ref_alim": 5780}, {"mes": "DEZEMBRO", "mes_idx": 11, "entrada": 0, "saida": 0, "dias_uteis": 15, "atendidos": 68, "atendimentos": 1020, "ref_diarias": 5, "ref_alim": 5100}], "faixa_etaria": {"0 a 05 anos": {"M": 47, "F": 57, "total": 104}, "06 a 11 anos": {"M": 0, "F": 0, "total": 0}, "12 a 14 anos": {"M": 0, "F": 0, "total": 0}, "15 a 17 anos": {"M": 0, "F": 0, "total": 0}, "18 a 24 anos": {"M": 0, "F": 0, "total": 0}, "25 a 29 anos": {"M": 0, "F": 0, "total": 0}, "30 a 49 anos": {"M": 0, "F": 0, "total": 0}, "50 a 59 anos": {"M": 0, "F": 0, "total": 0}, "60 a 64 anos": {"M": 0, "F": 0, "total": 0}, "65 a 69 anos": {"M": 0, "F": 0, "total": 0}, "70 a 74 anos": {"M": 0, "F": 0, "total": 0}, "75 ou mais": {"M": 0, "F": 0, "total": 0}}, "atend_externo": [{"mes": "JANEIRO", "mes_idx": 0, "pessoal": 0, "telefone": 0, "visitas": 0, "reunioes": 0, "eventos": 0, "passeios": 0}, {"mes": "FEVEREIRO", "mes_idx": 1, "pessoal": 25, "telefone": 50, "visitas": 4, "reunioes": 70, "eventos": 30, "passeios": 0}, {"mes": "MARÇO", "mes_idx": 2, "pessoal": 30, "telefone": 25, "visitas": 0, "reunioes": 0, "eventos": 0, "passeios": 0}, {"mes": "ABRIL", "mes_idx": 3, "pessoal": 45, "telefone": 35, "visitas": 0, "reunioes": 50, "eventos": 0, "passeios": 0}, {"mes": "MAIO", "mes_idx": 4, "pessoal": 50, "telefone": 40, "visitas": 0, "reunioes": 0, "eventos": 45, "passeios": 25}, {"mes": "JUNHO", "mes_idx": 5, "pessoal": 70, "telefone": 80, "visitas": 0, "reunioes": 87, "eventos": 100, "passeios": 0}, {"mes": "JULHO", "mes_idx": 6, "pessoal": 20, "telefone": 40, "visitas": 0, "reunioes": 90, "eventos": 0, "passeios": 0}, {"mes": "AGOSTO", "mes_idx": 7, "pessoal": 85, "telefone": 25, "visitas": 0, "reunioes": 15, "eventos": 42, "passeios": 0}, {"mes": "SETEMBRO", "mes_idx": 8, "pessoal": 60, "telefone": 12, "visitas": 0, "reunioes": 95, "eventos": 60, "passeios": 0}, {"mes": "OUTUBRO", "mes_idx": 9, "pessoal": 90, "telefone": 20, "visitas": 0, "reunioes": 50, "eventos": 0, "passeios": 0}, {"mes": "NOVEMBRO", "mes_idx": 10, "pessoal": 40, "telefone": 25, "visitas": 0, "reunioes": 0, "eventos": 57, "passeios": 30}, {"mes": "DEZEMBRO", "mes_idx": 11, "pessoal": 100, "telefone": 10, "visitas": 0, "reunioes": 100, "eventos": 80, "passeios": 0}]}, {"unidade": "BOM PASTOR III", "atendidos_ano": 120, "atendimentos_ano": 21873, "refeicoes_ano": 87960, "remanescentes_ini": 69, "entradas_ano": 51, "motivos": {"CANCELAMENTO": 16, "TRANSFERÊNCIA": 11}, "monthly": [{"mes": "JANEIRO", "mes_idx": 0, "entrada": 6, "saida": 0, "dias_uteis": 0, "atendidos": 75, "atendimentos": 0, "ref_diarias": 0, "ref_alim": 0}, {"mes": "FEVEREIRO", "mes_idx": 1, "entrada": 12, "saida": 5, "dias_uteis": 19, "atendidos": 82, "atendimentos": 1558, "ref_diarias": 5, "ref_alim": 7790}, {"mes": "MARÇO", "mes_idx": 2, "entrada": 5, "saida": 3, "dias_uteis": 18, "atendidos": 84, "atendimentos": 1512, "ref_diarias": 5, "ref_alim": 7560}, {"mes": "ABRIL", "mes_idx": 3, "entrada": 7, "saida": 5, "dias_uteis": 20, "atendidos": 86, "atendimentos": 1720, "ref_diarias": 5, "ref_alim": 8600}, {"mes": "MAIO", "mes_idx": 4, "entrada": 2, "saida": 2, "dias_uteis": 20, "atendidos": 86, "atendimentos": 1720, "ref_diarias": 5, "ref_alim": 8600}, {"mes": "JUNHO", "mes_idx": 5, "entrada": 2, "saida": 2, "dias_uteis": 18, "atendidos": 86, "atendimentos": 1548, "ref_diarias": 5, "ref_alim": 7740}, {"mes": "JULHO", "mes_idx": 6, "entrada": 3, "saida": 3, "dias_uteis": 12, "atendidos": 86, "atendimentos": 1032, "ref_diarias": 5, "ref_alim": 5160}, {"mes": "AGOSTO", "mes_idx": 7, "entrada": 3, "saida": 3, "dias_uteis": 21, "atendidos": 86, "atendimentos": 1806, "ref_diarias": 5, "ref_alim": 9030}, {"mes": "SETEMBRO", "mes_idx": 8, "entrada": 10, "saida": 3, "dias_uteis": 21, "atendidos": 93, "atendimentos": 1953, "ref_diarias": 5, "ref_alim": 9765}, {"mes": "OUTUBRO", "mes_idx": 9, "entrada": 0, "saida": 0, "dias_uteis": 19, "atendidos": 93, "atendimentos": 1767, "ref_diarias": 5, "ref_alim": 8835}, {"mes": "NOVEMBRO", "mes_idx": 10, "entrada": 0, "saida": 0, "dias_uteis": 17, "atendidos": 93, "atendimentos": 1581, "ref_diarias": 5, "ref_alim": 7905}, {"mes": "DEZEMBRO", "mes_idx": 11, "entrada": 1, "saida": 1, "dias_uteis": 15, "atendidos": 93, "atendimentos": 1395, "ref_diarias": 5, "ref_alim": 6975}], "faixa_etaria": {"0 a 05 anos": {"M": 67, "F": 53, "total": 120}, "06 a 11 anos": {"M": 0, "F": 0, "total": 0}, "12 a 14 anos": {"M": 0, "F": 0, "total": 0}, "15 a 17 anos": {"M": 0, "F": 0, "total": 0}, "18 a 24 anos": {"M": 0, "F": 0, "total": 0}, "25 a 29 anos": {"M": 0, "F": 0, "total": 0}, "30 a 49 anos": {"M": 0, "F": 0, "total": 0}, "50 a 59 anos": {"M": 0, "F": 0, "total": 0}, "60 a 64 anos": {"M": 0, "F": 0, "total": 0}, "65 a 69 anos": {"M": 0, "F": 0, "total": 0}, "70 a 74 anos": {"M": 0, "F": 0, "total": 0}, "75 ou mais": {"M": 0, "F": 0, "total": 0}}, "atend_externo": [{"mes": "JANEIRO", "mes_idx": 0, "pessoal": 0, "telefone": 0, "visitas": 0, "reunioes": 0, "eventos": 0, "passeios": 0}, {"mes": "FEVEREIRO", "mes_idx": 1, "pessoal": 53, "telefone": 89, "visitas": 45, "reunioes": 111, "eventos": 0, "passeios": 0}, {"mes": "MARÇO", "mes_idx": 2, "pessoal": 47, "telefone": 95, "visitas": 18, "reunioes": 20, "eventos": 1, "passeios": 0}, {"mes": "ABRIL", "mes_idx": 3, "pessoal": 49, "telefone": 101, "visitas": 54, "reunioes": 114, "eventos": 1, "passeios": 1}, {"mes": "MAIO", "mes_idx": 4, "pessoal": 52, "telefone": 84, "visitas": 49, "reunioes": 120, "eventos": 1, "passeios": 1}, {"mes": "JUNHO", "mes_idx": 5, "pessoal": 75, "telefone": 137, "visitas": 54, "reunioes": 105, "eventos": 1, "passeios": 1}, {"mes": "JULHO", "mes_idx": 6, "pessoal": 81, "telefone": 73, "visitas": 47, "reunioes": 125, "eventos": 1, "passeios": 1}, {"mes": "AGOSTO", "mes_idx": 7, "pessoal": 95, "telefone": 102, "visitas": 51, "reunioes": 155, "eventos": 1, "passeios": 1}, {"mes": "SETEMBRO", "mes_idx": 8, "pessoal": 104, "telefone": 121, "visitas": 41, "reunioes": 93, "eventos": 1, "passeios": 1}, {"mes": "OUTUBRO", "mes_idx": 9, "pessoal": 108, "telefone": 138, "visitas": 93, "reunioes": 98, "eventos": 1, "passeios": 0}, {"mes": "NOVEMBRO", "mes_idx": 10, "pessoal": 111, "telefone": 149, "visitas": 82, "reunioes": 131, "eventos": 1, "passeios": 0}, {"mes": "DEZEMBRO", "mes_idx": 11, "pessoal": 125, "telefone": 158, "visitas": 57, "reunioes": 184, "eventos": 1, "passeios": 0}]}, {"unidade": "CEI BOM PASTOR I PAIF", "atendidos_ano": 44, "atendimentos_ano": 2498, "refeicoes_ano": 0, "remanescentes_ini": 36, "entradas_ano": 8, "motivos": {"CANCELAMENTO": 28}, "monthly": [{"mes": "JANEIRO", "mes_idx": 0, "entrada": 0, "saida": 0, "dias_uteis": 4, "atendidos": 36, "atendimentos": 144, "ref_diarias": 0, "ref_alim": 0}, {"mes": "FEVEREIRO", "mes_idx": 1, "entrada": 2, "saida": 4, "dias_uteis": 4, "atendidos": 34, "atendimentos": 136, "ref_diarias": 0, "ref_alim": 0}, {"mes": "MARÇO", "mes_idx": 2, "entrada": 1, "saida": 1, "dias_uteis": 4, "atendidos": 34, "atendimentos": 136, "ref_diarias": 0, "ref_alim": 0}, {"mes": "ABRIL", "mes_idx": 3, "entrada": 1, "saida": 2, "dias_uteis": 4, "atendidos": 33, "atendimentos": 132, "ref_diarias": 0, "ref_alim": 0}, {"mes": "MAIO", "mes_idx": 4, "entrada": 0, "saida": 2, "dias_uteis": 4, "atendidos": 31, "atendimentos": 124, "ref_diarias": 0, "ref_alim": 0}, {"mes": "JUNHO", "mes_idx": 5, "entrada": 0, "saida": 2, "dias_uteis": 4, "atendidos": 29, "atendimentos": 116, "ref_diarias": 0, "ref_alim": 0}, {"mes": "JULHO", "mes_idx": 6, "entrada": 1, "saida": 0, "dias_uteis": 4, "atendidos": 30, "atendimentos": 120, "ref_diarias": 0, "ref_alim": 0}, {"mes": "AGOSTO", "mes_idx": 7, "entrada": 0, "saida": 1, "dias_uteis": 4, "atendidos": 29, "atendimentos": 116, "ref_diarias": 0, "ref_alim": 0}, {"mes": "SETEMBRO", "mes_idx": 8, "entrada": 3, "saida": 0, "dias_uteis": 4, "atendidos": 32, "atendimentos": 128, "ref_diarias": 0, "ref_alim": 0}, {"mes": "OUTUBRO", "mes_idx": 9, "entrada": 0, "saida": 2, "dias_uteis": 4, "atendidos": 30, "atendimentos": 120, "ref_diarias": 0, "ref_alim": 0}, {"mes": "NOVEMBRO", "mes_idx": 10, "entrada": 0, "saida": 13, "dias_uteis": 4, "atendidos": 17, "atendimentos": 68, "ref_diarias": 0, "ref_alim": 0}, {"mes": "DEZEMBRO", "mes_idx": 11, "entrada": 0, "saida": 1, "dias_uteis": 4, "atendidos": 16, "atendimentos": 64, "ref_diarias": 0, "ref_alim": 0}], "faixa_etaria": {"0 a 05 anos": {"M": 0, "F": 0, "total": 0}, "06 a 11 anos": {"M": 0, "F": 0, "total": 0}, "12 a 14 anos": {"M": 0, "F": 0, "total": 0}, "15 a 17 anos": {"M": 0, "F": 0, "total": 0}, "18 a 24 anos": {"M": 0, "F": 0, "total": 0}, "25 a 29 anos": {"M": 0, "F": 0, "total": 0}, "30 a 49 anos": {"M": 1, "F": 43, "total": 44}, "50 a 59 anos": {"M": 0, "F": 0, "total": 0}, "60 a 64 anos": {"M": 0, "F": 0, "total": 0}, "65 a 69 anos": {"M": 0, "F": 0, "total": 0}, "70 a 74 anos": {"M": 0, "F": 0, "total": 0}, "75 ou mais": {"M": 0, "F": 0, "total": 0}}, "atend_externo": [{"mes": "JANEIRO", "mes_idx": 0, "pessoal": 0, "telefone": 0, "visitas": 0, "reunioes": 0, "eventos": 0, "passeios": 0}, {"mes": "FEVEREIRO", "mes_idx": 1, "pessoal": 36, "telefone": 26, "visitas": 18, "reunioes": 35, "eventos": 0, "passeios": 0}, {"mes": "MARÇO", "mes_idx": 2, "pessoal": 34, "telefone": 31, "visitas": 20, "reunioes": 10, "eventos": 0, "passeios": 0}, {"mes": "ABRIL", "mes_idx": 3, "pessoal": 33, "telefone": 27, "visitas": 17, "reunioes": 40, "eventos": 0, "passeios": 0}, {"mes": "MAIO", "mes_idx": 4, "pessoal": 31, "telefone": 56, "visitas": 25, "reunioes": 10, "eventos": 0, "passeios": 0}, {"mes": "JUNHO", "mes_idx": 5, "pessoal": 29, "telefone": 33, "visitas": 9, "reunioes": 8, "eventos": 0, "passeios": 0}, {"mes": "JULHO", "mes_idx": 6, "pessoal": 19, "telefone": 19, "visitas": 0, "reunioes": 35, "eventos": 0, "passeios": 0}, {"mes": "AGOSTO", "mes_idx": 7, "pessoal": 29, "telefone": 52, "visitas": 19, "reunioes": 10, "eventos": 0, "passeios": 0}, {"mes": "SETEMBRO", "mes_idx": 8, "pessoal": 32, "telefone": 35, "visitas": 11, "reunioes": 40, "eventos": 0, "passeios": 0}, {"mes": "OUTUBRO", "mes_idx": 9, "pessoal": 30, "telefone": 17, "visitas": 33, "reunioes": 10, "eventos": 0, "passeios": 0}, {"mes": "NOVEMBRO", "mes_idx": 10, "pessoal": 17, "telefone": 22, "visitas": 14, "reunioes": 10, "eventos": 0, "passeios": 0}, {"mes": "DEZEMBRO", "mes_idx": 11, "pessoal": 16, "telefone": 36, "visitas": 15, "reunioes": 45, "eventos": 0, "passeios": 0}]}, {"unidade": "VOLUNTARIADO BOM PASTOR", "atendidos_ano": 3, "atendimentos_ano": 512, "refeicoes_ano": 0, "remanescentes_ini": 3, "entradas_ano": 0, "motivos": {"CANCELAMENTO": 1}, "monthly": [{"mes": "JANEIRO", "mes_idx": 0, "entrada": 0, "saida": 0, "dias_uteis": 2, "atendidos": 3, "atendimentos": 6, "ref_diarias": 0, "ref_alim": 0}, {"mes": "FEVEREIRO", "mes_idx": 1, "entrada": 0, "saida": 0, "dias_uteis": 19, "atendidos": 3, "atendimentos": 57, "ref_diarias": 0, "ref_alim": 0}, {"mes": "MARÇO", "mes_idx": 2, "entrada": 0, "saida": 0, "dias_uteis": 20, "atendidos": 3, "atendimentos": 60, "ref_diarias": 0, "ref_alim": 0}, {"mes": "ABRIL", "mes_idx": 3, "entrada": 0, "saida": 0, "dias_uteis": 22, "atendidos": 3, "atendimentos": 66, "ref_diarias": 0, "ref_alim": 0}, {"mes": "MAIO", "mes_idx": 4, "entrada": 0, "saida": 1, "dias_uteis": 20, "atendidos": 2, "atendimentos": 40, "ref_diarias": 0, "ref_alim": 0}, {"mes": "JUNHO", "mes_idx": 5, "entrada": 0, "saida": 0, "dias_uteis": 20, "atendidos": 2, "atendimentos": 40, "ref_diarias": 0, "ref_alim": 0}, {"mes": "JULHO", "mes_idx": 6, "entrada": 0, "saida": 0, "dias_uteis": 23, "atendidos": 2, "atendimentos": 46, "ref_diarias": 0, "ref_alim": 0}, {"mes": "AGOSTO", "mes_idx": 7, "entrada": 0, "saida": 0, "dias_uteis": 22, "atendidos": 2, "atendimentos": 44, "ref_diarias": 0, "ref_alim": 0}, {"mes": "SETEMBRO", "mes_idx": 8, "entrada": 0, "saida": 0, "dias_uteis": 21, "atendidos": 2, "atendimentos": 42, "ref_diarias": 0, "ref_alim": 0}, {"mes": "OUTUBRO", "mes_idx": 9, "entrada": 0, "saida": 0, "dias_uteis": 22, "atendidos": 2, "atendimentos": 44, "ref_diarias": 0, "ref_alim": 0}, {"mes": "NOVEMBRO", "mes_idx": 10, "entrada": 0, "saida": 0, "dias_uteis": 19, "atendidos": 2, "atendimentos": 38, "ref_diarias": 0, "ref_alim": 0}, {"mes": "DEZEMBRO", "mes_idx": 11, "entrada": 0, "saida": 0, "dias_uteis": 10, "atendidos": 2, "atendimentos": 20, "ref_diarias": 0, "ref_alim": 0}], "faixa_etaria": {"0 a 05 anos": {"M": 0, "F": 0, "total": 0}, "06 a 11 anos": {"M": 0, "F": 0, "total": 0}, "12 a 14 anos": {"M": 0, "F": 0, "total": 0}, "15 a 17 anos": {"M": 0, "F": 0, "total": 0}, "18 a 24 anos": {"M": 0, "F": 0, "total": 0}, "25 a 29 anos": {"M": 0, "F": 0, "total": 0}, "30 a 49 anos": {"M": 0, "F": 1, "total": 1}, "50 a 59 anos": {"M": 0, "F": 2, "total": 2}, "60 a 64 anos": {"M": 0, "F": 0, "total": 0}, "65 a 69 anos": {"M": 0, "F": 0, "total": 0}, "70 a 74 anos": {"M": 0, "F": 0, "total": 0}, "75 ou mais": {"M": 0, "F": 0, "total": 0}}, "atend_externo": [{"mes": "JANEIRO", "mes_idx": 0, "pessoal": 0, "telefone": 0, "visitas": 0, "reunioes": 0, "eventos": 0, "passeios": 0}, {"mes": "FEVEREIRO", "mes_idx": 1, "pessoal": 0, "telefone": 0, "visitas": 0, "reunioes": 0, "eventos": 0, "passeios": 0}, {"mes": "MARÇO", "mes_idx": 2, "pessoal": 0, "telefone": 0, "visitas": 0, "reunioes": 1, "eventos": 0, "passeios": 0}, {"mes": "ABRIL", "mes_idx": 3, "pessoal": 0, "telefone": 0, "visitas": 0, "reunioes": 0, "eventos": 0, "passeios": 0}, {"mes": "MAIO", "mes_idx": 4, "pessoal": 0, "telefone": 0, "visitas": 0, "reunioes": 1, "eventos": 1, "passeios": 0}, {"mes": "JUNHO", "mes_idx": 5, "pessoal": 0, "telefone": 0, "visitas": 0, "reunioes": 0, "eventos": 1, "passeios": 0}, {"mes": "JULHO", "mes_idx": 6, "pessoal": 0, "telefone": 0, "visitas": 0, "reunioes": 0, "eventos": 0, "passeios": 0}, {"mes": "AGOSTO", "mes_idx": 7, "pessoal": 0, "telefone": 0, "visitas": 0, "reunioes": 1, "eventos": 0, "passeios": 0}, {"mes": "SETEMBRO", "mes_idx": 8, "pessoal": 0, "telefone": 0, "visitas": 0, "reunioes": 0, "eventos": 1, "passeios": 0}, {"mes": "OUTUBRO", "mes_idx": 9, "pessoal": 0, "telefone": 0, "visitas": 0, "reunioes": 1, "eventos": 0, "passeios": 0}, {"mes": "NOVEMBRO", "mes_idx": 10, "pessoal": 0, "telefone": 0, "visitas": 0, "reunioes": 0, "eventos": 1, "passeios": 0}, {"mes": "DEZEMBRO", "mes_idx": 11, "pessoal": 0, "telefone": 0, "visitas": 0, "reunioes": 1, "eventos": 0, "passeios": 0}]}, {"unidade": "CAP CONTINUADA BOM PASTOR", "atendidos_ano": 66, "atendimentos_ano": 651, "refeicoes_ano": 1206, "remanescentes_ini": 54, "entradas_ano": 6, "motivos": {}, "monthly": [{"mes": "JANEIRO", "mes_idx": 0, "entrada": 0, "saida": 5, "dias_uteis": 0, "atendidos": 49, "atendimentos": 0, "ref_diarias": 2, "ref_alim": 0}, {"mes": "FEVEREIRO", "mes_idx": 1, "entrada": 5, "saida": 0, "dias_uteis": 0, "atendidos": 54, "atendimentos": 0, "ref_diarias": 2, "ref_alim": 0}, {"mes": "MARÇO", "mes_idx": 2, "entrada": 0, "saida": 3, "dias_uteis": 0, "atendidos": 51, "atendimentos": 0, "ref_diarias": 2, "ref_alim": 0}, {"mes": "ABRIL", "mes_idx": 3, "entrada": 0, "saida": 0, "dias_uteis": 0, "atendidos": 51, "atendimentos": 0, "ref_diarias": 2, "ref_alim": 0}, {"mes": "MAIO", "mes_idx": 4, "entrada": 0, "saida": 0, "dias_uteis": 0, "atendidos": 51, "atendimentos": 0, "ref_diarias": 2, "ref_alim": 0}, {"mes": "JUNHO", "mes_idx": 5, "entrada": 0, "saida": 0, "dias_uteis": 0, "atendidos": 51, "atendimentos": 0, "ref_diarias": 2, "ref_alim": 0}, {"mes": "JULHO", "mes_idx": 6, "entrada": 0, "saida": 0, "dias_uteis": 0, "atendidos": 51, "atendimentos": 0, "ref_diarias": 2, "ref_alim": 0}, {"mes": "AGOSTO", "mes_idx": 7, "entrada": 0, "saida": 1, "dias_uteis": 0, "atendidos": 50, "atendimentos": 0, "ref_diarias": 2, "ref_alim": 0}, {"mes": "SETEMBRO", "mes_idx": 8, "entrada": 0, "saida": 1, "dias_uteis": 0, "atendidos": 49, "atendimentos": 0, "ref_diarias": 2, "ref_alim": 0}, {"mes": "OUTUBRO", "mes_idx": 9, "entrada": 1, "saida": 1, "dias_uteis": 0, "atendidos": 49, "atendimentos": 0, "ref_diarias": 2, "ref_alim": 0}, {"mes": "NOVEMBRO", "mes_idx": 10, "entrada": 0, "saida": 0, "dias_uteis": 0, "atendidos": 49, "atendimentos": 0, "ref_diarias": 2, "ref_alim": 0}, {"mes": "DEZEMBRO", "mes_idx": 11, "entrada": 0, "saida": 1, "dias_uteis": 0, "atendidos": 48, "atendimentos": 0, "ref_diarias": 2, "ref_alim": 0}], "faixa_etaria": {"0 a 05 anos": {"M": 0, "F": 0, "total": 0}, "06 a 11 anos": {"M": 0, "F": 0, "total": 0}, "12 a 14 anos": {"M": 0, "F": 0, "total": 0}, "15 a 17 anos": {"M": 0, "F": 0, "total": 0}, "18 a 24 anos": {"M": 0, "F": 2, "total": 2}, "25 a 29 anos": {"M": 0, "F": 3, "total": 3}, "30 a 49 anos": {"M": 2, "F": 41, "total": 43}, "50 a 59 anos": {"M": 2, "F": 11, "total": 13}, "60 a 64 anos": {"M": 0, "F": 2, "total": 2}, "65 a 69 anos": {"M": 0, "F": 1, "total": 1}, "70 a 74 anos": {"M": 0, "F": 0, "total": 0}, "75 ou mais": {"M": 0, "F": 2, "total": 2}}, "atend_externo": [{"mes": "JANEIRO", "mes_idx": 0, "pessoal": 0, "telefone": 0, "visitas": 0, "reunioes": 49, "eventos": 0, "passeios": 0}, {"mes": "FEVEREIRO", "mes_idx": 1, "pessoal": 0, "telefone": 0, "visitas": 0, "reunioes": 54, "eventos": 0, "passeios": 0}, {"mes": "MARÇO", "mes_idx": 2, "pessoal": 0, "telefone": 0, "visitas": 0, "reunioes": 51, "eventos": 0, "passeios": 0}, {"mes": "ABRIL", "mes_idx": 3, "pessoal": 0, "telefone": 0, "visitas": 0, "reunioes": 51, "eventos": 0, "passeios": 0}, {"mes": "MAIO", "mes_idx": 4, "pessoal": 0, "telefone": 0, "visitas": 0, "reunioes": 51, "eventos": 0, "passeios": 0}, {"mes": "JUNHO", "mes_idx": 5, "pessoal": 0, "telefone": 0, "visitas": 0, "reunioes": 51, "eventos": 0, "passeios": 0}, {"mes": "JULHO", "mes_idx": 6, "pessoal": 0, "telefone": 0, "visitas": 0, "reunioes": 51, "eventos": 0, "passeios": 0}, {"mes": "AGOSTO", "mes_idx": 7, "pessoal": 0, "telefone": 0, "visitas": 0, "reunioes": 50, "eventos": 0, "passeios": 0}, {"mes": "SETEMBRO", "mes_idx": 8, "pessoal": 0, "telefone": 0, "visitas": 0, "reunioes": 49, "eventos": 0, "passeios": 0}, {"mes": "OUTUBRO", "mes_idx": 9, "pessoal": 0, "telefone": 0, "visitas": 0, "reunioes": 49, "eventos": 0, "passeios": 0}, {"mes": "NOVEMBRO", "mes_idx": 10, "pessoal": 0, "telefone": 0, "visitas": 0, "reunioes": 49, "eventos": 0, "passeios": 0}, {"mes": "DEZEMBRO", "mes_idx": 11, "pessoal": 0, "telefone": 0, "visitas": 0, "reunioes": 48, "eventos": 0, "passeios": 48}]}];
 const AG = {"crianças": ["0 a 05 anos", "06 a 11 anos"], "adolescentes": ["12 a 14 anos", "15 a 17 anos"], "jovens": ["18 a 24 anos", "25 a 29 anos"], "adultos": ["30 a 49 anos", "50 a 59 anos", "60 a 64 anos", "65 a 69 anos", "70 a 74 anos", "75 ou mais"]};
 const AB = ["0 a 05 anos", "06 a 11 anos", "12 a 14 anos", "15 a 17 anos", "18 a 24 anos", "25 a 29 anos", "30 a 49 anos", "50 a 59 anos", "60 a 64 anos", "65 a 69 anos", "70 a 74 anos", "75 ou mais"];
 const MP = ['JANEIRO','FEVEREIRO','MARÇO','ABRIL','MAIO','JUNHO','JULHO','AGOSTO','SETEMBRO','OUTUBRO','NOVEMBRO','DEZEMBRO'];
@@ -272,20 +325,38 @@ function upKPIs(data,faixa){
   document.getElementById('hdr-a').textContent=fmt(a);
   document.getElementById('hdr-b').textContent=fmt(b);
   document.getElementById('hdr-c').textContent=fmt(c);
+
   const tM=Object.values(faixa).reduce((s,v)=>s+v.M,0);
   const tF=Object.values(faixa).reduce((s,v)=>s+v.F,0);
-  const tot=tM+tF;
+  const totFaixa=tM+tF;
+
   document.getElementById('gm').textContent=fmt(tM);
   document.getElementById('gf').textContent=fmt(tF);
-  document.getElementById('gmp').textContent=pct(tM,tot)+' do total';
-  document.getElementById('gfp').textContent=pct(tF,tot)+' do total';
+  // Percentages are against the faixa total (people with sex data)
+  document.getElementById('gmp').textContent=pct(tM,totFaixa)+' do total c/ dados';
+  document.getElementById('gfp').textContent=pct(tF,totFaixa)+' do total c/ dados';
+
+  // Warning for units without faixa data
+  const semDados = data.filter(u=>u.atendidos_ano>0 && Object.values(u.faixa_etaria).every(v=>v.total===0));
+  const avisoEl = document.getElementById('sem-dados-aviso');
+  if(semDados.length>0) {
+    const totalSem = semDados.reduce((s,u)=>s+u.atendidos_ano,0);
+    const nomes = semDados.map(u=>u.unidade).join(', ');
+    document.getElementById('sem-dados-msg').textContent =
+      `${fmt(totalSem)} atendido(s) sem distribuição por sexo/faixa etária (${nomes}). `+
+      `O total geral (${fmt(a)}) inclui esses registros, mas Masculino + Feminino soma ${fmt(totFaixa)}.`;
+    avisoEl.style.display='block';
+  } else {
+    avisoEl.style.display='none';
+  }
+
   const g=fxToGrp(faixa);
   const tc=(g.crianças.M+g.crianças.F),ta=(g.adolescentes.M+g.adolescentes.F);
   const tj=(g.jovens.M+g.jovens.F),tad=(g.adultos.M+g.adultos.F);
-  document.getElementById('pc-criancas').textContent=pct(tc,tot);
-  document.getElementById('pc-adol').textContent=pct(ta,tot);
-  document.getElementById('pc-jovens').textContent=pct(tj,tot);
-  document.getElementById('pc-adultos').textContent=pct(tad,tot);
+  document.getElementById('pc-criancas').textContent=pct(tc,totFaixa);
+  document.getElementById('pc-adol').textContent=pct(ta,totFaixa);
+  document.getElementById('pc-jovens').textContent=pct(tj,totFaixa);
+  document.getElementById('pc-adultos').textContent=pct(tad,totFaixa);
 }
 
 // ── Unit cards ─────────────────────────────────────────────────────────────
@@ -382,7 +453,7 @@ function bTbl(monthly){
 function render(){
   const data=fil();
   const monthly=mMon(data),motivos=mMot(data),faixa=mFx(data);
-  upKPIs(data,faixa);bAge(faixa);bMon(monthly);bMvFx(motivos,faixa);bTbl(monthly);bFaixaTbl(faixa,data);
+  upKPIs(data,faixa);bAge(faixa);bMon(monthly);bMvFx(motivos,faixa);bTbl(monthly);bFaixaTbl(faixa,data);bExtTbl(data);
 }
 
 // ── ISSP Faixa Etária table ────────────────────────────────────────────────
@@ -412,13 +483,13 @@ function bFaixaTbl(faixa, data){
     const M = bands.reduce((s,b)=>(faixa[b]?.M||0)+s, 0);
     const F = bands.reduce((s,b)=>(faixa[b]?.F||0)+s, 0);
     totM += M; totF += F;
-    const bg = i%2===0 ? '#dde8f7' : '#eef3fb';
+    const bg = i%2===0 ? '#eef2fa' : '#dde6f5';
     const tr = document.createElement('tr');
     tr.style.background = bg;
     tr.innerHTML = `
-      <td style="padding:9px 18px;font-family:Poppins,sans-serif;font-size:12px;font-weight:500;color:#1a1c2e;border-right:1px solid var(--border)">${nome}</td>
-      <td style="padding:9px 18px;text-align:center;font-family:'JetBrains Mono',monospace;font-size:13px;font-weight:600;color:#1565c0;border-right:1px solid var(--border)">${M||''}</td>
-      <td style="padding:9px 18px;text-align:center;font-family:'JetBrains Mono',monospace;font-size:13px;font-weight:600;color:#c2185b">${F||''}</td>`;
+      <td style="padding:9px 14px;font-family:Poppins,sans-serif;font-size:11px;font-weight:500;color:#1a1c2e;border-right:1px solid #c8d8f8">${nome}</td>
+      <td style="padding:9px 14px;text-align:center;font-family:'JetBrains Mono',monospace;font-size:13px;font-weight:700;color:#21438e;border-right:1px solid #c8d8f8">${M||''}</td>
+      <td style="padding:9px 14px;text-align:center;font-family:'JetBrains Mono',monospace;font-size:13px;font-weight:700;color:#e63827">${F||''}</td>`;
     tbody.appendChild(tr);
   });
 
@@ -429,17 +500,75 @@ function bFaixaTbl(faixa, data){
 function copyFaixaTable(){
   const rows = [];
   const label = document.getElementById('faixaColHead').textContent;
-  rows.push(['FAIXA ETÁRIA', label+' - MASCULINO', label+' - FEMININO'].join('	'));
+  rows.push(['FAIXA ETÁRIA', label+' - MASCULINO', label+' - FEMININO'].join('\t'));
   document.querySelectorAll('#faixaTblBody tr').forEach(tr=>{
     const cells = [...tr.querySelectorAll('td')].map(td=>td.textContent.trim());
-    rows.push(cells.join('	'));
+    rows.push(cells.join('\t'));
   });
-  rows.push(['TOTAIS', document.getElementById('fx-tot-m').textContent, document.getElementById('fx-tot-f').textContent].join('	'));
+  rows.push(['TOTAIS', document.getElementById('fx-tot-m').textContent, document.getElementById('fx-tot-f').textContent].join('\t'));
   navigator.clipboard.writeText(rows.join('\n')).then(()=>{
     const btn=document.getElementById('copyFaixaBtn');
     btn.textContent='✅ Copiado!';
-    setTimeout(()=>btn.innerHTML='📋 Copiar tabela',2000);
+    setTimeout(()=>btn.innerHTML='📋 Copiar',2000);
   }).catch(()=>{alert('Use Ctrl+C após selecionar a tabela manualmente.');});
+}
+
+// ── Atendimento Externo table ──────────────────────────────────────────────
+const MS_SHORT = ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
+const EXT_FIELDS = ['pessoal','telefone','visitas','reunioes','eventos','passeios'];
+
+function mExt(units){
+  const m={};
+  units.forEach(u=>{
+    (u.atend_externo||[]).forEach(mo=>{
+      if(!m[mo.mes])m[mo.mes]={mes:mo.mes,mes_idx:mo.mes_idx,pessoal:0,telefone:0,visitas:0,reunioes:0,eventos:0,passeios:0};
+      EXT_FIELDS.forEach(f=>{m[mo.mes][f]+=mo[f]||0;});
+    });
+  });
+  return Object.values(m).sort((a,b)=>a.mes_idx-b.mes_idx);
+}
+
+function bExtTbl(data){
+  const ext=mExt(data);
+  const tbody=document.getElementById('extTblBody');
+  tbody.innerHTML='';
+  const tots={pessoal:0,telefone:0,visitas:0,reunioes:0,eventos:0,passeios:0};
+  if(!ext.length){
+    const tr=document.createElement('tr');
+    tr.innerHTML='<td colspan="7" style="padding:12px;text-align:center;color:var(--muted);font-size:12px">Sem dados de atendimento externo</td>';
+    tbody.appendChild(tr); return;
+  }
+  ext.forEach((m,i)=>{
+    EXT_FIELDS.forEach(f=>{tots[f]+=m[f]||0;});
+    const bg=i%2===0?'#fff':'#fef6ee';
+    const lbl=MS_SHORT[MP.indexOf(m.mes)]||m.mes.slice(0,3);
+    const tr=document.createElement('tr');
+    tr.style.background=bg;
+    tr.innerHTML=`<td style="padding:6px 10px;font-family:Poppins,sans-serif;font-size:11px;font-weight:700;color:#21438e;border-right:1px solid #e8e8e8">${lbl}</td>`
+      +EXT_FIELDS.map((f,fi)=>`<td style="padding:6px 10px;text-align:right;font-family:'JetBrains Mono',monospace;font-size:11px;font-weight:500;color:#1a1c2e${fi<EXT_FIELDS.length-1?';border-right:1px solid #e8e8e8':''}">${m[f]||''}</td>`).join('');
+    tbody.appendChild(tr);
+  });
+  EXT_FIELDS.forEach(f=>{document.getElementById('ext-'+f).textContent=fmt(tots[f]);});
+}
+
+function copyExtTable(){
+  const rows=[['MÊS','PESSOAL/e','TELEFONE','VISITAS','REUNIÕES','EVENTOS','PASSEIOS'].join('\t')];
+  document.querySelectorAll('#extTblBody tr').forEach(tr=>{
+    rows.push([...tr.querySelectorAll('td')].map(td=>td.textContent.trim()).join('\t'));
+  });
+  rows.push(['TOTAL',
+    document.getElementById('ext-pessoal').textContent,
+    document.getElementById('ext-telefone').textContent,
+    document.getElementById('ext-visitas').textContent,
+    document.getElementById('ext-reunioes').textContent,
+    document.getElementById('ext-eventos').textContent,
+    document.getElementById('ext-passeios').textContent
+  ].join('\t'));
+  navigator.clipboard.writeText(rows.join('\n')).then(()=>{
+    const btn=document.getElementById('copyExtBtn');
+    btn.textContent='✅ Copiado!';
+    setTimeout(()=>btn.innerHTML='📋 Copiar',2000);
+  }).catch(()=>{alert('Use Ctrl+C após selecionar manualmente.');});
 }
 
 // ── Group detection ────────────────────────────────────────────────────────
@@ -716,6 +845,17 @@ function parseSheet2(ws, nome){
     for(const m of MOTIVOS_JS){if(lbl.includes(m)){const v=si2(g(r,1));if(v>0)motivos[m]=(motivos[m]||0)+v;}}
   }
 
+  // ── Valida: se M+F > atendidos_ano, escala proporcionalmente ─────────────
+  const fxTotal=AGE_BANDS_JS.reduce((s,b)=>s+(faixa_etaria[b]?.total||0),0);
+  if(fxTotal > atendidos_ano && atendidos_ano > 0) {
+    const ratio = atendidos_ano / fxTotal;
+    AGE_BANDS_JS.forEach(b=>{
+      faixa_etaria[b].M     = Math.round((faixa_etaria[b].M||0)*ratio);
+      faixa_etaria[b].F     = Math.round((faixa_etaria[b].F||0)*ratio);
+      faixa_etaria[b].total = faixa_etaria[b].M + faixa_etaria[b].F;
+    });
+  }
+
   return {unidade:nome,atendidos_ano,
     atendimentos_ano:atend_hdr>0?atend_hdr:calcAtend,
     refeicoes_ano:ref_hdr>0?ref_hdr:calcRef,
@@ -724,9 +864,28 @@ function parseSheet2(ws, nome){
 }
 
 function addUnits(newUnits,fileName){
-  newUnits.forEach(nu=>{const i=D.findIndex(u=>u.unidade===nu.unidade);if(i>=0)D.splice(i,1);D.push(nu);});
+  const warnings=[];
+  newUnits.forEach(nu=>{
+    // Replace same unit name
+    const i=D.findIndex(u=>u.unidade===nu.unidade);
+    if(i>=0)D.splice(i,1);
+
+    // Warn about identical faixa fingerprint (different name, same data)
+    const nuM=AGE_BANDS_JS.reduce((s,b)=>s+(nu.faixa_etaria[b]?.M||0),0);
+    const nuF=AGE_BANDS_JS.reduce((s,b)=>s+(nu.faixa_etaria[b]?.F||0),0);
+    if(nuM+nuF>0){
+      const dup=D.find(u=>{
+        const uM=AGE_BANDS_JS.reduce((s,b)=>s+(u.faixa_etaria[b]?.M||0),0);
+        const uF=AGE_BANDS_JS.reduce((s,b)=>s+(u.faixa_etaria[b]?.F||0),0);
+        return uM===nuM && uF===nuF && uM+uF>0;
+      });
+      if(dup) warnings.push(`⚠ "${nu.unidade}" e "${dup.unidade}" têm dados de faixa idênticos (${nuM}M+${nuF}F) — possível duplicata.`);
+    }
+    D.push(nu);
+  });
   const fi=ifiles.findIndex(f=>f.fileName===fileName);if(fi>=0)ifiles.splice(fi,1);
   ifiles.push({fileName,units:newUnits.map(u=>u.unidade)});
+  if(warnings.length) setTimeout(()=>alert('Aviso de dados:\n\n'+warnings.join('\n')),500);
 }
 
 function loadExcel(file){
