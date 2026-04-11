@@ -70,6 +70,13 @@ def extrair_freq(freq_path):
                     period_rows.append(idx); break
         for pidx, header_idx in enumerate(period_rows):
             header = df.iloc[header_idx]; date_row = df.iloc[header_idx+1]
+            # Detect turno from header cell
+            turno_key = 'GERAL'
+            for c in range(df.shape[1]):
+                hv = str(df.iloc[header_idx,c]).strip().upper() if pd.notna(df.iloc[header_idx,c]) else ''
+                if 'MANHÃ' in hv or 'MANHA' in hv: turno_key='MANHÃ'; break
+                elif 'TARDE' in hv: turno_key='TARDE'; break
+                elif 'NOITE' in hv: turno_key='NOITE'; break
             freq_date_map = {}
             for c in range(df.shape[1]):
                 if pd.notna(header.iloc[c]) and str(header.iloc[c]).strip().upper()=='FREQ':
@@ -88,7 +95,8 @@ def extrair_freq(freq_path):
                 if not (pd.notna(cv) and isinstance(cv,str)): continue
                 cn = cv.strip()
                 if any(s in cn.upper() for s in ['TOTAL','SALDO','PLANJ','NÃO FEZ','ANTES','ELETROTÉC','GUIA','PARADA','CURSOS AB']) or len(cn)<3: continue
-                key = re.sub(r'\s+',' ', cn.upper().strip())
+                plain_key = re.sub(r'\s+',' ', cn.upper().strip())
+                key = turno_key + '|' + plain_key
                 if key not in all_freq: all_freq[key]={}
                 if matr_col and matr_col<len(row):
                     mv=row.iloc[matr_col]
@@ -104,14 +112,24 @@ def extrair_freq(freq_path):
             course_freq_avg[key] = round(sum(vals) / len(vals), 1)
     return all_freq, course_meta, course_freq_avg
 
-def find_freq_key(nome, all_freq, freq_keys):
+def find_freq_key(nome, all_freq, freq_keys, turno='', turno_freq_keys=None):
     if not nome: return None
     nu = nome.upper().strip()
     for mk, mv in MANUAL_MAP.items():
         if mk in nu or nu in mk:
             fk = re.sub(r'\s+',' ', mv.upper().strip())
+            # Try turno-specific key first
+            if turno and (turno+'|'+fk) in all_freq: return turno+'|'+fk
             if fk in all_freq: return fk
     n = normalize(nome)
+    # Try turno-specific key using turno_freq_keys (with partial match for truncated names)
+    if turno and turno_freq_keys:
+        tk = turno + ' ' + n
+        if tk in turno_freq_keys: return turno_freq_keys[tk]
+        # Partial match: turno key starts with our (possibly truncated) lookup key
+        for tfk, tfv in turno_freq_keys.items():
+            if tfk.startswith(tk[:max(20, len(tk)-5)]): return tfv
+    
     if n in freq_keys: return freq_keys[n]
     for fk, orig in freq_keys.items():
         if n[:15]==fk[:15]: return orig
@@ -155,19 +173,28 @@ def extrair_grade(grade_files):
     return list(courses.values()), schedule
 
 def enriquecer(schedule, all_freq, course_meta, course_freq_avg):
-    freq_keys = {normalize(k):k for k in all_freq}
+    # Build two lookup dicts: plain normalized and turno-prefixed
+    freq_keys = {normalize(k):k for k in all_freq if '|' not in k}
+    # turno_freq_keys: 'TARDE NOME NORMALIZADO' -> 'TARDE|NOME ORIGINAL'
+    turno_freq_keys = {}
+    for k in all_freq:
+        if '|' in k:
+            turno, nome = k.split('|', 1)
+            turno_freq_keys[turno + ' ' + normalize(nome)] = k
     enriched=[]
     for s in schedule:
         e=dict(s)
         for w in ['1','2']:
             nome=s[f'nome{w}']
             cod=s.get(f'cod{w}')
+            turno=s.get('turno','').upper()
             # Try COD_MAP first (bypasses normalize for tricky names)
             if cod and cod in COD_MAP:
                 mapped = COD_MAP[cod]
-                fk = mapped if mapped in all_freq else None
+                turno_key = turno + '|' + mapped
+                fk = turno_key if turno_key in all_freq else (mapped if mapped in all_freq else None)
             else:
-                fk=find_freq_key(nome,all_freq,freq_keys) if nome else None
+                fk=find_freq_key(nome,all_freq,freq_keys,turno,turno_freq_keys) if nome else None
             freq_on_date = all_freq[fk].get(s['date']) if fk else None
             freq_avg     = course_freq_avg.get(fk)     if fk else None
             matr         = course_meta.get(fk)         if fk else None
@@ -943,4 +970,3 @@ if __name__ == '__main__':
     print("="*55)
     print("  ✅  Concluído!")
     print("="*55 + "\n")
-
