@@ -139,8 +139,11 @@ main{padding:24px 40px 40px}
 .pc .pv{font-family:'JetBrains Mono',monospace;font-size:18px;font-weight:700;color:var(--ink)}
 .pc .ps{font-size:10px;color:var(--muted);font-family:'JetBrains Mono',monospace}
 
-.tbl-issp-wrap{display:flex;justify-content:center;margin-bottom:20px}
-.tbl-issp-wrap .tbl-issp{max-width:560px;width:100%}
+.grid-faixa-genero{
+  display:grid;grid-template-columns:1.3fr 1fr;gap:16px;margin-bottom:16px;align-items:start;
+}
+.grid-faixa-genero .chart-box{min-height:380px}
+.grid-faixa-genero .tbl-issp{height:fit-content}
 
 .tbl-issp{border:1px solid var(--ink);background:#fff}
 .tbl-issp .th{background:#21438e;color:#fff;padding:10px 12px;display:flex;align-items:center;justify-content:space-between}
@@ -271,7 +274,7 @@ main{padding:24px 40px 40px}
   main{padding:16px 14px !important}
 
   /* Nada deve sangrar entre páginas */
-  .funil,.kr,.gkr,.pr,.tbl-issp-wrap,.mapa-wrap,.chart-box,.tabela-det,.gk,.pc,.kpi{
+  .funil,.kr,.gkr,.pr,.grid-faixa-genero,.mapa-wrap,.chart-box,.tabela-det,.gk,.pc,.kpi,.tbl-issp{
     page-break-inside:avoid !important;
     break-inside:avoid !important;
   }
@@ -332,7 +335,7 @@ footer .mono{opacity:.75;font-size:11px;margin-top:4px}
   .logo-feitec{height:60px}
   .kr{grid-template-columns:repeat(2,1fr)}
   .pr{grid-template-columns:repeat(4,1fr)}
-  .g2,.gac,.gkr{grid-template-columns:1fr !important}
+  .g2,.gac,.gkr,.grid-faixa-genero{grid-template-columns:1fr !important}
   header,.toolbar,main,footer{padding-left:20px;padding-right:20px}
 }
 </style>
@@ -403,7 +406,7 @@ footer .mono{opacity:.75;font-size:11px;margin-top:4px}
     Exportar PDF
   </button>
 
-  <div class="tb-date">Atualizado em 25/04/2026 17:43</div>
+  <div class="tb-date">Atualizado em 25/04/2026 19:28</div>
 </div>
 
 <main>
@@ -476,32 +479,6 @@ footer .mono{opacity:.75;font-size:11px;margin-top:4px}
 
   <div class="pr" id="faixaPct"></div>
 
-  <div class="tbl-issp-wrap">
-    <div class="tbl-issp">
-      <div class="th">
-        <div class="th-t">Faixa Etária × Gênero</div>
-        <button class="btn-cp" onclick="copiarTabelaIssp()">📋 Copiar</button>
-      </div>
-      <table id="tblIssp">
-        <thead>
-          <tr>
-            <th style="text-align:left;background:#1a3475;color:#fff">FAIXA ETÁRIA</th>
-            <th class="hM">MASCULINO</th>
-            <th class="hF">FEMININO</th>
-            <th style="background:#1a3475;color:#fff">TOTAL</th>
-          </tr>
-        </thead>
-        <tbody></tbody>
-        <tfoot><tr>
-          <td class="lbl" style="text-align:left">TOTAIS</td>
-          <td id="ft-M">0</td>
-          <td id="ft-F">0</td>
-          <td id="ft-T">0</td>
-        </tr></tfoot>
-      </table>
-    </div>
-  </div>
-
   <!-- MAPA DE SP -->
   <div class="sh">
     <div class="st">Distribuição Territorial dos Inscritos</div>
@@ -556,17 +533,45 @@ footer .mono{opacity:.75;font-size:11px;margin-top:4px}
     </div>
   </div>
 
-  <div class="gac">
+  <div class="sh">
+    <div class="st">Faixa Etária e Gênero</div>
+    <div class="ss">Distribuição visual e tabular dos mesmos dados</div>
+  </div>
+  <div class="grid-faixa-genero">
     <div class="chart-box">
-      <div class="bt">Faixa Etária × Gênero</div>
-      <div class="bs">Distribuição de inscritos por grupo etário e gênero</div>
+      <div class="bt">Distribuição em barras</div>
+      <div class="bs">Inscritos por grupo etário e gênero</div>
       <canvas id="chartFaixa"></canvas>
     </div>
-    <div class="chart-box">
-      <div class="bt">Situação Profissional / Acadêmica</div>
-      <div class="bs">Ocupação principal declarada</div>
-      <canvas id="chartSit"></canvas>
+    <div class="tbl-issp">
+      <div class="th">
+        <div class="th-t">Faixa Etária × Gênero</div>
+        <button class="btn-cp" onclick="copiarTabelaIssp()">📋 Copiar</button>
+      </div>
+      <table id="tblIssp">
+        <thead>
+          <tr>
+            <th style="text-align:left;background:#1a3475;color:#fff">FAIXA ETÁRIA</th>
+            <th class="hM">MASCULINO</th>
+            <th class="hF">FEMININO</th>
+            <th style="background:#1a3475;color:#fff">TOTAL</th>
+          </tr>
+        </thead>
+        <tbody></tbody>
+        <tfoot><tr>
+          <td class="lbl" style="text-align:left">TOTAIS</td>
+          <td id="ft-M">0</td>
+          <td id="ft-F">0</td>
+          <td id="ft-T">0</td>
+        </tr></tfoot>
+      </table>
     </div>
+  </div>
+
+  <div class="chart-box" style="margin-bottom:16px">
+    <div class="bt">Situação Profissional / Acadêmica</div>
+    <div class="bs">Ocupação principal declarada</div>
+    <canvas id="chartSit"></canvas>
   </div>
 
   <div class="sh">
@@ -611,7 +616,7 @@ footer .mono{opacity:.75;font-size:11px;margin-top:4px}
 
 <footer>
   <div>Feitec ESG 2025 · 6ª Edição · Obra Social Dom Bosco de Itaquera</div>
-  <div class="mono">Dashboard gerado em 25/04/2026 17:43 · Dados anonimizados · Uso institucional</div>
+  <div class="mono">Dashboard gerado em 25/04/2026 19:28 · Dados anonimizados · Uso institucional</div>
 </footer>
 
 <script>
