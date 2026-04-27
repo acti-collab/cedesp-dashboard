@@ -234,70 +234,6 @@ main{padding:24px 40px 40px}
 .pdf-btn:hover{background:#c12b1e}
 .pdf-btn svg{width:14px;height:14px}
 
-/* Capa do PDF — só aparece durante impressão */
-.print-cover{display:none}
-.print-only{display:none}
-.print-section-title{display:none}
-
-@media print {
-  @page {
-    size: A4 landscape;
-    margin: 10mm 10mm 12mm 10mm;
-  }
-
-  /* Cores precisam aparecer no PDF */
-  *,*::before,*::after{
-    -webkit-print-color-adjust:exact !important;
-    print-color-adjust:exact !important;
-    color-adjust:exact !important;
-  }
-
-  /* Tipografia mais compacta para impressão */
-  html,body{font-size:11px;background:#fff !important}
-
-  /* Esconder elementos de UI não-imprimíveis */
-  .toolbar,.dropdown,.paginacao,.btn-cp,.pdf-btn{display:none !important}
-
-  /* Mostrar elementos só de print */
-  .print-cover{display:flex !important}
-  .print-only{display:block !important}
-  .print-section-title{display:block !important}
-
-  /* Header fica mais compacto */
-  header{padding:14px 20px 16px !important;page-break-after:avoid;break-after:avoid}
-  .logo-feitec{height:50px !important}
-  .hbrand-text h1{font-size:16px !important}
-  .hbrand-text .h-s{font-size:10px !important}
-  .htop-kpi{padding:6px 10px !important;min-width:90px !important}
-  .htop-kpi .k-v{font-size:16px !important}
-
-  main{padding:16px 14px !important}
-
-  /* Nada deve sangrar entre páginas */
-  .funil,.kr,.gkr,.pr,.grid-faixa-genero,.mapa-wrap,.chart-box,.tabela-det,.gk,.pc,.kpi,.tbl-issp{
-    page-break-inside:avoid !important;
-    break-inside:avoid !important;
-  }
-  .g2,.gac{page-break-inside:auto !important;break-inside:auto !important}
-  .sh{page-break-after:avoid !important;break-after:avoid !important}
-
-  /* Forçar quebras de página estratégicas para um relatório limpo */
-  .kr{page-break-after:auto;break-after:auto}
-  .mapa-wrap{page-break-before:auto;break-before:auto}
-
-  /* Charts: garantir que canvas fiquem visíveis */
-  .chart-box{min-height:auto !important;padding:10px !important;page-break-inside:avoid !important}
-  .chart-box canvas{max-height:230px !important}
-
-  /* Tabela detalhada: tirar (muitas páginas) */
-  .tabela-det,.sh:has(+ .tabela-det),
-  .tabela-det,.sh:has(#detSub){display:none !important}
-
-  /* Funil mais compacto */
-  .funil{padding:14px 18px !important}
-  .funil-step .v{font-size:24px !important}
-}
-
 .chart-box{background:var(--surface);border:1px solid var(--border);padding:18px;min-height:340px;position:relative}
 .chart-box canvas{max-height:320px}
 
@@ -401,16 +337,17 @@ footer .mono{opacity:.75;font-size:11px;margin-top:4px}
 
   <div class="tb-pills" id="pills"></div>
 
-  <button class="pdf-btn" id="btnPDF" style="margin-left:auto" title="Gera um PDF com todos os gráficos, tabelas e o mapa, em formato A4 paisagem.">
+  <button class="pdf-btn" id="btnPDF" style="margin-left:auto" title="Gera um PDF A4 retrato com header institucional, gráficos, tabelas e mapa.">
     <svg viewBox="0 0 24 24" fill="currentColor"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8l-6-6zm2 16H8v-2h8v2zm0-4H8v-2h8v2zm-3-5V3.5L18.5 9H13z"/></svg>
     Exportar PDF
   </button>
 
-  <div class="tb-date">Atualizado em 25/04/2026 19:28</div>
+  <div class="tb-date">Atualizado em 27/04/2026 08:40</div>
 </div>
 
 <main>
 
+  <div id="sec-funil">
   <div class="funil">
     <div class="funil-step">
       <div class="l">Inscritos</div>
@@ -430,7 +367,9 @@ footer .mono{opacity:.75;font-size:11px;margin-top:4px}
       <div class="s" id="fAusentesSub">— do total</div>
     </div>
   </div>
+  </div>
 
+  <div id="sec-kpis">
   <div class="kr">
     <div class="kpi">
       <div class="l">Total na seleção</div>
@@ -458,7 +397,9 @@ footer .mono{opacity:.75;font-size:11px;margin-top:4px}
       <div class="s" id="kAcePct">—</div>
     </div>
   </div>
+  </div>
 
+  <div id="sec-perfil">
   <div class="sh">
     <div class="st">Perfil dos Inscritos</div>
     <div class="ss" id="perfSub">—</div>
@@ -478,8 +419,10 @@ footer .mono{opacity:.75;font-size:11px;margin-top:4px}
   </div>
 
   <div class="pr" id="faixaPct"></div>
+  </div>
 
   <!-- MAPA DE SP -->
+  <div id="sec-mapa">
   <div class="sh">
     <div class="st">Distribuição Territorial dos Inscritos</div>
     <div class="ss" id="mapaSub">—</div>
@@ -499,7 +442,9 @@ footer .mono{opacity:.75;font-size:11px;margin-top:4px}
       </div>
     </div>
   </div>
+  </div>
 
+  <div id="sec-comparecimento">
   <div class="sh">
     <div class="st">Comparecimento por Perfil</div>
     <div class="ss">Inscrição × Check-in efetivo</div>
@@ -516,7 +461,9 @@ footer .mono{opacity:.75;font-size:11px;margin-top:4px}
       <canvas id="chartCkSit"></canvas>
     </div>
   </div>
+  </div><!-- /sec-comparecimento -->
 
+  <div id="sec-evolucao">
   <div class="sh">
     <div class="st">Evolução e Perfil</div>
   </div>
@@ -532,7 +479,9 @@ footer .mono{opacity:.75;font-size:11px;margin-top:4px}
       <canvas id="chartRaca"></canvas>
     </div>
   </div>
+  </div><!-- /sec-evolucao -->
 
+  <div id="sec-faixa-genero">
   <div class="sh">
     <div class="st">Faixa Etária e Gênero</div>
     <div class="ss">Distribuição visual e tabular dos mesmos dados</div>
@@ -567,13 +516,17 @@ footer .mono{opacity:.75;font-size:11px;margin-top:4px}
       </table>
     </div>
   </div>
+  </div><!-- /sec-faixa-genero -->
 
+  <div id="sec-situacao">
   <div class="chart-box" style="margin-bottom:16px">
     <div class="bt">Situação Profissional / Acadêmica</div>
     <div class="bs">Ocupação principal declarada</div>
     <canvas id="chartSit"></canvas>
   </div>
+  </div><!-- /sec-situacao -->
 
+  <div id="sec-alcance">
   <div class="sh">
     <div class="st">Alcance e Divulgação</div>
   </div>
@@ -582,7 +535,9 @@ footer .mono{opacity:.75;font-size:11px;margin-top:4px}
     <div class="bs">Canal de divulgação mais efetivo (primeira menção)</div>
     <canvas id="chartCanal" style="max-height:280px"></canvas>
   </div>
+  </div><!-- /sec-alcance -->
 
+  <div id="sec-detalhamento">
   <div class="sh">
     <div class="st">Detalhamento dos Inscritos</div>
     <div class="ss" id="detSub">—</div>
@@ -612,11 +567,13 @@ footer .mono{opacity:.75;font-size:11px;margin-top:4px}
     </div>
   </div>
 
+  </div><!-- /sec-detalhamento -->
+
 </main>
 
 <footer>
   <div>Feitec ESG 2025 · 6ª Edição · Obra Social Dom Bosco de Itaquera</div>
-  <div class="mono">Dashboard gerado em 25/04/2026 19:28 · Dados anonimizados · Uso institucional</div>
+  <div class="mono">Dashboard gerado em 27/04/2026 08:40 · Dados anonimizados · Uso institucional</div>
 </footer>
 
 <script>
@@ -1428,18 +1385,165 @@ function copiarTabelaIssp(){
 }
 
 // ============================================================================
-// EXPORTAÇÃO PDF — usa o motor de impressão nativo do browser
+// EXPORTAÇÃO PDF — html2canvas + jsPDF carregados sob demanda
 // ============================================================================
 async function exportarPDF(){
-  // Garante que todos os charts redimensionaram corretamente
+  const btn = document.getElementById('btnPDF');
+  const txtOriginal = btn.innerHTML;
+  btn.innerHTML = '⏳ Gerando...';
+  btn.disabled = true;
+
+  // Carrega bibliotecas sob demanda
+  async function loadScript(src){
+    return new Promise((res, rej) => {
+      if(document.querySelector(`script[src="${src}"]`)){ res(); return; }
+      const s = document.createElement('script');
+      s.src = src; s.onload = res; s.onerror = rej;
+      document.head.appendChild(s);
+    });
+  }
+  try {
+    await loadScript('https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js');
+    await loadScript('https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js');
+  } catch(e) {
+    alert('Erro ao carregar bibliotecas de PDF. Verifique sua conexão com a internet.');
+    btn.innerHTML = txtOriginal; btn.disabled = false;
+    return;
+  }
+
+  // Garante que charts e fontes estão prontos
   Object.values({chartTempo, chartRaca, chartFaixa, chartSit, chartCanal, chartCkFaixa, chartCkSit}).forEach(c => {
     try { if(c) c.resize(); } catch(e) {}
   });
-  // Aguarda fontes
   if(document.fonts && document.fonts.ready) await document.fonts.ready;
-  await new Promise(r => setTimeout(r, 200));
-  // Abre diálogo de impressão (o usuário escolhe "Salvar como PDF")
-  window.print();
+  await new Promise(r => setTimeout(r, 350));
+
+  const { jsPDF } = window.jspdf;
+  const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+  const PW = 210, PH = 297, MARGIN = 12, CONTENT_W = PW - MARGIN*2;
+
+  // Header em cada página: faixa azul + barra de 4 cores OSDB + título + data + página
+  function addPageHeader(pdf, pageNum, filterLabel){
+    // Faixa azul
+    pdf.setFillColor(33, 67, 142);
+    pdf.rect(0, 0, PW, 14, 'F');
+    // Barra de 4 cores OSDB (azul, vermelho, teal, laranja)
+    const bars = [['#21438e', 0], ['#e63827', 52.5], ['#2bb19d', 105], ['#f37f1f', 157.5]];
+    bars.forEach(([c, x]) => {
+      const rgb = c.match(/[\da-f]{2}/gi).map(h => parseInt(h, 16));
+      pdf.setFillColor(rgb[0], rgb[1], rgb[2]);
+      pdf.rect(x, 14, 52.5, 2, 'F');
+    });
+    // Título
+    pdf.setFont('helvetica', 'bold');
+    pdf.setFontSize(10); pdf.setTextColor(255, 255, 255);
+    pdf.text('FEITEC ESG 2025 — Dashboard de Inscrições e Check-in', MARGIN, 9);
+    // Data/hora
+    pdf.setFont('helvetica', 'normal');
+    pdf.setFontSize(8); pdf.setTextColor(180, 190, 210);
+    const agora = new Date().toLocaleString('pt-BR', {
+      day: '2-digit', month: '2-digit', year: 'numeric',
+      hour: '2-digit', minute: '2-digit'
+    });
+    pdf.text(agora, PW - MARGIN, 9, { align: 'right' });
+    // Número de página no rodapé
+    pdf.setFontSize(7); pdf.setTextColor(140, 150, 170);
+    pdf.text(`Página ${pageNum}`, PW - MARGIN, PH - 4, { align: 'right' });
+    pdf.text('6ª Edição · Obra Social Dom Bosco de Itaquera', MARGIN, PH - 4);
+
+    // Subtítulo de filtro ativo (se houver)
+    if(filterLabel){
+      pdf.setFillColor(245, 248, 255);
+      pdf.rect(0, 16, PW, 10, 'F');
+      pdf.setDrawColor(33, 67, 142);
+      pdf.setLineWidth(0.4);
+      pdf.line(0, 16, PW, 16);
+      pdf.setFont('helvetica', 'bold');
+      pdf.setFontSize(9.5); pdf.setTextColor(33, 67, 142);
+      pdf.text(filterLabel, MARGIN, 23);
+      pdf.setFont('helvetica', 'normal');
+      pdf.setFontSize(7); pdf.setTextColor(120, 130, 155);
+      pdf.text('RELATÓRIO PARCIAL — FILTROS APLICADOS', PW - MARGIN, 23, { align: 'right' });
+    }
+  }
+
+  // Construir label de filtro a partir do estado atual
+  let filterLabel = '';
+  const partes = [];
+  if(!filtro.checkin.allMode && filtro.checkin.sel.size > 0){
+    partes.push('Check-in: ' + [...filtro.checkin.sel].join('/'));
+  }
+  if(!filtro.genero.allMode && filtro.genero.sel.size > 0){
+    partes.push('Gênero: ' + [...filtro.genero.sel].slice(0, 2).join('/'));
+  }
+  if(!filtro.raca.allMode && filtro.raca.sel.size > 0){
+    partes.push('Raça: ' + [...filtro.raca.sel].slice(0, 2).join('/'));
+  }
+  if(!filtro.situacao.allMode && filtro.situacao.sel.size > 0){
+    partes.push('Situação: ' + [...filtro.situacao.sel].slice(0, 2).join('/'));
+  }
+  if(!filtro.faixa.allMode && filtro.faixa.sel.size > 0){
+    partes.push('Faixa: ' + [...filtro.faixa.sel].slice(0, 2).join('/'));
+  }
+  if(partes.length > 0){
+    filterLabel = partes.slice(0, 3).join('   ·   ');
+    if(partes.length > 3) filterLabel += `   ·   (+${partes.length - 3} filtros)`;
+  }
+  const headerHeight = filterLabel ? 28 : 18;
+
+  // Seções a capturar em ordem
+  const sectionSelectors = [
+    '#sec-funil',
+    '#sec-kpis',
+    '#sec-perfil',
+    '#sec-faixa-genero',
+    '#sec-mapa',
+    '#sec-comparecimento',
+    '#sec-evolucao',
+    '#sec-situacao',
+    '#sec-alcance',
+  ];
+
+  let curY = headerHeight + 2;
+  let pageNum = 1;
+  addPageHeader(pdf, pageNum, filterLabel);
+
+  for(const sel of sectionSelectors){
+    const el = document.querySelector(sel);
+    if(!el) continue;
+
+    const canvas = await html2canvas(el, {
+      scale: 2,
+      useCORS: true,
+      backgroundColor: '#ffffff',
+      logging: false,
+      windowWidth: document.documentElement.scrollWidth,
+    });
+
+    const imgW = CONTENT_W;
+    const imgH = (canvas.height / canvas.width) * imgW;
+
+    // Nova página se não couber
+    if(curY + imgH > PH - 10){
+      pdf.addPage();
+      pageNum++;
+      addPageHeader(pdf, pageNum, filterLabel);
+      curY = headerHeight + 2;
+    }
+
+    // Se a seção for maior que uma página inteira, escala pra caber
+    const finalH = Math.min(imgH, PH - headerHeight - 12);
+    const finalW = (finalH / imgH) * imgW;
+    const xOff = MARGIN + (CONTENT_W - finalW) / 2;
+
+    pdf.addImage(canvas.toDataURL('image/png'), 'PNG', xOff, curY, finalW, finalH);
+    curY += finalH + 5;
+  }
+
+  pdf.save(`Feitec2025_Dashboard_${new Date().toISOString().slice(0,10)}.pdf`);
+
+  btn.innerHTML = '✅ PDF gerado!';
+  setTimeout(() => { btn.innerHTML = txtOriginal; btn.disabled = false; }, 3000);
 }
 
 document.getElementById('btnPDF').onclick = exportarPDF;
