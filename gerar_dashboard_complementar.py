@@ -3,15 +3,32 @@
 Dashboard Grade de Aulas Complementares — CEDESP Dom Bosco
 Cruza grade com frequência da planilha principal.
 """
-import sys, json, re, glob, os
+import sys, json, re, glob, os, logging
 from datetime import datetime, timezone, timedelta
+from difflib import SequenceMatcher
 import pandas as pd
+
+logging.basicConfig(level=logging.INFO, format='  %(message)s')
 
 SKIP_DATES = {'30/01','30/1'}
 
 def date_to_str(val):
+    """Converte valor de data (string DD/MM ou datetime) para ISO 2026-MM-DD.
+    
+    ATENÇÃO: O Excel auto-converte certas strings DD/MM (ex: '06/02', '09/02') em
+    datetime objects interpretando-as como MM/DD (americano). Exemplo:
+      '06/02' (6 de fev) → datetime(2025, 6, 2) onde .month=6, .day=2
+    Para recuperar a data correta, INVERTEMOS .day↔.month nos datetime objects.
+    """
     if val is None or (isinstance(val, float) and pd.isna(val)): return None
-    if hasattr(val, 'month'): return f"2026-{val.day:02d}-{val.month:02d}"
+    if hasattr(val, 'month'):
+        # Desfaz a inversão do Excel: .day contém o mês real, .month contém o dia real
+        real_month = val.day
+        real_day   = val.month
+        if not (1 <= real_month <= 12 and 1 <= real_day <= 31):
+            logging.warning(f"  ⚠ Data inválida após swap: {val} → dia={real_day}, mês={real_month}")
+            return None
+        return f"2026-{real_month:02d}-{real_day:02d}"
     s = str(val).strip()
     if s in SKIP_DATES: return None
     m = re.match(r'^(\d{1,2})[/\-](\d{1,2})$', s)
@@ -22,11 +39,10 @@ def date_to_str(val):
 
 MANUAL_MAP = {
     'BARBEIRO': 'CABELEIREIRO - Noções de Barbearia',
-    'CABELEIREIRO': 'CABELEIREIRO - Noções de Barbearia',
     'PROGRAMADOR DE WEB': 'PROGRAMADOR WEB',
     'AUXILIAR ADMINISTRATIVO - TURMA A': 'ASSISTENTE ADMINISTRATIVO - A',
     'AUXILIAR ADMINISTRATIVO - TURMA B': 'ASSISTENTE ADMINISTRATIVO - B',
-    'ASSITENTE DE RECURSOS HUMANOS': 'ASSISTENTE ADMINISTRATIVO - A',
+    'ASSITENTE DE RECURSOS HUMANOS': 'ASSISTENTE DE RECURSOS HUMANOS',
     'COSTUREIRO INDUSTRIAL': 'COSTUREIRO INDUSTRIAL DO VESTUÁRIO',
     'CONFEITEIRO': 'CONFEITEIRO (COM NOÇÕES DE SORVETERIA)',
     'OP. E PROGR. DE SISTEMAS AUTOMATIZADOS DE SOLDAGEM A': 'OPERADOR E PROGRAMADOR DE SISTEMAS AUTOMATIZADOS DE SOLDAGEM - A',
@@ -35,10 +51,39 @@ MANUAL_MAP = {
     'OP. E PROGR. DE SISTEMAS AUTOMATIZADOS (MECATRONICA 39)': 'OPERADOR E PROGRAMADOR DE SISTEMAS AUTOMATIZADOS DE SOLDAGEM - A',
     'OP. E PROGR. DE SISTEMAS AUTOMATIZADOS (MECATRONICA 40)': 'OPERADOR E PROGRAMADOR DE SISTEMAS AUTOMATIZADOS DE SOLDAGEM - B',
     'OP. E PROGR. DE SISTEMAS AUTOMATIZADOS (MECATRONICA 41)': 'OPERADOR E PROGRAMADOR DE SISTEMAS AUTOMATIZADOS DE SOLDAGEM - C',
+    'ENERGIAS RENOVÁVEIS': 'ELETRICISTA DE SISTEMAS DE ENERGIAS RENOVÁVEIS',
+    'ENERGIAS RENOVÁREIS': 'ELETRICISTA DE SISTEMAS DE ENERGIAS RENOVÁVEIS',
 }
 
-# Mapeamento direto por código → nome exato na planilha de frequência
-# Usar quando normalize() remove partes importantes do nome (números, parênteses etc.)
+# Mapeamento turno-dependente (turno, código) → nome exato na planilha de frequência
+# Necessário porque o mesmo código pode apontar para cursos diferentes dependendo do turno
+TURNO_COD_MAP = {
+    # ── ELETROMECÂNICO (Bug 1: nomes divergem grade vs freq) ──
+    # Manhã: 1A=A(Gabriel), 1B=B(Valério), 2=C(Marcos)
+    ('MANHÃ', '1A'): 'ELETROMECÂNICO DE AUTOMÓVEIS - A',
+    ('MANHÃ', '1B'): 'ELETROMECÂNICO DE AUTOMÓVEIS - B',
+    ('MANHÃ', '2'):  'ELETROMECÂNICO DE AUTOMÓVEIS - C',
+    # Tarde: 1=A(Valério), 2=B(Marcos)
+    ('TARDE', '1'):  'ELETROMECÂNICO DE AUTOMÓVEIS - A',
+    ('TARDE', '2'):  'ELETROMECÂNICO DE AUTOMÓVEIS - B',
+    # Noite: 1A=A(Roberto), 1B=A(Erlan, mesma turma A), 2=B(Marcos)
+    ('NOITE', '1A'): 'ELETROMECÂNICO DE AUTOMÓVEIS - A',
+    ('NOITE', '1B'): 'ELETROMECÂNICO DE AUTOMÓVEIS - A',
+    ('NOITE', '2'):  'ELETROMECÂNICO DE AUTOMÓVEIS - B',
+    # ── MECÂNICO DE USINAGEM (Bug 4: "Turma A" vs "- A") ──
+    ('TARDE', '35'):  'MECÂNICO DE USINAGEM CONVENCIONAL',
+    ('NOITE', '35A'): 'MECÂNICO DE USINAGEM CONVENCIONAL - A',
+    ('NOITE', '35B'): 'MECÂNICO DE USINAGEM CONVENCIONAL - B',
+    # ── MONTADOR ELETROELETRÔNICOS Noite (Bug 4: sufixo "TURMAS A - B") ──
+    ('NOITE', '11'):  'MONTADOR DE EQUIPAMENTOS ELETROELETRÔNICOS',
+    # ── FRESADOR/FRESADORA Noite (Bug 4: masculino vs feminino) ──
+    ('NOITE', '38'):  'OPERADOR DE FRESADORA COM CNC',
+    # ── ENERGIAS RENOVÁVEIS (Bug 2: nome completamente diferente) ──
+    ('MANHÃ', '27'):  'ELETRICISTA DE SISTEMAS DE ENERGIAS RENOVÁVEIS',
+    ('NOITE', '27'):  'ELETRICISTA DE SISTEMAS DE ENERGIAS RENOVÁVEIS',
+}
+
+# Mapeamento global por código (fallback quando não há entrada turno-dependente)
 COD_MAP = {
     '39':  'OPERADOR E PROGRAMADOR DE SISTEMAS AUTOMATIZADOS DE SOLDAGEM - A',
     '40':  'OPERADOR E PROGRAMADOR DE SISTEMAS AUTOMATIZADOS DE SOLDAGEM - B',
@@ -113,27 +158,41 @@ def extrair_freq(freq_path):
     return all_freq, course_meta, course_freq_avg
 
 def find_freq_key(nome, all_freq, freq_keys, turno='', turno_freq_keys=None):
+    """Encontra a chave de frequência correspondente ao nome do curso da grade.
+    Usa MANUAL_MAP, exact match, e similarity matching (nessa ordem)."""
     if not nome: return None
     nu = nome.upper().strip()
+    # 1) MANUAL_MAP
     for mk, mv in MANUAL_MAP.items():
         if mk in nu or nu in mk:
             fk = re.sub(r'\s+',' ', mv.upper().strip())
-            # Try turno-specific key first
             if turno and (turno+'|'+fk) in all_freq: return turno+'|'+fk
             if fk in all_freq: return fk
     n = normalize(nome)
-    # Try turno-specific key using turno_freq_keys (with partial match for truncated names)
+    # 2) Exact match (normalizado) com turno
     if turno and turno_freq_keys:
         tk = turno + ' ' + n
         if tk in turno_freq_keys: return turno_freq_keys[tk]
-        # Partial match: turno key starts with our (possibly truncated) lookup key
-        for tfk, tfv in turno_freq_keys.items():
-            if tfk.startswith(tk[:max(20, len(tk)-5)]): return tfv
-    
+    # 3) Exact match sem turno
     if n in freq_keys: return freq_keys[n]
+    # 4) Similarity matching com turno (substitui o antigo 15-char prefix)
+    if turno and turno_freq_keys:
+        best_score, best_key = 0, None
+        tk = turno + ' ' + n
+        for tfk, tfv in turno_freq_keys.items():
+            score = SequenceMatcher(None, tk, tfk).ratio()
+            if score > best_score:
+                best_score, best_key = score, tfv
+        if best_score >= 0.75:
+            return best_key
+    # 5) Similarity matching global (fallback)
+    best_score, best_key = 0, None
     for fk, orig in freq_keys.items():
-        if n[:15]==fk[:15]: return orig
-        if len(n)>10 and n[:10] in fk: return orig
+        score = SequenceMatcher(None, n, fk).ratio()
+        if score > best_score:
+            best_score, best_key = score, orig
+    if best_score >= 0.75:
+        return best_key
     return None
 
 def extrair_grade(grade_files):
@@ -163,6 +222,8 @@ def extrair_grade(grade_files):
                 if pd.isna(cell) or not isinstance(cell,str): continue
                 val=str(cell).strip()
                 if val in ['Sem Complementar','Aprendiz','','-']: continue
+                # Filtra entradas que não são códigos de curso
+                if any(skip in val for skip in ['Aulas Fechamento','Aula Fechamento','Parada','Feriado']): continue
                 parts=val.split('/')
                 cod1=parts[0].strip() if parts[0].strip()!='-' else None
                 cod2=parts[1].strip() if len(parts)>1 and parts[1].strip()!='-' else None
@@ -182,19 +243,38 @@ def enriquecer(schedule, all_freq, course_meta, course_freq_avg):
             turno, nome = k.split('|', 1)
             turno_freq_keys[turno + ' ' + normalize(nome)] = k
     enriched=[]
+    # Diagnóstico: rastrear cursos sem match
+    _unmatched = set()
+    _match_methods = {'TURNO_COD_MAP':0, 'COD_MAP':0, 'find_freq_key':0, 'none':0}
     for s in schedule:
         e=dict(s)
         for w in ['1','2']:
             nome=s[f'nome{w}']
             cod=s.get(f'cod{w}')
             turno=s.get('turno','').upper()
-            # Try COD_MAP first (bypasses normalize for tricky names)
-            if cod and cod in COD_MAP:
+            fk = None
+            method = 'none'
+            # 1) TURNO_COD_MAP (turno-dependente, maior prioridade)
+            if cod and (turno, cod) in TURNO_COD_MAP:
+                mapped = TURNO_COD_MAP[(turno, cod)]
+                turno_key = turno + '|' + mapped
+                if turno_key in all_freq:
+                    fk = turno_key
+                    method = 'TURNO_COD_MAP'
+            # 2) COD_MAP global (fallback)
+            if fk is None and cod and cod in COD_MAP:
                 mapped = COD_MAP[cod]
                 turno_key = turno + '|' + mapped
                 fk = turno_key if turno_key in all_freq else (mapped if mapped in all_freq else None)
-            else:
-                fk=find_freq_key(nome,all_freq,freq_keys,turno,turno_freq_keys) if nome else None
+                if fk: method = 'COD_MAP'
+            # 3) find_freq_key (MANUAL_MAP + normalize + similarity)
+            if fk is None and nome:
+                fk = find_freq_key(nome, all_freq, freq_keys, turno, turno_freq_keys)
+                if fk: method = 'find_freq_key'
+            # Diagnóstico
+            _match_methods[method] = _match_methods.get(method, 0) + 1
+            if fk is None and nome:
+                _unmatched.add(f"{turno}|{cod}|{nome}")
             freq_on_date = all_freq[fk].get(s['date']) if fk else None
             freq_avg     = course_freq_avg.get(fk)     if fk else None
             matr         = course_meta.get(fk)         if fk else None
@@ -204,6 +284,14 @@ def enriquecer(schedule, all_freq, course_meta, course_freq_avg):
             e[f'matr{w}']     = matr
             e[f'pct{w}']      = pct
         enriched.append(e)
+    # Log de diagnóstico
+    logging.info(f"   Matching: {_match_methods}")
+    if _unmatched:
+        logging.warning(f"   ⚠ {len(_unmatched)} cursos sem match de frequência:")
+        for u in sorted(_unmatched):
+            logging.warning(f"     - {u}")
+    else:
+        logging.info("   ✅ Todos os cursos com match de frequência!")
     return enriched
 
 def gerar_html(courses, schedule, data_at):
@@ -920,7 +1008,7 @@ renderHoje(); renderTable(); renderProg(); renderCharts();
 
 if __name__ == '__main__':
     print("\n" + "="*55)
-    print("  Dashboard Grade Complementar — Gerador v1.0")
+    print("  Dashboard Grade Complementar — Gerador v2.0")
     print("="*55)
 
     base = sys.argv[1] if len(sys.argv) > 1 else '.'
