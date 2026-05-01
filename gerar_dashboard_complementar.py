@@ -298,9 +298,20 @@ def gerar_html(courses, schedule, data_at):
     courses_json  = json.dumps(courses,  ensure_ascii=False)
     schedule_json = json.dumps(schedule, ensure_ascii=False)
     n_cursos   = len(courses)
-    n_aulas    = len(schedule)
-    n_materias = len(set(s['subject'] for s in schedule))
-    com_freq   = sum(1 for s in schedule if s.get('freq1') is not None or s.get('freq2') is not None)
+    n_slots    = len(schedule)
+    # Aulas-turma reais (cada slot pode ter 1 ou 2 turmas)
+    n_aulas_turma = sum(1 for s in schedule for w in ['1','2'] if s.get(f'nome{w}'))
+    # Matérias base (agrupa Esp/Mat/Port com variações)
+    def subj_base(s):
+        if not s: return s
+        if s.startswith('Mat'): return 'Matemática'
+        if s.startswith('Port'): return 'Português'
+        if s.startswith('Esp'): return 'Esporte'
+        return s
+    n_materias = len(set(subj_base(s['subject']) for s in schedule))
+    # Aulas-turma com frequência (não slots)
+    com_freq_turma = sum(1 for s in schedule for w in ['1','2'] if s.get(f'freq{w}') is not None)
+    pct_freq = round(com_freq_turma / n_aulas_turma * 100) if n_aulas_turma else 0
     return f"""<!DOCTYPE html>
 <html lang="pt-BR">
 <head>
@@ -414,11 +425,20 @@ footer{{text-align:center;padding:32px;font-size:11px;color:var(--muted)}}
   <div class="section-row"><div class="section-bar"></div><div class="section-title">Visão Geral</div><div class="section-line"></div></div>
   <div class="kpi-row">
     <div class="kpi-card blue"><div class="kpi-lbl">Cursos</div><div class="kpi-val" style="color:var(--blue)">{n_cursos}</div><div class="kpi-sub">nos 3 turnos</div></div>
-    <div class="kpi-card red"><div class="kpi-lbl">Aulas Agendadas</div><div class="kpi-val" style="color:var(--red)">{n_aulas}</div><div class="kpi-sub">no semestre</div></div>
+    <div class="kpi-card red"><div class="kpi-lbl">Aulas-turma</div><div class="kpi-val" style="color:var(--red)">{n_aulas_turma}</div><div class="kpi-sub">no semestre ({n_slots} slots)</div></div>
     <div class="kpi-card green"><div class="kpi-lbl">Matérias</div><div class="kpi-val" style="color:var(--green)">{n_materias}</div><div class="kpi-sub">disciplinas complementares</div></div>
     <div class="kpi-card amber"><div class="kpi-lbl">Hoje</div><div class="kpi-val" style="color:var(--amber)" id="kpi-hoje">—</div><div class="kpi-sub">aulas complementares</div></div>
-    <div class="kpi-card indigo"><div class="kpi-lbl">Com Frequência</div><div class="kpi-val" style="color:var(--indigo)">{com_freq}</div><div class="kpi-sub">aulas com dados cruzados</div></div>
+    <div class="kpi-card indigo"><div class="kpi-lbl">Com Frequência</div><div class="kpi-val" style="color:var(--indigo)">{com_freq_turma}</div><div class="kpi-sub">{pct_freq}% das aulas-turma</div></div>
   </div>
+</div>
+
+<!-- INSIGHTS AUTOMÁTICOS -->
+<div class="card" style="margin-bottom:28px;border-left:4px solid var(--indigo)">
+  <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px">
+    <span style="font-size:18px">💡</span>
+    <span style="font-size:13px;font-weight:600;letter-spacing:.3px;color:var(--text)">Insights automáticos</span>
+  </div>
+  <div id="insights-container" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:12px"></div>
 </div>
 
 <!-- HOJE -->
@@ -446,9 +466,58 @@ footer{{text-align:center;padding:32px;font-size:11px;color:var(--muted)}}
 
 <div class="card" style="margin-bottom:28px">
   <div class="card-title">Evolução por Matéria Complementar</div>
-  <div class="card-sub">Média mensal de presença por disciplina — 100% = comportamento normal do curso</div>
-  <div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:12px" id="materia-legend-chips"></div>
+  <div class="card-sub">Selecione a matéria, turno e período para análise detalhada — 100% = comportamento normal do curso</div>
+  <div style="display:flex;flex-wrap:wrap;gap:14px;align-items:center;margin:14px 0 18px;padding:12px;background:var(--surface2);border-radius:10px">
+    <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">
+      <span class="flbl">Matéria:</span>
+      <div class="chip-group" id="evol-chips-subj"></div>
+    </div>
+    <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">
+      <span class="flbl">Turno:</span>
+      <div class="chip-group" id="evol-chips-turno">
+        <button class="chip active" data-v="all">Todos</button>
+        <button class="chip" data-v="Manhã">Manhã</button>
+        <button class="chip" data-v="Tarde">Tarde</button>
+        <button class="chip" data-v="Noite">Noite</button>
+      </div>
+    </div>
+    <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">
+      <span class="flbl">Período:</span>
+      <div class="chip-group" id="evol-chips-month">
+        <button class="chip active" data-v="all">Todos</button>
+      </div>
+    </div>
+  </div>
+  <div id="evol-summary" style="display:flex;gap:18px;flex-wrap:wrap;font-size:12px;color:var(--muted);margin-bottom:10px"></div>
   <canvas id="evolMateriaChart" height="160"></canvas>
+</div>
+
+<div class="card" style="margin-bottom:28px">
+  <div class="card-title">Evolução por Curso FIC</div>
+  <div class="card-sub">Selecione um curso e veja como ele se comporta em cada matéria complementar — 100% = comportamento normal do curso</div>
+  <div style="display:flex;flex-wrap:wrap;gap:14px;align-items:center;margin:14px 0 18px;padding:12px;background:var(--surface2);border-radius:10px">
+    <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;flex:1;min-width:280px">
+      <span class="flbl">Curso:</span>
+      <select id="fic-select-course" style="flex:1;min-width:240px;max-width:520px;padding:7px 10px;border:1.5px solid var(--border);border-radius:6px;background:#fff;font-family:Poppins,sans-serif;font-size:12px;color:var(--text);cursor:pointer"></select>
+    </div>
+    <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">
+      <span class="flbl">Turno:</span>
+      <div class="chip-group" id="fic-chips-turno">
+        <button class="chip active" data-v="all">Todos</button>
+        <button class="chip" data-v="Manhã">Manhã</button>
+        <button class="chip" data-v="Tarde">Tarde</button>
+        <button class="chip" data-v="Noite">Noite</button>
+      </div>
+    </div>
+    <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">
+      <span class="flbl">Período:</span>
+      <div class="chip-group" id="fic-chips-month">
+        <button class="chip active" data-v="all">Todos</button>
+      </div>
+    </div>
+  </div>
+  <div id="fic-summary" style="display:flex;gap:18px;flex-wrap:wrap;font-size:12px;color:var(--muted);margin-bottom:10px"></div>
+  <canvas id="ficCursoChart" height="160"></canvas>
 </div>
 
 <!-- FILTROS + TABELA -->
@@ -635,8 +704,12 @@ function renderPag(total,maxP){{
 function goPage(p){{page=p;renderTable();window.scrollTo({{top:0,behavior:'smooth'}});}}
 
 // HOJE
+function todayLocal(){{
+  const d=new Date();
+  return `${{d.getFullYear()}}-${{String(d.getMonth()+1).padStart(2,'0')}}-${{String(d.getDate()).padStart(2,'0')}}`;
+}}
 function renderHoje(){{
-  const today=new Date().toISOString().split('T')[0];
+  const today=todayLocal();
   const items=SCHEDULE.filter(s=>s.date===today);
   document.getElementById('kpi-hoje').textContent=items.length;
   document.getElementById('hoje-label').textContent=
@@ -702,7 +775,7 @@ function renderHoje(){{
 function renderProg(){{
   // Build sched index: turno|cod -> subject -> {{count, freqSum, freqN}}
   // count = aulas JÁ REALIZADAS (data <= hoje); freq = apenas dias com dado cruzado
-  const today=new Date().toISOString().split('T')[0];
+  const today=todayLocal();
   const sched={{}};
   SCHEDULE.forEach(s=>{{
     if(s.date>today) return;  // ignora aulas futuras
@@ -802,13 +875,22 @@ function renderProg(){{
 
 // CHARTS
 function renderCharts(){{
-  // Freq por matéria (das aulas com dados)
+  // Função local para agrupar matéria base
+  function subjBaseChart(s){{
+    if(!s) return s;
+    if(s.startsWith('Mat')) return 'Matemática';
+    if(s.startsWith('Port')) return 'Português';
+    if(s.startsWith('Esp')) return 'Esporte';
+    return s;
+  }}
+  // Freq por matéria (das aulas com dados) — agrupa por matéria-base
   const freqBySubj={{}};
   SCHEDULE.forEach(s=>{{
+    const subjBase=subjBaseChart(s.subject);
     [{{p:s.pct1}},{{p:s.pct2}}].forEach(x=>{{
       if(x.p==null) return;
-      if(!freqBySubj[s.subject]) freqBySubj[s.subject]={{sum:0,n:0}};
-      freqBySubj[s.subject].sum+=x.p; freqBySubj[s.subject].n++;
+      if(!freqBySubj[subjBase]) freqBySubj[subjBase]={{sum:0,n:0}};
+      freqBySubj[subjBase].sum+=x.p; freqBySubj[subjBase].n++;
     }});
   }});
   const fLabels=Object.keys(freqBySubj).sort((a,b)=>freqBySubj[b].sum/freqBySubj[b].n - freqBySubj[a].sum/freqBySubj[a].n);
@@ -886,77 +968,375 @@ function renderCharts(){{
     }}
   }});
 
-  // ── Evolução por Matéria ──
+  // ── Evolução por Matéria (interativa) ──
   const SUBJ_PALETTE={{'Artes':'#e63827','Português':'#21438e','Esporte':'#1a7a3e','Matemática':'#7c3aed',
     'Cidadania':'#0284c7','ID':'#c97c1a','OT':'#be185d',
     'Esp(Br)':'#1a7a3e','Esp(Em)':'#16a34a','Mat(Al)':'#7c3aed','Mat(Ti)':'#6d28d9','Mat(Fe)':'#8b5cf6',
     'Port(He)':'#21438e','Port(Li)':'#1d4ed8','Port(-)':'#3b82f6'
   }};
+  const TURNO_PALETTE={{'Manhã':'#f37f1f','Tarde':'#2bb19d','Noite':'#21438e'}};
 
-  const allSubjs=[...new Set(SCHEDULE.map(s=>s.subject))].sort();
-  const subjDatasets=allSubjs.map(subj=>{{
-    const data=monthsAll.map(m=>{{
-      const vals=[];
-      SCHEDULE.filter(s=>s.subject===subj&&s.date.startsWith(m)).forEach(s=>{{
-        if(s.pct1!=null) vals.push(s.pct1);
-        if(s.pct2!=null) vals.push(s.pct2);
-      }});
-      return vals.length?+(vals.reduce((a,b)=>a+b,0)/vals.length).toFixed(1):null;
+  // Agrupa subject em matéria base
+  function subjBase(s){{
+    if(!s) return s;
+    if(s.indexOf('Mat')===0) return 'Matemática';
+    if(s.indexOf('Port')===0) return 'Português';
+    if(s.indexOf('Esp')===0) return 'Esporte';
+    return s;
+  }}
+
+  const allSubjs=[...new Set(SCHEDULE.map(s=>subjBase(s.subject)))].sort();
+
+  // Estado dos filtros
+  let evolSubj='all', evolTurno='all', evolMonth='all';
+
+  // Constrói chips de matéria
+  (function(){{
+    const c=document.getElementById('evol-chips-subj');
+    const all=document.createElement('button'); all.className='chip active'; all.dataset.v='all'; all.textContent='Todas';
+    c.appendChild(all);
+    allSubjs.forEach(s=>{{
+      const b=document.createElement('button'); b.className='chip'; b.dataset.v=s; b.textContent=s;
+      const col=SUBJ_PALETTE[s]||'#888';
+      b.style.setProperty('--chip-color', col);
+      c.appendChild(b);
     }});
-    const col=SUBJ_PALETTE[subj]||'#888';
-    return{{
-      label:subj, data,
-      borderColor:col, backgroundColor:col+'22',
-      borderWidth:2, pointRadius:4, pointHoverRadius:6,
-      tension:0.35, fill:false, spanGaps:true,
-      hidden: false,
-    }};
-  }});
+  }})();
 
-  const evolMateriaChartObj = new Chart(document.getElementById('evolMateriaChart'),{{
-    type:'line',
-    data:{{labels:monthsAll.map(m=>MONTH_LABELS[m.split('-')[1]]||m), datasets:subjDatasets}},
-    options:{{
-      responsive:true,
-      plugins:{{
-        legend:{{display:false}},
-        tooltip:{{
-          backgroundColor:'#1a2340',borderColor:'#cdd5e8',borderWidth:1,
-          callbacks:{{label:ctx=>`${{ctx.dataset.label}}: ${{ctx.raw!=null?ctx.raw+'%':'sem dados'}}`}}
-        }}
-      }},
-      scales:{{
-        x:{{grid:{{display:false}}}},
-        y:{{
-          min:40,max:140,
-          grid:{{color:'rgba(0,0,0,.06)'}},
-          ticks:{{callback:v=>v+'%'}},
-        }}
-      }}
-    }}
-  }});
+  // Constrói chips de mês (reusa monthsAll)
+  (function(){{
+    const c=document.getElementById('evol-chips-month');
+    monthsAll.forEach(m=>{{
+      const b=document.createElement('button'); b.className='chip'; b.dataset.v=m;
+      b.textContent=MONTH_LABELS[m.split('-')[1]]||m;
+      c.appendChild(b);
+    }});
+  }})();
 
-  // Build legend chips for materia chart
-  const legendContainer=document.getElementById('materia-legend-chips');
-  if(legendContainer){{
-    allSubjs.forEach(function(subj,i){{
-      const col=SUBJ_PALETTE[subj]||'#888';
-      const btn=document.createElement('button');
-      btn.textContent=subj;
-      btn.style.cssText='padding:3px 12px;border-radius:20px;font-size:11px;font-weight:500;cursor:pointer;transition:.15s;'+
-        'border:1.5px solid '+col+';background:'+col+'22;color:'+col+';font-family:Poppins,sans-serif';
-      btn.dataset.active='true';
-      btn.addEventListener('click',function(){{
-        const ds=evolMateriaChartObj.data.datasets[i];
-        ds.hidden=!ds.hidden;
-        btn.dataset.active=ds.hidden?'false':'true';
-        btn.style.background=ds.hidden?'transparent':col+'22';
-        btn.style.opacity=ds.hidden?'0.4':'1';
-        evolMateriaChartObj.update();
+  // Listeners dos chips
+  function bindEvolChips(containerId, onChange){{
+    document.querySelectorAll('#'+containerId+' .chip').forEach(b=>{{
+      b.addEventListener('click', ()=>{{
+        document.querySelectorAll('#'+containerId+' .chip').forEach(x=>x.classList.remove('active'));
+        b.classList.add('active');
+        onChange(b.dataset.v);
       }});
-      legendContainer.appendChild(btn);
     }});
   }}
+  bindEvolChips('evol-chips-subj', v=>{{evolSubj=v; renderEvolMateria();}});
+  bindEvolChips('evol-chips-turno',v=>{{evolTurno=v;renderEvolMateria();}});
+  bindEvolChips('evol-chips-month',v=>{{evolMonth=v;renderEvolMateria();}});
+
+  let evolMateriaChartObj=null;
+
+  function renderEvolMateria(){{
+    // Filtra schedule pelo turno e matéria
+    let data = SCHEDULE.filter(s=>{{
+      if(evolTurno!=='all' && s.turno!==evolTurno) return false;
+      if(evolSubj!=='all' && subjBase(s.subject)!==evolSubj) return false;
+      if(evolMonth!=='all' && !s.date.startsWith(evolMonth)) return false;
+      return true;
+    }});
+
+    // Decide eixo X: dias se 1 mês, meses se todos
+    const isDaily = evolMonth!=='all';
+    let labels, getKey, labelsKeys;
+    if(isDaily){{
+      // Pega todos os dias do mês com aulas
+      const days=[...new Set(data.map(s=>s.date))].sort();
+      labels=days.map(d=>{{const p=d.split('-');return p[2]+'/'+p[1];}});
+      getKey=s=>s.date;
+      labelsKeys=days;
+    }}else{{
+      labels=monthsAll.map(m=>MONTH_LABELS[m.split('-')[1]]||m);
+      getKey=s=>s.date.substr(0,7);
+      labelsKeys=monthsAll;
+    }}
+
+    // Decide grupos: se matéria=all → 1 linha por matéria base; senão → 1 linha por turno
+    let groupBy, groupValues, getColor;
+    if(evolSubj==='all'){{
+      groupBy=s=>subjBase(s.subject);
+      groupValues=allSubjs;
+      getColor=g=>SUBJ_PALETTE[g]||'#888';
+    }}else{{
+      groupBy=s=>s.turno;
+      // Se turno também filtrado, mostra só ele; senão, os 3 turnos
+      groupValues=evolTurno==='all'?['Manhã','Tarde','Noite']:[evolTurno];
+      getColor=g=>TURNO_PALETTE[g]||'#888';
+    }}
+
+    // Constrói datasets
+    const datasets=groupValues.map(g=>{{
+      const series=labelsKeys.map(k=>{{
+        const vals=[];
+        data.filter(s=>groupBy(s)===g && getKey(s)===k).forEach(s=>{{
+          if(s.pct1!=null) vals.push(s.pct1);
+          if(s.pct2!=null) vals.push(s.pct2);
+        }});
+        return vals.length?+(vals.reduce((a,b)=>a+b,0)/vals.length).toFixed(1):null;
+      }});
+      const col=getColor(g);
+      return{{
+        label:g, data:series,
+        borderColor:col, backgroundColor:col+'22',
+        borderWidth:2.5, pointRadius:4, pointHoverRadius:6,
+        tension:isDaily?0.2:0.35, fill:false, spanGaps:true
+      }};
+    }}).filter(ds=>ds.data.some(v=>v!==null)); // remove datasets vazios
+
+    // Linha de referência 100%
+    datasets.push({{
+      label:'Normal (100%)',
+      data:labels.map(()=>100),
+      borderColor:'#94a3b8', borderWidth:1.5, borderDash:[5,5],
+      pointRadius:0, fill:false
+    }});
+    // Linha de zona de alerta 75%
+    datasets.push({{
+      label:'Alerta (75%)',
+      data:labels.map(()=>75),
+      borderColor:'#c97c1a', borderWidth:1, borderDash:[2,4],
+      pointRadius:0, fill:false
+    }});
+
+    // Atualiza summary
+    const allVals=[];
+    data.forEach(s=>{{if(s.pct1!=null)allVals.push(s.pct1); if(s.pct2!=null)allVals.push(s.pct2);}});
+    const totalAulas=data.length;
+    const aulasComFreq=data.filter(s=>s.freq1!=null||s.freq2!=null).length;
+    const mediaGeral=allVals.length?(allVals.reduce((a,b)=>a+b,0)/allVals.length).toFixed(1):'—';
+    const sumEl=document.getElementById('evol-summary');
+    if(sumEl){{
+      sumEl.innerHTML=
+        '<div><strong>'+totalAulas+'</strong> aulas no recorte</div>'+
+        '<div><strong>'+aulasComFreq+'</strong> com frequência registrada</div>'+
+        '<div>Média de presença: <strong style="color:'+(mediaGeral==='—'?'#888':(mediaGeral>=100?'#1a7a3e':mediaGeral>=85?'#c97c1a':'#e63827'))+'">'+mediaGeral+(mediaGeral==='—'?'':'%')+'</strong></div>';
+    }}
+
+    // Destrói chart anterior
+    if(evolMateriaChartObj) evolMateriaChartObj.destroy();
+    evolMateriaChartObj = new Chart(document.getElementById('evolMateriaChart'),{{
+      type:'line',
+      data:{{labels, datasets}},
+      options:{{
+        responsive:true,
+        interaction:{{mode:'index',intersect:false}},
+        plugins:{{
+          legend:{{
+            display:true, position:'top', align:'end',
+            labels:{{usePointStyle:true,boxWidth:8,font:{{size:11}}}}
+          }},
+          tooltip:{{
+            backgroundColor:'#1a2340',borderColor:'#cdd5e8',borderWidth:1,
+            callbacks:{{label:ctx=>ctx.dataset.label+': '+(ctx.raw!=null?ctx.raw+'%':'sem dados')}}
+          }}
+        }},
+        scales:{{
+          x:{{grid:{{display:false}}}},
+          y:{{
+            min:isDaily?0:40,
+            max:isDaily?160:140,
+            grid:{{color:'rgba(0,0,0,.06)'}},
+            ticks:{{callback:v=>v+'%'}}
+          }}
+        }}
+      }}
+    }});
+  }}
+
+  renderEvolMateria();
+
+  // ── Evolução por Curso FIC (inverso) ──
+  function courseBase(nome){{
+    if(!nome) return '';
+    return nome.replace(/\s*\([^)]*\)\s*/g,' ').replace(/\s+/g,' ').trim();
+  }}
+
+  // Constrói lista de (turno, curso) únicos do schedule
+  function listFicCourses(){{
+    const set = new Map();
+    SCHEDULE.forEach(s=>{{
+      ['1','2'].forEach(w=>{{
+        const n = s['nome'+w];
+        if(!n) return;
+        const b = courseBase(n);
+        const key = s.turno + '|' + b;
+        if(!set.has(key)) set.set(key, {{turno:s.turno, nome:b, cod:s['cod'+w]}});
+      }});
+    }});
+    return Array.from(set.values()).sort((a,b)=>{{
+      if(a.turno!==b.turno) return ['Manhã','Tarde','Noite'].indexOf(a.turno)-['Manhã','Tarde','Noite'].indexOf(b.turno);
+      return a.nome.localeCompare(b.nome,'pt');
+    }});
+  }}
+
+  let ficTurno='all', ficMonth='all', ficCourse='';
+
+  // Popula dropdown de cursos (com filtragem por turno)
+  function populateFicCourses(){{
+    const sel = document.getElementById('fic-select-course');
+    if(!sel) return;
+    const all = listFicCourses();
+    const filtered = ficTurno==='all' ? all : all.filter(c=>c.turno===ficTurno);
+    const prev = ficCourse;
+    sel.innerHTML = '<option value="">— Selecione um curso —</option>' +
+      filtered.map(c=>{{
+        const v = c.turno+'|'+c.nome;
+        return '<option value="'+v+'">['+c.turno+'] '+c.nome+(c.cod?' (cod '+c.cod+')':'')+'</option>';
+      }}).join('');
+    // Restaura seleção se ainda válida; senão pega primeiro curso
+    const validPrev = prev && filtered.some(c=>c.turno+'|'+c.nome===prev);
+    if(validPrev){{
+      sel.value = prev;
+    }} else if(filtered.length){{
+      ficCourse = filtered[0].turno+'|'+filtered[0].nome;
+      sel.value = ficCourse;
+    }} else {{
+      ficCourse = '';
+    }}
+  }}
+
+  // Constrói chips de mês (igual ao outro gráfico)
+  (function(){{
+    const c=document.getElementById('fic-chips-month');
+    monthsAll.forEach(m=>{{
+      const b=document.createElement('button'); b.className='chip'; b.dataset.v=m;
+      b.textContent=MONTH_LABELS[m.split('-')[1]]||m;
+      c.appendChild(b);
+    }});
+  }})();
+
+  // Listeners
+  bindEvolChips('fic-chips-turno', v=>{{ficTurno=v; populateFicCourses(); renderFicCurso();}});
+  bindEvolChips('fic-chips-month', v=>{{ficMonth=v; renderFicCurso();}});
+  document.getElementById('fic-select-course').addEventListener('change', e=>{{
+    ficCourse = e.target.value;
+    renderFicCurso();
+  }});
+
+  let ficCursoChartObj=null;
+
+  function renderFicCurso(){{
+    const canvas=document.getElementById('ficCursoChart');
+    const sumEl=document.getElementById('fic-summary');
+    if(!canvas) return;
+
+    // Sem curso selecionado → mensagem
+    if(!ficCourse){{
+      if(ficCursoChartObj){{ ficCursoChartObj.destroy(); ficCursoChartObj=null; }}
+      const ctx=canvas.getContext('2d');
+      ctx.clearRect(0,0,canvas.width,canvas.height);
+      ctx.fillStyle='#5c6b8a'; ctx.font='13px Poppins'; ctx.textAlign='center';
+      ctx.fillText('Selecione um curso para visualizar', canvas.width/2, 80);
+      if(sumEl) sumEl.innerHTML='';
+      return;
+    }}
+
+    const [cTurno, cNome] = ficCourse.split('|');
+
+    // Filtra schedule: entries onde nome1 ou nome2 é o curso, no turno correto
+    let data = [];
+    SCHEDULE.forEach(s=>{{
+      if(s.turno!==cTurno) return;
+      if(ficMonth!=='all' && !s.date.startsWith(ficMonth)) return;
+      ['1','2'].forEach(w=>{{
+        if(courseBase(s['nome'+w])===cNome){{
+          data.push({{
+            date:s.date, subject:subjBase(s.subject), turno:s.turno,
+            pct:s['pct'+w], freq:s['freq'+w], freq_avg:s['freq_avg'+w]
+          }});
+        }}
+      }});
+    }});
+
+    // Eixo X: dias se 1 mês, meses se todos
+    const isDaily = ficMonth!=='all';
+    let labels, labelsKeys, getKey;
+    if(isDaily){{
+      const days=[...new Set(data.map(d=>d.date))].sort();
+      labels=days.map(d=>{{const p=d.split('-');return p[2]+'/'+p[1];}});
+      labelsKeys=days;
+      getKey=d=>d.date;
+    }}else{{
+      labels=monthsAll.map(m=>MONTH_LABELS[m.split('-')[1]]||m);
+      labelsKeys=monthsAll;
+      getKey=d=>d.date.substr(0,7);
+    }}
+
+    // Linhas: uma por matéria base
+    const subjsInData=[...new Set(data.map(d=>d.subject))];
+    // Mantém ordem padrão das matérias
+    const orderedSubjs=allSubjs.filter(s=>subjsInData.includes(s));
+
+    const datasets=orderedSubjs.map(subj=>{{
+      const series=labelsKeys.map(k=>{{
+        const vals=data.filter(d=>d.subject===subj && getKey(d)===k && d.pct!=null).map(d=>d.pct);
+        return vals.length?+(vals.reduce((a,b)=>a+b,0)/vals.length).toFixed(1):null;
+      }});
+      const col=SUBJ_PALETTE[subj]||'#888';
+      return{{
+        label:subj, data:series,
+        borderColor:col, backgroundColor:col+'22',
+        borderWidth:2.5, pointRadius:4, pointHoverRadius:6,
+        tension:isDaily?0.2:0.35, fill:false, spanGaps:true
+      }};
+    }}).filter(ds=>ds.data.some(v=>v!==null));
+
+    // Linha de referência 100%
+    datasets.push({{
+      label:'Normal (100%)', data:labels.map(()=>100),
+      borderColor:'#94a3b8', borderWidth:1.5, borderDash:[5,5],
+      pointRadius:0, fill:false
+    }});
+    // Linha de zona de alerta 75%
+    datasets.push({{
+      label:'Alerta (75%)', data:labels.map(()=>75),
+      borderColor:'#c97c1a', borderWidth:1, borderDash:[2,4],
+      pointRadius:0, fill:false
+    }});
+
+    // Resumo
+    const allVals=data.map(d=>d.pct).filter(v=>v!=null);
+    const totalAulas=data.length;
+    const aulasComFreq=data.filter(d=>d.freq!=null).length;
+    const mediaGeral=allVals.length?(allVals.reduce((a,b)=>a+b,0)/allVals.length).toFixed(1):'—';
+    const corMedia = mediaGeral==='—'?'#888':(mediaGeral>=100?'#1a7a3e':mediaGeral>=85?'#c97c1a':'#e63827');
+    if(sumEl){{
+      sumEl.innerHTML=
+        '<div><strong>'+totalAulas+'</strong> aulas no recorte</div>'+
+        '<div><strong>'+aulasComFreq+'</strong> com frequência registrada</div>'+
+        '<div>Média de presença: <strong style="color:'+corMedia+'">'+mediaGeral+(mediaGeral==='—'?'':'%')+'</strong></div>';
+    }}
+
+    if(ficCursoChartObj) ficCursoChartObj.destroy();
+    ficCursoChartObj=new Chart(canvas,{{
+      type:'line',
+      data:{{labels, datasets}},
+      options:{{
+        responsive:true,
+        interaction:{{mode:'index',intersect:false}},
+        plugins:{{
+          legend:{{display:true,position:'top',align:'end',labels:{{usePointStyle:true,boxWidth:8,font:{{size:11}}}}}},
+          tooltip:{{
+            backgroundColor:'#1a2340',borderColor:'#cdd5e8',borderWidth:1,
+            callbacks:{{label:ctx=>ctx.dataset.label+': '+(ctx.raw!=null?ctx.raw+'%':'sem dados')}}
+          }}
+        }},
+        scales:{{
+          x:{{grid:{{display:false}}}},
+          y:{{
+            min:isDaily?0:40, max:isDaily?160:140,
+            grid:{{color:'rgba(0,0,0,.06)'}},
+            ticks:{{callback:v=>v+'%'}}
+          }}
+        }}
+      }}
+    }});
+  }}
+
+  populateFicCourses();
+  renderFicCurso();
 
 }}
 
@@ -1001,8 +1381,111 @@ document.querySelectorAll('#mainTable thead th[data-sort]').forEach(th=>{{
 }});
 // turno-prog chips removed (sections now always show all 3 turnos separately)
 
+// INSIGHTS AUTOMÁTICOS
+function renderInsights(){{
+  const container=document.getElementById('insights-container');
+  if(!container) return;
+
+  function subjBaseI(s){{
+    if(!s) return s;
+    if(s.startsWith('Mat')) return 'Matemática';
+    if(s.startsWith('Port')) return 'Português';
+    if(s.startsWith('Esp')) return 'Esporte';
+    return s;
+  }}
+
+  const insights=[];
+
+  // 1) Matéria com maior/menor presença média
+  const bySubj={{}};
+  SCHEDULE.forEach(s=>{{
+    const sb=subjBaseI(s.subject);
+    ['1','2'].forEach(w=>{{
+      const p=s['pct'+w];
+      if(p==null) return;
+      if(!bySubj[sb]) bySubj[sb]={{sum:0,n:0}};
+      bySubj[sb].sum+=p; bySubj[sb].n++;
+    }});
+  }});
+  const subjAvgs=Object.entries(bySubj).map(([k,v])=>({{k, avg:v.sum/v.n, n:v.n}}))
+    .filter(x=>x.n>=20).sort((a,b)=>b.avg-a.avg);
+  if(subjAvgs.length){{
+    const best=subjAvgs[0], worst=subjAvgs[subjAvgs.length-1];
+    insights.push({{icon:'📈',label:'Maior presença', val:best.k, sub:best.avg.toFixed(0)+'% de média', color:'var(--green)'}});
+    insights.push({{icon:'📉',label:'Menor presença', val:worst.k, sub:worst.avg.toFixed(0)+'% de média', color:'var(--red)'}});
+  }}
+
+  // 2) Dia da semana com menor presença
+  const WD=['Dom','Seg','Ter','Qua','Qui','Sex','Sáb'];
+  const byWD={{}};
+  SCHEDULE.forEach(s=>{{
+    const wd=new Date(s.date+'T12:00:00').getDay();
+    ['1','2'].forEach(w=>{{
+      const p=s['pct'+w]; if(p==null) return;
+      if(!byWD[wd]) byWD[wd]={{sum:0,n:0}};
+      byWD[wd].sum+=p; byWD[wd].n++;
+    }});
+  }});
+  const wdAvgs=Object.entries(byWD).map(([k,v])=>({{wd:+k,avg:v.sum/v.n,n:v.n}}))
+    .filter(x=>x.n>=20).sort((a,b)=>a.avg-b.avg);
+  if(wdAvgs.length>=2){{
+    const worstWD=wdAvgs[0];
+    insights.push({{icon:'📅', label:'Pior dia da semana', val:WD[worstWD.wd]+'-feira', sub:worstWD.avg.toFixed(0)+'% de presença', color:'var(--amber)'}});
+  }}
+
+  // 3) Cursos com poucos dados
+  const coursesData={{}};
+  SCHEDULE.forEach(s=>{{
+    ['1','2'].forEach(w=>{{
+      const n=s['nome'+w]; if(!n) return;
+      const k=s.turno+'|'+n;
+      if(!coursesData[k]) coursesData[k]=new Set();
+      if(s['freq'+w]!=null) coursesData[k].add(s.date);
+    }});
+  }});
+  const lowData=Object.values(coursesData).filter(d=>d.size>0 && d.size<10).length;
+  if(lowData){{
+    insights.push({{icon:'⚠',label:'Atenção',val:lowData+' cursos',sub:'com menos de 10 dias de dados',color:'var(--amber)'}});
+  }}
+
+  // 4) Total de aulas críticas (pct < 75)
+  let criticas=0;
+  SCHEDULE.forEach(s=>{{['1','2'].forEach(w=>{{ if(s['pct'+w]!=null && s['pct'+w]<75) criticas++; }});}});
+  if(criticas){{
+    insights.push({{icon:'🔴',label:'Aulas críticas',val:criticas,sub:'com presença abaixo de 75%',color:'var(--red)'}});
+  }}
+
+  // 5) Mês com melhor desempenho
+  const byMonth={{}};
+  SCHEDULE.forEach(s=>{{
+    const m=s.date.substr(0,7);
+    ['1','2'].forEach(w=>{{ const p=s['pct'+w]; if(p==null) return;
+      if(!byMonth[m]) byMonth[m]={{sum:0,n:0}};
+      byMonth[m].sum+=p; byMonth[m].n++;
+    }});
+  }});
+  const monthAvgs=Object.entries(byMonth).map(([m,v])=>({{m,avg:v.sum/v.n,n:v.n}}))
+    .filter(x=>x.n>=30).sort((a,b)=>b.avg-a.avg);
+  if(monthAvgs.length>=2){{
+    const bestM=monthAvgs[0];
+    const ML={{'02':'Fevereiro','03':'Março','04':'Abril','05':'Maio','06':'Junho'}};
+    insights.push({{icon:'🏆',label:'Melhor mês',val:ML[bestM.m.split('-')[1]]||bestM.m,sub:bestM.avg.toFixed(0)+'% de presença',color:'var(--green)'}});
+  }}
+
+  container.innerHTML=insights.map(i=>
+    `<div style="display:flex;align-items:flex-start;gap:10px;padding:10px;background:var(--surface2);border-radius:6px;border-left:3px solid ${{i.color}}">
+      <span style="font-size:18px;flex-shrink:0">${{i.icon}}</span>
+      <div style="flex:1;min-width:0">
+        <div style="font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.4px;margin-bottom:2px">${{i.label}}</div>
+        <div style="font-size:14px;font-weight:600;color:${{i.color}};line-height:1.2">${{i.val}}</div>
+        <div style="font-size:11px;color:var(--muted);margin-top:2px">${{i.sub}}</div>
+      </div>
+    </div>`
+  ).join('');
+}}
+
 // INIT
-renderHoje(); renderTable(); renderProg(); renderCharts();
+renderHoje(); renderInsights(); renderTable(); renderProg(); renderCharts();
 </script>
 </body></html>"""
 
@@ -1058,3 +1541,4 @@ if __name__ == '__main__':
     print("="*55)
     print("  ✅  Concluído!")
     print("="*55 + "\n")
+
