@@ -37,14 +37,93 @@ def carregar_planilha(caminho):
 
 def extrair_unidades(sheets):
     """
-    Extrai meta, matrículas, frequência e saldo por unidade.
+    Extrai meta, matrículas, frequência e saldos por unidade.
 
+    Estratégia (Opção A - alinhada com dashboard de frequência):
     - meta / matr  → linha TOTAL GERAL de cada aba CEDESP
-    - freq         → soma da última aula com presença registrada
-                     em todos os períodos (Manhã + Tarde + Noite)
-    - saldo        → freq − meta
+    - freq         → soma das médias semestrais (freq_avg) de cada curso na unidade,
+                     replicando a metodologia do dashboard de frequência:
+                     freq_curso = média de TODAS as ~50 aulas registradas no semestre
+                     freq_unidade = soma dos freq_curso de todos os cursos da unidade
+    - saldo_matr   → matr − meta
+    - saldo_freq   → freq − meta
     """
     results = []
+    SKIP_DATES = {"30/01", "30/1"}
+
+    # Função interna: extrai freq_avg por curso (mesma lógica do dashboard de frequência)
+    def calcular_freq_unidade(df):
+        """Replica a metodologia do dashboard de frequência:
+        soma das médias semestrais por curso = freq da unidade."""
+        # Identifica as 3 seções (Manhã/Tarde/Noite) por linhas com "CURSO ... PERÍODO"
+        period_rows = []
+        for idx in range(len(df)):
+            for c in range(min(df.shape[1], 10)):
+                val = df.iloc[idx, c]
+                if pd.notna(val) and isinstance(val, str):
+                    v = val.strip().upper()
+                    if "CURSO" in v and any(p in v for p in ["MANHÃ","TARDE","NOITE","MANHA"]):
+                        period_rows.append(idx)
+                        break
+
+        if not period_rows:
+            return 0.0, 0
+
+        total_freq = 0.0
+        n_cursos_com_dados = 0
+        skip_words = ["TOTAL","SALDO","PLANEJAMENTO","NÃO FEZ","ANTES DA","ELETROTÉCNICA",
+                      "GUIA PRONATEC","PARADA PEDAGÓGICA","CURSOS ABAIXO"]
+
+        for p_i, pidx in enumerate(period_rows):
+            header = df.iloc[pidx]
+            date_row = df.iloc[pidx + 1] if pidx + 1 < len(df) else None
+            next_pidx = period_rows[p_i + 1] if p_i + 1 < len(period_rows) else len(df)
+
+            # Detecta col do nome do curso
+            name_col = 3
+            for c in range(len(header)):
+                if pd.notna(header.iloc[c]):
+                    h = str(header.iloc[c]).strip().upper()
+                    if "CURSO" in h:
+                        name_col = c
+                        break
+
+            # Identifica colunas FREQ válidas (excluindo SKIP_DATES)
+            freq_col_idxs = []
+            for c in range(len(header)):
+                if pd.notna(header.iloc[c]) and str(header.iloc[c]).strip().upper() == "FREQ":
+                    date_val = str(date_row.iloc[c]).strip() if date_row is not None and pd.notna(date_row.iloc[c]) else ""
+                    if date_val in SKIP_DATES:
+                        continue
+                    freq_col_idxs.append(c)
+
+            # Para cada linha de curso, calcula média das aulas
+            for ridx in range(pidx + 2, next_pidx):
+                row = df.iloc[ridx]
+                if name_col >= len(row):
+                    continue
+                val = row.iloc[name_col]
+                if not (pd.notna(val) and isinstance(val, str)):
+                    continue
+                cn = val.strip()
+                if not cn or len(cn) <= 2:
+                    continue
+                if any(s in cn.upper() for s in skip_words):
+                    continue
+
+                day_freqs = []
+                for col_idx in freq_col_idxs:
+                    if col_idx < len(row):
+                        v = row.iloc[col_idx]
+                        if pd.notna(v) and isinstance(v, (int, float)):
+                            day_freqs.append(float(v))
+
+                if day_freqs:
+                    freq_avg_curso = sum(day_freqs) / len(day_freqs)
+                    total_freq += freq_avg_curso
+                    n_cursos_com_dados += 1
+
+        return round(total_freq, 1), n_cursos_com_dados
 
     for i in range(1, 9):
         sheet_name = f"CEDESP {i}"
@@ -65,87 +144,29 @@ def extrair_unidades(sheets):
                     matr = float(row.iloc[8]) if pd.notna(row.iloc[8]) else 0
                     break
 
-        # ── colunas FREQ (excluindo 30/01) ────────────────────────────────
-        header_idx = None
-        for idx in range(len(df)):
-            for c in range(len(df.iloc[idx])):
-                val = str(df.iloc[idx, c]).strip().upper() if pd.notna(df.iloc[idx, c]) else ""
-                if "CURSO" in val and ("MANHÃ" in val or "MANHA" in val):
-                    header_idx = idx
-                    break
-            if header_idx is not None:
-                break
+        # ── freq: soma das médias semestrais por curso (Opção A) ──────────
+        freq, n_cursos = calcular_freq_unidade(df)
 
-        if header_idx is None:
-            print("cabeçalho não encontrado, pulando.")
-            continue
+        # Última data registrada (apenas para exibição no footer)
+        last_date_str = "média semestral"
 
-        header   = df.iloc[header_idx]
-        date_row = df.iloc[header_idx + 1] if header_idx + 1 < len(df) else None
+        saldo_freq = round(freq - meta, 1)
+        saldo_matr = round(matr - meta, 1)
 
-        def parse_date_br(val):
-            """Converte data para (mês, dia) respeitando formato DD/MM.
-            Datas armazenadas pelo Excel como datetime precisam de swap (lê MM/DD mas planilha é DD/MM)."""
-            import re as _re
-            if val is None or (isinstance(val, float) and pd.isna(val)):
-                return None
-            if hasattr(val, "month"):
-                # Excel interpretou DD/MM como MM/DD — inverte
-                return (val.day, val.month)
-            s = str(val).strip()
-            m = _re.match(r"^(\d{1,2})[/\-](\d{1,2})$", s)
-            if m:
-                return (int(m.group(2)), int(m.group(1)))  # (mês, dia)
-            return None
-
-        freq_cols = []
-        for c in range(len(header)):
-            if pd.notna(header.iloc[c]) and str(header.iloc[c]).strip().upper() == "FREQ":
-                raw = date_row.iloc[c] if date_row is not None and pd.notna(date_row.iloc[c]) else None
-                date_val = str(raw).strip() if raw is not None else ""
-                if date_val in SKIP_DATES:
-                    continue
-                parsed = parse_date_br(raw)
-                if parsed is not None:
-                    freq_cols.append((c, parsed))
-
-        # ── linhas TOTAL: (uma por período) ───────────────────────────────
-        total_rows_idx = []
-        for idx in range(len(df)):
-            row = df.iloc[idx]
-            for c in range(len(row)):
-                if str(row.iloc[c]).strip().upper() == "TOTAL:":
-                    total_rows_idx.append(idx)
-                    break
-
-        # Última coluna FREQ (cronologicamente) com dados em qualquer período
-        freq = 0
-        candidates = []
-        for fc, date in freq_cols:
-            vals = [
-                float(df.iloc[ridx, fc])
-                for ridx in total_rows_idx
-                if fc < len(df.iloc[ridx])
-                and pd.notna(df.iloc[ridx, fc])
-                and isinstance(df.iloc[ridx, fc], (int, float))
-                and df.iloc[ridx, fc] > 0
-            ]
-            if vals:
-                candidates.append((date, fc, sum(vals)))
-
-        if candidates:
-            candidates.sort(key=lambda x: x[0])
-            freq = candidates[-1][2]
-
-        saldo = round(freq - meta, 1)
-        print(f"meta={int(meta)} matr={int(matr)} freq={freq} saldo={saldo}")
+        print(f"meta={int(meta)} matr={int(matr)} freq={freq} ({n_cursos} cursos) saldo_freq={saldo_freq:+.1f}")
 
         results.append({
-            "unit":  sheet_name,
-            "meta":  int(meta),
-            "matr":  int(matr),
-            "freq":  freq,
-            "saldo": saldo,
+            "unit":        sheet_name,
+            "meta":        int(meta),
+            "matr":        int(matr),
+            "freq":        freq,
+            "n_cursos":    n_cursos,
+            "freq_source": 'semestral',
+            "last_date":   last_date_str,
+            "saldo_matr":  saldo_matr,
+            "saldo_freq":  saldo_freq,
+            "pct_matr":    round(matr / meta * 100, 1) if meta > 0 else 0,
+            "pct_presenca":round(freq / matr * 100, 1) if matr > 0 else 0,
         })
 
     return results
@@ -232,20 +253,60 @@ def extrair_freq_por_periodo(sheets):
     return freq_by_period
 
 
-HIST_DATA = [{"label": "2º Sem 2024", "matr": 2104, "inseridos": 2670, "attend_rate": 84.6}, {"label": "1º Sem 2025", "matr": 2093, "inseridos": 2754, "attend_rate": 78.8}, {"label": "2º Sem 2025", "matr": 1878, "inseridos": 2526, "attend_rate": 80.6}, {"label": "1º Sem 2026", "matr": 1783, "inseridos": 2243, "attend_rate": 86.0}]
+# Dados históricos: tenta carregar de historico.json, fallback para defaults
+def _load_hist():
+    import json as _json
+    hist_path = Path(__file__).parent / 'historico.json'
+    if hist_path.exists():
+        try:
+            return _json.loads(hist_path.read_text(encoding='utf-8'))
+        except Exception as e:
+            print(f"  ⚠ Erro ao ler historico.json: {e}, usando defaults")
+    # Defaults — atualize conforme dados oficiais
+    # NOTA: o valor de 1º Sem 2026 será sobrescrito automaticamente pelos dados extraídos
+    return [
+        {"label": "2º Sem 2024", "matr": 2104, "inseridos": 2670, "attend_rate": 84.6},
+        {"label": "1º Sem 2025", "matr": 2093, "inseridos": 2754, "attend_rate": 78.8},
+        {"label": "2º Sem 2025", "matr": 1878, "inseridos": 2526, "attend_rate": 80.6},
+        {"label": "1º Sem 2026", "matr": None,  "inseridos": None, "attend_rate": None},  # auto
+    ]
+
+HIST_DATA = _load_hist()
 
 def gerar_html(units, horarios, freq_por_periodo, data_atualizacao):
     logo_path = Path(__file__).parent / 'obrasocial.webp'
     logo_b64  = base64.b64encode(logo_path.read_bytes()).decode() if logo_path.exists() else ''
     logo_img  = f'<img src="data:image/webp;base64,{logo_b64}" style="height:52px;width:auto;display:block;border-radius:8px" alt="Obra Social Dom Bosco">' if logo_b64 else '<div class="logo-text">CEDESP <span>Dom Bosco</span> Itaquera</div>'
     units_js = json.dumps(units, ensure_ascii=False)
-    hist_js  = json.dumps(HIST_DATA, ensure_ascii=False)
 
-    # Calcula KPIs globais
+    # Preenche o último item do HIST_DATA automaticamente com dados atuais (se vazio)
+    hist_data = [dict(d) for d in HIST_DATA]
+    if hist_data and hist_data[-1].get('matr') is None:
+        cur_meta  = sum(u['meta'] for u in units)
+        cur_matr  = sum(u['matr'] for u in units)
+        cur_inser = cur_matr  # placeholder; ajustar quando houver dado de "inseridos"
+        cur_freq  = sum(u['freq'] for u in units)
+        # attend_rate = freq/meta (atingimento da meta), igual ao KPI principal "Atingimento global"
+        cur_attend = round(cur_freq / cur_meta * 100, 1) if cur_meta else 0
+        hist_data[-1]['matr'] = cur_matr
+        hist_data[-1]['inseridos'] = cur_inser
+        hist_data[-1]['attend_rate'] = cur_attend
+    hist_js = json.dumps(hist_data, ensure_ascii=False)
+
+    # Calcula KPIs globais — meta da prefeitura é cumprida pela frequência
     total_meta  = sum(u["meta"]  for u in units)
     total_matr  = sum(u["matr"]  for u in units)
     total_freq  = sum(u["freq"]  for u in units)
+    # Atingimento da meta: freq ≥ meta (exigência do convênio)
     superaram   = sum(1 for u in units if u["freq"] >= u["meta"])
+    # % de atingimento global (freq/meta)
+    pct_atingimento = round(total_freq / total_meta * 100, 1) if total_meta > 0 else 0
+    # Taxa de presença (controle pedagógico): freq/matr
+    presenca_media  = round(total_freq / total_matr * 100, 1) if total_matr > 0 else 0
+    # Data da última atualização
+    datas_freq = set(u.get("last_date","—") for u in units)
+    data_freq_str = list(datas_freq)[0] if len(datas_freq) == 1 else "datas variadas"
+    fonte_freq = "média semestral" if all(u.get("freq_source") == 'semestral' for u in units) else "snapshot último dia"
 
     # Monta blocos de horário
     def horario_block(periodo, emoji, badge_class, color_var, data, freq_val=0):
@@ -547,7 +608,7 @@ def gerar_html(units, horarios, freq_por_periodo, data_atualizacao):
     </div>
     <div class="hm-item">
       <div class="hm-val" style="color:#4ade80">{superaram}/8</div>
-      <div class="hm-label">Superaram a Meta</div>
+      <div class="hm-label">Atingiram a Meta</div>
     </div>
     <div style="width:1px;height:36px;background:var(--border);margin:0 4px"></div>
     <div class="hm-item">
@@ -569,24 +630,24 @@ def gerar_html(units, horarios, freq_por_periodo, data_atualizacao):
 
   <div class="kpi-grid">
     <div class="kpi-card gold">
-      <div class="kpi-label">Meta Total Convênio</div>
+      <div class="kpi-label">Meta Convênio</div>
       <div class="kpi-value" style="color:var(--accent)">{total_meta:,}</div>
-      <div class="kpi-sub">alunos planejados · 8 unidades</div>
+      <div class="kpi-sub">alunos exigidos · prefeitura</div>
     </div>
     <div class="kpi-card blue">
       <div class="kpi-label">Total Matrículas</div>
       <div class="kpi-value" style="color:var(--accent2)">{total_matr:,}</div>
-      <div class="kpi-sub">{round(total_matr/total_meta*100,1)}% da meta total</div>
+      <div class="kpi-sub">{round(total_matr/total_meta*100,1)}% da meta · captação</div>
     </div>
     <div class="kpi-card green">
-      <div class="kpi-label">Unidades Acima da Meta de Freq.</div>
+      <div class="kpi-label">Unidades Atingindo Meta</div>
       <div class="kpi-value" style="color:var(--green)">{superaram}</div>
-      <div class="kpi-sub">de 8 unidades ativas</div>
+      <div class="kpi-sub">de 8 · freq ≥ meta convênio</div>
     </div>
     <div class="kpi-card purple">
-      <div class="kpi-label">Alunos Frequentes no Dia</div>
+      <div class="kpi-label">Frequência Total</div>
       <div class="kpi-value" style="color:var(--purple)">{total_freq:.0f}</div>
-      <div class="kpi-sub">presentes no último dia registrado</div>
+      <div class="kpi-sub">{pct_atingimento}% da meta · {fonte_freq}</div>
     </div>
   </div>
 
@@ -605,9 +666,10 @@ def gerar_html(units, horarios, freq_por_periodo, data_atualizacao):
         <tr>
           <th>Unidade</th>
           <th class="right">Meta</th>
-          <th class="right">Matrículas</th>
-          <th class="right">Frequência</th>
-          <th>Atingimento da Meta</th>
+          <th class="right">Matr.</th>
+          <th class="right">Freq.</th>
+          <th>Atingimento da Meta <span style="font-weight:400;color:var(--text-muted);font-size:10px">(freq/meta)</span></th>
+          <th>Presença <span style="font-weight:400;color:var(--text-muted);font-size:10px">(freq/matr)</span></th>
           <th class="right">Saldo</th>
           <th class="right">Status</th>
         </tr>
@@ -629,8 +691,8 @@ def gerar_html(units, horarios, freq_por_periodo, data_atualizacao):
       <canvas id="barChart" height="240"></canvas>
     </div>
     <div class="chart-card">
-      <div class="chart-title">Taxa de Frequência (% da Meta)</div>
-      <div class="chart-sub">Frequência realizada ÷ Meta convênio × 100</div>
+      <div class="chart-title">Atingimento da Meta e Presença por Unidade</div>
+      <div class="chart-sub">Azul: freq/meta (convênio) · Verde: freq/matr (presença) · Tracejado: 100%</div>
       <canvas id="radarChart" height="240"></canvas>
     </div>
   </div>
@@ -688,7 +750,7 @@ def gerar_html(units, horarios, freq_por_periodo, data_atualizacao):
 
 <footer>
   <div class="footer-text">CEDESP Dom Bosco Itaquera · 1º Semestre 2026 · Dashboard de Acompanhamento</div>
-  <div class="footer-text">Atualizado em {data_atualizacao} · Frequência excluindo 30/01 (dia opcional)</div>
+  <div class="footer-text">Atualizado em {data_atualizacao} · Frequência: {fonte_freq} (todas as aulas registradas) · Excluindo 30/01</div>
 </footer>
 
 <script>
@@ -702,14 +764,24 @@ def gerar_html(units, horarios, freq_por_periodo, data_atualizacao):
   // ── TABLE ──
   const tbody = document.getElementById('mainTable');
   units.forEach((u, i) => {{
-    const pct = ((u.freq / u.meta) * 100).toFixed(1);
-    const pctNum = parseFloat(pct);
-    const fillColor = pctNum >= 100 ? '#1a7a3e' : pctNum >= 85 ? '#c97c1a' : '#e63827';
-    const fillW = Math.min(pctNum, 100);
-    const saldoClass = u.saldo >= 0 ? 'pos' : 'neg';
-    const saldoSign = u.saldo >= 0 ? '+' : '';
+    // Atingimento da Meta (freq/meta) — exigência do convênio com a prefeitura
+    const pctAtg = +((u.freq / u.meta) * 100).toFixed(1);
+    const atgColor = pctAtg >= 100 ? '#1a7a3e' : pctAtg >= 85 ? '#c97c1a' : '#e63827';
+    const atgW = Math.min(pctAtg, 100);
+
+    // Presença efetiva (freq/matr) — controle pedagógico interno
+    const pctPres = u.pct_presenca;
+    const presColor = pctPres >= 75 ? '#1a7a3e' : pctPres >= 60 ? '#c97c1a' : '#e63827';
+    const presW = Math.min(pctPres, 100);
+
+    // Saldo: freq - meta (saldo do convênio)
+    const saldoClass = u.saldo_freq >= 0 ? 'pos' : 'neg';
+    const saldoSign = u.saldo_freq >= 0 ? '+' : '';
+
+    // Status: meta atingida ou não
     const status = u.freq >= u.meta ? '✓ Atingiu' : '✗ Abaixo';
     const statusColor = u.freq >= u.meta ? '#1a7a3e' : '#e63827';
+
     tbody.innerHTML += `
       <tr>
         <td><div class="unit-name"><div class="unit-dot" style="background:${{COLORS[i]}}"></div>${{u.unit}}</div></td>
@@ -718,13 +790,21 @@ def gerar_html(units, horarios, freq_por_periodo, data_atualizacao):
         <td class="right mono">${{u.freq}}</td>
         <td>
           <div class="prog-wrap">
-            <div class="prog-bar" style="max-width:160px">
-              <div class="prog-fill" style="width:${{fillW}}%;background:${{fillColor}}"></div>
+            <div class="prog-bar" style="max-width:140px">
+              <div class="prog-fill" style="width:${{atgW}}%;background:${{atgColor}}"></div>
             </div>
-            <div class="prog-pct" style="color:${{fillColor}}">${{pct}}%</div>
+            <div class="prog-pct" style="color:${{atgColor}}">${{pctAtg}}%</div>
           </div>
         </td>
-        <td class="right"><span class="saldo-pill ${{saldoClass}}">${{saldoSign}}${{u.saldo}}</span></td>
+        <td>
+          <div class="prog-wrap">
+            <div class="prog-bar" style="max-width:120px">
+              <div class="prog-fill" style="width:${{presW}}%;background:${{presColor}}"></div>
+            </div>
+            <div class="prog-pct" style="color:${{presColor}}">${{pctPres}}%</div>
+          </div>
+        </td>
+        <td class="right"><span class="saldo-pill ${{saldoClass}}">${{saldoSign}}${{u.saldo_freq}}</span></td>
         <td class="right" style="font-size:12px;color:${{statusColor}};font-weight:600">${{status}}</td>
       </tr>`;
   }});
@@ -770,26 +850,32 @@ def gerar_html(units, horarios, freq_por_periodo, data_atualizacao):
     data: {{
       labels: units.map(u => u.unit),
       datasets: [
-        {{ label: 'Freq/Meta %',
+        {{ label: 'Atingimento da Meta (freq/meta)',
            data: units.map(u => +((u.freq / u.meta) * 100).toFixed(1)),
-           backgroundColor: 'rgba(99,102,241,0.20)', borderColor: '#6366f1',
-           pointBackgroundColor: '#6366f1', pointBorderColor: '#ffffff',
+           backgroundColor: 'rgba(33,67,142,0.20)', borderColor: '#21438e',
+           pointBackgroundColor: '#21438e', pointBorderColor: '#ffffff',
+           pointRadius: 4, borderWidth: 2 }},
+        {{ label: 'Presença (freq/matr)',
+           data: units.map(u => u.pct_presenca),
+           backgroundColor: 'rgba(43,177,157,0.15)', borderColor: '#2bb19d',
+           pointBackgroundColor: '#2bb19d', pointBorderColor: '#ffffff',
            pointRadius: 4, borderWidth: 2 }},
         {{ label: 'Referência 100%',
            data: Array(8).fill(100),
-           backgroundColor: 'rgba(251,191,36,0.06)', borderColor: 'rgba(251,191,36,0.7)',
-           borderDash: [5,3], pointRadius: 0, borderWidth: 1.5 }}
+           backgroundColor: 'rgba(251,191,36,0.05)', borderColor: 'rgba(251,191,36,0.6)',
+           borderDash: [5,3], pointRadius: 0, borderWidth: 1.2 }}
       ]
     }},
     options: {{
       responsive: true,
       plugins: {{
-        legend: {{ position: 'top', labels: {{ boxWidth: 12, padding: 16 }} }},
-        tooltip: {{ backgroundColor: '#1a2340', borderColor: '#d0d8ea', borderWidth: 1, titleColor:'#ffffff', bodyColor:'#d0d8ea' }}
+        legend: {{ position: 'top', labels: {{ boxWidth: 12, padding: 14, font: {{size: 11}} }} }},
+        tooltip: {{ backgroundColor: '#1a2340', borderColor: '#d0d8ea', borderWidth: 1, titleColor:'#ffffff', bodyColor:'#d0d8ea',
+                    callbacks: {{ label: ctx => ` ${{ctx.dataset.label}}: ${{ctx.raw}}%` }} }}
       }},
       scales: {{
         r: {{
-          min: 50, max: 130,
+          min: 30, max: 130,
           ticks: {{ backdropColor: 'transparent', font: {{ size: 10 }}, stepSize: 20 }},
           grid: {{ color: 'rgba(0,0,0,0.07)' }},
           pointLabels: {{ font: {{ size: 11 }} }}
@@ -833,9 +919,9 @@ def gerar_html(units, horarios, freq_por_periodo, data_atualizacao):
       labels: units.map(u => u.unit),
       datasets: [{{
         label: 'Saldo (Freq − Meta)',
-        data: units.map(u => u.saldo),
-        backgroundColor: units.map(u => u.saldo >= 0 ? 'rgba(26,122,62,0.65)' : 'rgba(230,56,39,0.65)'),
-        borderColor: units.map(u => u.saldo >= 0 ? '#1a7a3e' : '#e63827'),
+        data: units.map(u => u.saldo_freq),
+        backgroundColor: units.map(u => u.saldo_freq >= 0 ? 'rgba(26,122,62,0.65)' : 'rgba(230,56,39,0.65)'),
+        borderColor: units.map(u => u.saldo_freq >= 0 ? '#1a7a3e' : '#e63827'),
         borderWidth: 1.5, borderRadius: 4,
       }}]
     }},
@@ -906,4 +992,5 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
