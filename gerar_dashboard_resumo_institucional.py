@@ -1,29 +1,28 @@
 #!/usr/bin/env python3
 """
-gerar_dashboard_resumo.py
-=========================
-Gera o Dashboard de Resumo por Unidade — CEDESP Dom Bosco Itaquera.
+gerar_dashboard.py
+==================
+Script semanal de atualização do Dashboard CEDESP Dom Bosco Itaquera.
 
 Uso:
-    python gerar_dashboard_resumo.py                          # usa planilha padrão
-    python gerar_dashboard_resumo.py "caminho/planilha.xlsx"  # especifica arquivo
+    python gerar_dashboard.py                          # usa planilha padrão
+    python gerar_dashboard.py "caminho/planilha.xlsx"  # especifica arquivo
 
 Saída:
-    dashboard_cedesp_2026.html
+    dashboard_cursos_frequencia.html   (pronto para publicar no Google Sites)
+    dashboard_resumo.html              (visão geral por unidade)
 """
 
 import sys
-import os
 import json
-import base64
-from pathlib import Path
+import os
 from datetime import datetime, timezone, timedelta
 import pandas as pd
 
 # ── CONFIGURAÇÃO ──────────────────────────────────────────────────────────────
-PLANILHA_PADRAO = "1º_Sem__-__2026.xlsx"
-SAIDA           = "dashboard_cedesp_2026.html"
-SKIP_DATES      = {"30/01", "30/1"}   # dia opcional — ignorado no cálculo
+PLANILHA_PADRAO = "1º_Sem__-__2026.xlsx"   # altere se o nome mudar
+SAIDA_CURSOS    = "dashboard_cursos_frequencia.html"
+SAIDA_RESUMO    = "dashboard_resumo.html"
 # ─────────────────────────────────────────────────────────────────────────────
 
 
@@ -35,95 +34,37 @@ def carregar_planilha(caminho):
     return pd.read_excel(caminho, sheet_name=None, header=None)
 
 
-def extrair_unidades(sheets):
-    """
-    Extrai meta, matrículas, frequência e saldos por unidade.
+def extrair_totais(sheets):
+    """Extrai resumo por unidade da aba TOTAIS."""
+    df = sheets.get("TOTAIS")
+    if df is None:
+        return []
 
-    Estratégia (Opção A - alinhada com dashboard de frequência):
-    - meta / matr  → linha TOTAL GERAL de cada aba CEDESP
-    - freq         → soma das médias semestrais (freq_avg) de cada curso na unidade,
-                     replicando a metodologia do dashboard de frequência:
-                     freq_curso = média de TODAS as ~50 aulas registradas no semestre
-                     freq_unidade = soma dos freq_curso de todos os cursos da unidade
-    - saldo_matr   → matr − meta
-    - saldo_freq   → freq − meta
-    """
-    results = []
-    SKIP_DATES = {"30/01", "30/1"}
+    unidades = []
+    for idx in range(len(df)):
+        row = df.iloc[idx]
+        val0 = str(row.iloc[0]).strip() if pd.notna(row.iloc[0]) else ""
+        if "CEDESP" in val0 and "TOTAL" not in val0.upper():
+            try:
+                meta  = float(row.iloc[1]) if pd.notna(row.iloc[1]) else 0
+                matr  = float(row.iloc[2]) if pd.notna(row.iloc[2]) else 0
+                freq  = float(row.iloc[3]) if pd.notna(row.iloc[3]) else 0
+                saldo = float(row.iloc[4]) if pd.notna(row.iloc[4]) else 0
+                unidades.append({
+                    "unit": val0.strip(),
+                    "meta": meta,
+                    "matr": matr,
+                    "freq": freq,
+                    "saldo": saldo,
+                })
+            except (ValueError, TypeError):
+                continue
+    return unidades
 
-    # Função interna: extrai freq_avg por curso (mesma lógica do dashboard de frequência)
-    def calcular_freq_unidade(df):
-        """Replica a metodologia do dashboard de frequência:
-        soma das médias semestrais por curso = freq da unidade."""
-        # Identifica as 3 seções (Manhã/Tarde/Noite) por linhas com "CURSO ... PERÍODO"
-        period_rows = []
-        for idx in range(len(df)):
-            for c in range(min(df.shape[1], 10)):
-                val = df.iloc[idx, c]
-                if pd.notna(val) and isinstance(val, str):
-                    v = val.strip().upper()
-                    if "CURSO" in v and any(p in v for p in ["MANHÃ","TARDE","NOITE","MANHA"]):
-                        period_rows.append(idx)
-                        break
 
-        if not period_rows:
-            return 0.0, 0
-
-        total_freq = 0.0
-        n_cursos_com_dados = 0
-        skip_words = ["TOTAL","SALDO","PLANEJAMENTO","NÃO FEZ","ANTES DA","ELETROTÉCNICA",
-                      "GUIA PRONATEC","PARADA PEDAGÓGICA","CURSOS ABAIXO"]
-
-        for p_i, pidx in enumerate(period_rows):
-            header = df.iloc[pidx]
-            date_row = df.iloc[pidx + 1] if pidx + 1 < len(df) else None
-            next_pidx = period_rows[p_i + 1] if p_i + 1 < len(period_rows) else len(df)
-
-            # Detecta col do nome do curso
-            name_col = 3
-            for c in range(len(header)):
-                if pd.notna(header.iloc[c]):
-                    h = str(header.iloc[c]).strip().upper()
-                    if "CURSO" in h:
-                        name_col = c
-                        break
-
-            # Identifica colunas FREQ válidas (excluindo SKIP_DATES)
-            freq_col_idxs = []
-            for c in range(len(header)):
-                if pd.notna(header.iloc[c]) and str(header.iloc[c]).strip().upper() == "FREQ":
-                    date_val = str(date_row.iloc[c]).strip() if date_row is not None and pd.notna(date_row.iloc[c]) else ""
-                    if date_val in SKIP_DATES:
-                        continue
-                    freq_col_idxs.append(c)
-
-            # Para cada linha de curso, calcula média das aulas
-            for ridx in range(pidx + 2, next_pidx):
-                row = df.iloc[ridx]
-                if name_col >= len(row):
-                    continue
-                val = row.iloc[name_col]
-                if not (pd.notna(val) and isinstance(val, str)):
-                    continue
-                cn = val.strip()
-                if not cn or len(cn) <= 2:
-                    continue
-                if any(s in cn.upper() for s in skip_words):
-                    continue
-
-                day_freqs = []
-                for col_idx in freq_col_idxs:
-                    if col_idx < len(row):
-                        v = row.iloc[col_idx]
-                        if pd.notna(v) and isinstance(v, (int, float)):
-                            day_freqs.append(float(v))
-
-                if day_freqs:
-                    freq_avg_curso = sum(day_freqs) / len(day_freqs)
-                    total_freq += freq_avg_curso
-                    n_cursos_com_dados += 1
-
-        return round(total_freq, 1), n_cursos_com_dados
+def extrair_cursos(sheets):
+    """Extrai dados de frequência por curso de cada aba CEDESP."""
+    all_courses = []
 
     for i in range(1, 9):
         sheet_name = f"CEDESP {i}"
@@ -134,836 +75,724 @@ def extrair_unidades(sheets):
 
         print(f"  📊  Processando {sheet_name}...", end=" ")
 
-        # ── meta e matr da linha TOTAL GERAL ──────────────────────────────
-        meta = matr = 0
+        # Identifica linhas de cabeçalho de período
+        # Exige a célula contenha "CURSO" + identificador do período
+        # (mais robusto que aceitar qualquer "MANHÃ"/"TARDE"/"NOITE" isolado)
+        period_rows = {}
         for idx in range(len(df)):
             row = df.iloc[idx]
+            for col_idx in range(len(row)):
+                val = row.iloc[col_idx]
+                if pd.notna(val) and isinstance(val, str):
+                    v = val.strip().upper()
+                    if "CURSO" not in v:
+                        continue
+                    if "MANHÃ" in v or "MANHA" in v:
+                        period_rows[idx] = "Manhã"; break
+                    elif "TARDE" in v:
+                        period_rows[idx] = "Tarde"; break
+                    elif "NOITE" in v:
+                        period_rows[idx] = "Noite"; break
+
+        # Para cada período, extrai layout de colunas
+        period_col_layouts = {}
+        for pidx, period in period_rows.items():
+            row = df.iloc[pidx]
+            layout = {}
             for c in range(len(row)):
-                if str(row.iloc[c]).strip().upper() == "TOTAL GERAL:":
-                    meta = float(row.iloc[5]) if pd.notna(row.iloc[5]) else 0
-                    matr = float(row.iloc[8]) if pd.notna(row.iloc[8]) else 0
-                    break
+                val = row.iloc[c]
+                if pd.notna(val) and isinstance(val, str):
+                    v = val.strip().upper()
+                    if "CURSO" in v and any(p in v for p in ["MANHÃ","TARDE","NOITE","MANHA"]):
+                        layout["name_col"] = c
+                    elif "EIXO" in v:
+                        layout["eixo_col"] = c
+                    elif "META" in v and "CONV" in v:
+                        layout["meta_col"] = c
+                    elif "INSERIDO" in v:
+                        layout["ins_col"] = c
+                    elif "MATR" in v:
+                        layout["matr_col"] = c
+                    elif "VAGA" in v:
+                        layout["vagas_col"] = c
+            period_col_layouts[pidx] = (period, layout)
 
-        # ── freq: soma das médias semestrais por curso (Opção A) ──────────
-        freq, n_cursos = calcular_freq_unidade(df)
+        # Identifica colunas FREQ por período
+        # Todas as colunas com cabeçalho FREQ, excluindo 30/01 (dia opcional)
+        SKIP_DATES = {"30/01", "30/1"}
+        
+        def parse_date_br(val):
+            """Converte data para (mês, dia) no formato BR DD/MM.
+            
+            ATENÇÃO: O Excel auto-converte certas strings DD/MM (ex: '06/02', '09/02') em
+            datetime objects interpretando-as como MM/DD (americano). Exemplo:
+              '06/02' (6 de fev) → datetime(2025, 6, 2) onde .month=6, .day=2
+            Para recuperar a data correta, INVERTEMOS .day↔.month nos datetime objects.
+            """
+            import re as _re
+            if val is None or (isinstance(val, float) and pd.isna(val)):
+                return None
+            # Datetime do Excel: inverte day↔month para recuperar o original BR
+            if hasattr(val, "month"):
+                real_month = val.day
+                real_day   = val.month
+                if not (1 <= real_month <= 12 and 1 <= real_day <= 31):
+                    return None
+                return (real_month, real_day)
+            s = str(val).strip()
+            m = _re.match(r"^(\d{1,2})[/\-](\d{1,2})$", s)
+            if m:
+                return (int(m.group(2)), int(m.group(1)))  # (mês, dia)
+            return None
+        
+        freq_cols_by_period = {}
+        for pidx in period_col_layouts:
+            header   = df.iloc[pidx]
+            date_row = df.iloc[pidx + 1] if pidx + 1 < len(df) else None
+            cols = []
+            for c in range(len(header)):
+                if pd.notna(header.iloc[c]) and str(header.iloc[c]).strip().upper() == "FREQ":
+                    raw = date_row.iloc[c] if date_row is not None and pd.notna(date_row.iloc[c]) else None
+                    date_str = str(raw).strip() if raw is not None else ""
+                    if date_str in SKIP_DATES:
+                        continue  # ignora dia opcional 30/01
+                    parsed = parse_date_br(raw)
+                    if parsed is None:
+                        continue  # data inválida, pula
+                    month, day = parsed
+                    sort_date    = f"{month:02d}/{day:02d}"   # MM/DD para ordenação
+                    display_date = f"{day:02d}/{month:02d}"   # DD/MM para exibição BR
+                    cols.append((c, sort_date, display_date))
+            freq_cols_by_period[pidx] = cols
 
-        # Última data registrada (apenas para exibição no footer)
-        last_date_str = "média semestral"
+        # Extrai linhas de curso
+        period_list = sorted(period_col_layouts.keys())
+        cursos_encontrados = 0
 
-        saldo_freq = round(freq - meta, 1)
-        saldo_matr = round(matr - meta, 1)
+        for p_i, pidx in enumerate(period_list):
+            period, layout = period_col_layouts[pidx]
+            freq_cols = freq_cols_by_period[pidx]
+            next_pidx = period_list[p_i + 1] if p_i + 1 < len(period_list) else len(df)
 
-        print(f"meta={int(meta)} matr={int(matr)} freq={freq} ({n_cursos} cursos) saldo_freq={saldo_freq:+.1f}")
+            name_col = layout.get("name_col", 3)
+            ins_col  = layout.get("ins_col",  7)
+            matr_col = layout.get("matr_col", 8)
+            meta_col = layout.get("meta_col", 5)
 
-        results.append({
-            "unit":        sheet_name,
-            "meta":        int(meta),
-            "matr":        int(matr),
-            "freq":        freq,
-            "n_cursos":    n_cursos,
-            "freq_source": 'semestral',
-            "last_date":   last_date_str,
-            "saldo_matr":  saldo_matr,
-            "saldo_freq":  saldo_freq,
-            "pct_matr":    round(matr / meta * 100, 1) if meta > 0 else 0,
-            "pct_presenca":round(freq / matr * 100, 1) if matr > 0 else 0,
-        })
-
-    return results
-
-
-def extrair_horarios(sheets):
-    """Extrai totais por horário da aba TOTAIS."""
-    df = sheets.get("TOTAIS")
-    if df is None:
-        return None
-
-    horarios = {}
-    periodo_atual = None
-
-    for idx in range(len(df)):
-        row = df.iloc[idx]
-        val0 = str(row.iloc[0]).strip().upper() if pd.notna(row.iloc[0]) else ""
-
-        if val0 in ("MANHÃ", "TARDE", "NOITE"):
-            periodo_atual = val0.capitalize()
-            horarios[periodo_atual] = {"meta": 0, "matr": 0, "c1a7": 0, "c8": 0}
-        elif periodo_atual and val0 == "TOTAL":
-            horarios[periodo_atual]["meta"] = int(row.iloc[1]) if pd.notna(row.iloc[1]) else 0
-            horarios[periodo_atual]["matr"] = int(row.iloc[2]) if pd.notna(row.iloc[2]) else 0
-        elif periodo_atual and "CEDESP 1" in val0 and "7" in val0:
-            horarios[periodo_atual]["c1a7"] = int(row.iloc[2]) if pd.notna(row.iloc[2]) else 0
-        elif periodo_atual and "CEDESP 8" in val0:
-            horarios[periodo_atual]["c8"] = int(row.iloc[2]) if pd.notna(row.iloc[2]) else 0
-
-    return horarios
-
-
-def extrair_freq_por_periodo(sheets):
-    import re as _re
-    SKIP = {'30/01','30/1'}
-    def date_to_tuple(val):
-        if val is None or (isinstance(val, float) and pd.isna(val)): return None
-        if hasattr(val, 'month'): return (val.day, val.month)
-        s = str(val).strip()
-        if s in SKIP: return None
-        m = _re.match(r'^(\d{1,2})[/\-](\d{1,2})$', s)
-        if m: return (int(m.group(2)), int(m.group(1)))
-        return None
-    freq_by_period = {'Manhã': 0, 'Tarde': 0, 'Noite': 0}
-    for sheet_name in [s for s in sheets if 'CEDESP' in s]:
-        df = sheets.get(sheet_name)
-        if df is None: continue
-        period_rows = []
-        for idx in range(len(df)):
-            for col in range(df.shape[1]):
-                val = str(df.iloc[idx,col]).strip().upper() if pd.notna(df.iloc[idx,col]) else ''
-                if 'CURSO' in val:
-                    if 'MANHÃ' in val or 'MANHA' in val: period_rows.append((idx,'Manhã'))
-                    elif 'TARDE' in val: period_rows.append((idx,'Tarde'))
-                    elif 'NOITE' in val: period_rows.append((idx,'Noite'))
-                    break
-        for pidx, (header_idx, turno) in enumerate(period_rows):
-            header = df.iloc[header_idx]
-            date_row = df.iloc[header_idx+1] if header_idx+1<len(df) else None
-            if date_row is None: continue
-            freq_cols = []
-            for col in range(df.shape[1]):
-                if pd.notna(header.iloc[col]) and str(header.iloc[col]).strip().upper()=='FREQ':
-                    dt = date_to_tuple(date_row.iloc[col])
-                    if dt: freq_cols.append((col, dt))
-            next_idx = period_rows[pidx+1][0] if pidx+1<len(period_rows) else len(df)
-            total_row_idx = None
-            for ridx in range(header_idx+2, next_idx):
+            for ridx in range(pidx + 2, next_pidx):
                 row = df.iloc[ridx]
-                for col in range(df.shape[1]):
-                    if str(row.iloc[col]).strip().upper() == 'TOTAL:':
-                        total_row_idx = ridx; break
-                if total_row_idx: break
-            if not total_row_idx: continue
-            candidates = []
-            for fc, dt in freq_cols:
-                if fc < df.shape[1]:
-                    v = df.iloc[total_row_idx, fc]
-                    if pd.notna(v) and isinstance(v,(int,float)) and v > 0:
-                        candidates.append((dt, v))
-            if candidates:
-                candidates.sort(key=lambda x: x[0])
-                freq_by_period[turno] += candidates[-1][1]
-    return freq_by_period
+
+                # Nome do curso
+                course_name = None
+                val = row.iloc[name_col] if name_col < len(row) else None
+                if pd.notna(val) and isinstance(val, str):
+                    v = val.strip()
+                    skip_words = ["TOTAL","SALDO","PLANEJAMENTO","NÃO FEZ","ANTES DA","ELETROTÉCNICA",
+                                  "GUIA PRONATEC","PARADA PEDAGÓGICA","CURSOS ABAIXO"]
+                    if v and not any(s in v.upper() for s in skip_words) and len(v) > 2:
+                        course_name = v
+
+                if course_name is None:
+                    continue
+
+                # Métricas numéricas
+                def safe_float(c):
+                    if c >= len(row): return None
+                    v = row.iloc[c]
+                    return float(v) if pd.notna(v) and isinstance(v, (int, float)) else None
+
+                meta      = safe_float(meta_col)
+                matr      = safe_float(matr_col)
+                inseridos = safe_float(ins_col)
+
+                # Frequências diárias — toda coluna FREQ com valor numérico = 1 aula
+                day_freqs = []
+                last_date = None
+                last_date_display = None
+                daily = []  # list of (sort_date, display_date, freq)
+                for col_idx, sort_date, display_date in freq_cols:
+                    if col_idx < len(row):
+                        v = row.iloc[col_idx]
+                        if pd.notna(v) and isinstance(v, (int, float)):
+                            day_freqs.append(float(v))
+                            daily.append((sort_date, display_date, float(v)))
+                            last_date = sort_date
+                            last_date_display = display_date
+
+                freq_avg    = round(sum(day_freqs) / len(day_freqs), 1) if day_freqs else 0
+                n_classes   = len(day_freqs)
+                last_freq   = int(day_freqs[-1]) if day_freqs else None
+
+                # Weekly aggregates (for trend chart) — compact format
+                from datetime import datetime, timedelta
+                week_agg = {}
+                for (sd, dd, fr) in daily:
+                    try:
+                        parts = sd.split('/')
+                        month, day_n = int(parts[0]), int(parts[1])
+                        dt = datetime(2026, month, day_n)
+                        dow = dt.weekday()
+                        week_start = dt - timedelta(days=dow)
+                        wk = week_start.strftime('%d/%m')
+                        if wk not in week_agg:
+                            week_agg[wk] = [0, 0]
+                        week_agg[wk][0] += fr
+                        week_agg[wk][1] += 1
+                    except Exception:
+                        pass
+                week_avgs = {wk: round(v[0]/v[1], 1) for wk, v in week_agg.items()}
+                attend_rate = round(freq_avg / meta * 100, 1) if meta and meta > 0 and freq_avg > 0 else 0
+                evasao      = round(matr - freq_avg, 1) if matr else None
+                evasao_pct  = round(evasao / matr * 100, 1) if matr and evasao is not None else None
+
+                centr     = int(row.iloc[0]) if pd.notna(row.iloc[0]) and isinstance(row.iloc[0], (int, float)) else 0
+                sentr     = int(row.iloc[1]) if pd.notna(row.iloc[1]) and isinstance(row.iloc[1], (int, float)) else 0
+                dem_total = centr + sentr
+
+                all_courses.append({
+                    "unit":         sheet_name,
+                    "period":       period,
+                    "course":       course_name,
+                    "meta":         meta,
+                    "matr":         matr,
+                    "inseridos":    inseridos,
+                    "freq_avg":     freq_avg,
+                    "n_classes":    n_classes,
+                    "attend_rate":  attend_rate,
+                    "evasao":       evasao,
+                    "daily":        [[sd, dd, int(fr)] for sd, dd, fr in daily],
+                    "last_freq":    last_freq,
+                    "week_avgs":    week_avgs,
+                    "last_date":    last_date,
+                    "last_date_display": last_date_display,
+                    "evasao_pct":   evasao_pct,
+                    "centr":        centr,
+                    "sentr":        sentr,
+                    "dem_total":    dem_total,
+                })
+                cursos_encontrados += 1
+
+        print(f"{cursos_encontrados} turmas")
+
+    return all_courses
 
 
-# Dados históricos: tenta carregar de historico.json, fallback para defaults
-def _load_hist():
-    import json as _json
-    hist_path = Path(__file__).parent / 'historico.json'
-    if hist_path.exists():
-        try:
-            return _json.loads(hist_path.read_text(encoding='utf-8'))
-        except Exception as e:
-            print(f"  ⚠ Erro ao ler historico.json: {e}, usando defaults")
-    # Defaults — atualize conforme dados oficiais
-    # NOTA: o valor de 1º Sem 2026 será sobrescrito automaticamente pelos dados extraídos
-    return [
-        {"label": "2º Sem 2024", "matr": 2104, "inseridos": 2670, "attend_rate": 84.6},
-        {"label": "1º Sem 2025", "matr": 2093, "inseridos": 2754, "attend_rate": 78.8},
-        {"label": "2º Sem 2025", "matr": 1878, "inseridos": 2526, "attend_rate": 80.6},
-        {"label": "1º Sem 2026", "matr": None,  "inseridos": None, "attend_rate": None},  # auto
-    ]
+def gerar_html_cursos(cursos, data_atualizacao):
+    """Gera o HTML do dashboard de frequência por curso."""
 
-HIST_DATA = _load_hist()
+    dados_js = json.dumps(cursos, ensure_ascii=False, indent=2)
 
-def gerar_html(units, horarios, freq_por_periodo, data_atualizacao):
-    logo_path = Path(__file__).parent / 'obrasocial.webp'
-    logo_b64  = base64.b64encode(logo_path.read_bytes()).decode() if logo_path.exists() else ''
-    logo_img  = f'<img src="data:image/webp;base64,{logo_b64}" style="height:52px;width:auto;display:block;border-radius:8px" alt="Obra Social Dom Bosco">' if logo_b64 else '<div class="logo-text">CEDESP <span>Dom Bosco</span> Itaquera</div>'
-    units_js = json.dumps(units, ensure_ascii=False)
-
-    # Preenche o último item do HIST_DATA automaticamente com dados atuais (se vazio)
-    hist_data = [dict(d) for d in HIST_DATA]
-    if hist_data and hist_data[-1].get('matr') is None:
-        cur_meta  = sum(u['meta'] for u in units)
-        cur_matr  = sum(u['matr'] for u in units)
-        cur_inser = cur_matr  # placeholder; ajustar quando houver dado de "inseridos"
-        cur_freq  = sum(u['freq'] for u in units)
-        # attend_rate = freq/meta (atingimento da meta), igual ao KPI principal "Atingimento global"
-        cur_attend = round(cur_freq / cur_meta * 100, 1) if cur_meta else 0
-        hist_data[-1]['matr'] = cur_matr
-        hist_data[-1]['inseridos'] = cur_inser
-        hist_data[-1]['attend_rate'] = cur_attend
-    hist_js = json.dumps(hist_data, ensure_ascii=False)
-
-    # Calcula KPIs globais — meta da prefeitura é cumprida pela frequência
-    total_meta  = sum(u["meta"]  for u in units)
-    total_matr  = sum(u["matr"]  for u in units)
-    total_freq  = sum(u["freq"]  for u in units)
-    # Atingimento da meta: freq ≥ meta (exigência do convênio)
-    superaram   = sum(1 for u in units if u["freq"] >= u["meta"])
-    # % de atingimento global (freq/meta)
-    pct_atingimento = round(total_freq / total_meta * 100, 1) if total_meta > 0 else 0
-    # Taxa de presença (controle pedagógico): freq/matr
-    presenca_media  = round(total_freq / total_matr * 100, 1) if total_matr > 0 else 0
-    # Data da última atualização
-    datas_freq = set(u.get("last_date","—") for u in units)
-    data_freq_str = list(datas_freq)[0] if len(datas_freq) == 1 else "datas variadas"
-    fonte_freq = "média semestral" if all(u.get("freq_source") == 'semestral' for u in units) else "snapshot último dia"
-
-    # Monta blocos de horário
-    def horario_block(periodo, emoji, badge_class, color_var, data, freq_val=0):
-        if not data:
-            return ""
-        pct_num = round((data["matr"] / data["meta"] - 1) * 100) if data["meta"] > 0 else 0
-        pct_str = f"+{pct_num}%" if pct_num >= 0 else f"{pct_num}%"
-        freq_pct = round(freq_val / data["matr"] * 100, 1) if data["matr"] > 0 and freq_val > 0 else 0
-        freq_color = "#1a7a3e" if freq_pct >= 85 else "#c97c1a" if freq_pct >= 70 else "#e63827"
-        freq_html = f'<div style="margin-top:10px;padding-top:10px;border-top:1px solid var(--border);display:flex;align-items:center;justify-content:space-between"><div><div class="h-val" style="color:{freq_color};font-size:22px">{freq_val:.0f}</div><div class="h-label">Frequentes no dia</div></div><div style="text-align:right"><div style="font-family:JetBrains Mono,monospace;font-size:13px;color:{freq_color};font-weight:600">{freq_pct}%</div><div class="h-meta">das matrículas</div></div></div>' if freq_val > 0 else ""
-        return f"""
-    <div class="horario-card">
-      <div class="horario-badge {badge_class}">{emoji} {periodo}</div>
-      <div class="horario-nums">
-        <div>
-          <div class="h-val" style="color:{color_var}">{data["matr"]:,}</div>
-          <div class="h-label">Matrículas</div>
-        </div>
-        <div style="text-align:right">
-          <div class="h-meta">META: {data["meta"]}</div>
-          <div class="h-meta">CEDESP 1–7: {data["c1a7"]}</div>
-          <div class="h-meta">CEDESP 8: {data["c8"]}</div>
-        </div>
-      </div>
-      <div class="prog-wrap">
-        <div class="prog-bar"><div class="prog-fill" style="width:100%;background:{color_var}"></div></div>
-        <div class="prog-pct" style="color:{color_var}">{pct_str}</div>
-      </div>
-      {freq_html}
-    </div>"""
-
-    h = horarios or {}
-    manha_block = horario_block("Manhã", "☀", "badge-manha", "var(--accent)",  h.get("Manhã", {}), freq_por_periodo.get("Manhã", 0))
-    tarde_block  = horario_block("Tarde", "🌤", "badge-tarde", "var(--accent2)", h.get("Tarde", {}), freq_por_periodo.get("Tarde", 0))
-    noite_block  = horario_block("Noite", "🌙", "badge-noite", "var(--purple)",  h.get("Noite", {}), freq_por_periodo.get("Noite", 0))
-
-    return f"""<!DOCTYPE html>
+    html = f"""<!DOCTYPE html>
 <html lang="pt-BR">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Dashboard CEDESP Dom Bosco Itaquera — 1º Semestre 2026</title>
-<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<title>Frequência por Curso — CEDESP Dom Bosco Itaquera</title>
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js"></script>
 <style>
-  :root {{
-    --bg: #f4f6fb;
-    --surface: #ffffff;
-    --surface2: #eef1f8;
-    --border: #d0d8ea;
-    --text: #1a2340;
-    --text-muted: #5c6b8a;
-    --accent: #21438e;
-    --accent2: #e63827;
-    --green: #1a7a3e;
-    --red: #e63827;
-    --orange: #c97c1a;
-    --purple: #21438e;
-  }}
-
-  * {{ box-sizing: border-box; margin: 0; padding: 0; }}
-
-  body {{
-    background: var(--bg);
-    color: var(--text);
-    font-family: 'Poppins', sans-serif;
-    min-height: 100vh;
-    overflow-x: hidden;
-  }}
-
-  header {{
-    border-bottom: 1px solid var(--border);
-    padding: 0 40px;
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    height: 72px;
-    position: sticky;
-    top: 0;
-    background: #21438e;
-    box-shadow: 0 2px 8px rgba(33,67,142,0.18);
-    backdrop-filter: blur(12px);
-    z-index: 100;
-  }}
-
-  .logo {{ display: flex; align-items: center; gap: 12px; }}
-
-  .logo-mark {{
-    width: 36px; height: 36px;
-    background: #e63827;
-    border-radius: 8px;
-    display: flex; align-items: center; justify-content: center;
-    font-family: 'JetBrains Mono', monospace;
-    font-weight: 500; color: #ffffff; font-size: 13px; letter-spacing: -0.5px;
-  }}
-
-  .logo-text {{
-    font-family: 'Poppins', sans-serif;
-    font-size: 18px; letter-spacing: -0.3px; color: #ffffff;
-  }}
-  .logo-text span {{ color: #e63827; }}
-
-  .header-meta {{
-    display: flex; align-items: center; gap: 24px;
-  }}
-
-  .hm-item {{ text-align: right; }}
-  .hm-val {{
-    font-family: 'JetBrains Mono', monospace;
-    font-size: 20px; font-weight: 600; color: #ffffff;
-    letter-spacing: -0.5px;
-  }}
-  .hm-label {{
-    font-size: 11px; color: rgba(255,255,255,0.70); margin-top: 1px;
-  }}
-
-  main {{ max-width: 1280px; margin: 0 auto; padding: 32px 40px 60px; }}
-
-  .section-header {{
-    display: flex; align-items: center; gap: 12px;
-    margin-bottom: 20px; margin-top: 36px;
-  }}
-  .section-header:first-child {{ margin-top: 0; }}
-  .section-title {{
-    font-family: 'Poppins', sans-serif;
-    font-size: 18px; letter-spacing: -0.3px; white-space: nowrap;
-  }}
-  .section-line {{ flex: 1; height: 1px; background: var(--border); }}
-  .section-badge {{
-    font-family: 'JetBrains Mono', monospace;
-    font-size: 10px; color: var(--text-muted);
-    border: 1px solid var(--border); padding: 3px 10px; border-radius: 20px;
-    white-space: nowrap;
-  }}
-
-  .kpi-grid {{
-    display: grid;
-    grid-template-columns: repeat(4, 1fr);
-    gap: 12px;
-    margin-bottom: 8px;
-  }}
-
-  .kpi-card {{
-    background: var(--surface);
-    border: 1px solid var(--border);
-    border-radius: 8px;
-    padding: 20px 24px;
-    position: relative;
-    overflow: hidden;
-  }}
-
-  .kpi-card::before {{
-    content: '';
-    position: absolute;
-    top: 0; left: 0; right: 0;
-    height: 2px;
-  }}
-  .kpi-card.gold::before   {{ background: #21438e; }}
-  .kpi-card.blue::before   {{ background: #e63827; }}
-  .kpi-card.green::before  {{ background: #1a7a3e; }}
-  .kpi-card.purple::before {{ background: #21438e; }}
-
-  .kpi-label {{
-    font-size: 11px; color: var(--text-muted);
-    text-transform: uppercase; letter-spacing: 0.6px; margin-bottom: 8px;
-  }}
-  .kpi-value {{
-    font-family: 'JetBrains Mono', monospace;
-    font-size: 36px; font-weight: 500;
-    letter-spacing: -1px; line-height: 1;
-    margin-bottom: 4px;
-  }}
-  .kpi-sub {{ font-size: 12px; color: var(--text-muted); }}
-
-  .two-col {{ display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 16px; }}
-
-  .chart-card {{
-    background: var(--surface);
-    border: 1px solid var(--border);
-    border-radius: 8px;
-    padding: 24px;
-  }}
-  .chart-title {{
-    font-family: 'Poppins', sans-serif;
-    font-size: 15px; margin-bottom: 4px;
-  }}
-  .chart-sub {{ font-size: 12px; color: var(--text-muted); margin-bottom: 20px; }}
-
-  .table-card {{
-    background: var(--surface);
-    border: 1px solid var(--border);
-    border-radius: 8px;
-    overflow: hidden;
-  }}
-  .table-header {{
-    padding: 20px 24px 16px;
-    border-bottom: 1px solid var(--border);
-  }}
-  .table-title {{
-    font-family: 'Poppins', sans-serif;
-    font-size: 16px;
-  }}
-  .table-sub {{ font-size: 12px; color: var(--text-muted); margin-top: 2px; }}
-
-  table {{ width: 100%; border-collapse: collapse; }}
-  thead th {{
-    padding: 10px 24px;
-    text-align: left;
-    font-size: 11px; font-weight: 500;
-    text-transform: uppercase; letter-spacing: 0.5px;
-    color: #ffffff;
-    background: #21438e;
-    border-bottom: 1px solid #1a3570;
-  }}
-  th.right, td.right {{ text-align: right; }}
-  tbody tr {{ border-bottom: 1px solid var(--border); transition: background 0.15s; }}
-  tbody tr:last-child {{ border-bottom: none; }}
-  tbody tr:hover {{ background: var(--surface2); }}
-  td {{ padding: 14px 24px; font-size: 14px; }}
-  td.mono {{ font-family: 'JetBrains Mono', monospace; font-size: 13px; }}
-
-  .unit-name {{ display: flex; align-items: center; gap: 10px; font-weight: 500; }}
-  .unit-dot {{ width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }}
-
-  .prog-wrap {{ display: flex; align-items: center; gap: 10px; }}
-  .prog-bar {{
-    flex: 1; height: 6px;
-    background: var(--surface2);
-    border-radius: 3px; overflow: hidden;
-  }}
-  .prog-fill {{ height: 100%; border-radius: 3px; transition: width 0.6s ease; }}
-  .prog-pct {{ font-family: 'JetBrains Mono', monospace; font-size: 12px; min-width: 46px; }}
-
-  .saldo-pill {{
-    font-family: 'JetBrains Mono', monospace;
-    font-size: 12px; padding: 3px 10px;
-    border-radius: 20px; font-weight: 500;
-  }}
-  .saldo-pill.pos {{ background: rgba(26,122,62,0.12); color: #1a7a3e; }}
-  .saldo-pill.neg {{ background: rgba(230,56,39,0.10); color: #e63827; }}
-
-  .horario-grid {{
-    display: grid; grid-template-columns: repeat(3, 1fr);
-    gap: 12px; margin-bottom: 8px;
-  }}
-  .horario-card {{
-    background: var(--surface);
-    border: 1px solid var(--border);
-    border-radius: 8px; padding: 20px 24px;
-  }}
-  .horario-badge {{
-    display: inline-block;
-    font-size: 11px; font-weight: 600; letter-spacing: 0.5px;
-    padding: 4px 12px; border-radius: 20px;
-    margin-bottom: 16px;
-  }}
-  .badge-manha {{ background: rgba(33,67,142,0.12);  color: #21438e; }}
-  .badge-tarde  {{ background: rgba(230,56,39,0.12);  color: #e63827; }}
-  .badge-noite  {{ background: rgba(33,67,142,0.08);  color: #21438e; }}
-
-  .horario-nums {{
-    display: flex; justify-content: space-between; align-items: flex-end;
-    margin-bottom: 12px;
-  }}
-  .h-val  {{ font-family: 'JetBrains Mono', monospace; font-size: 28px; font-weight: 500; letter-spacing: -1px; }}
-  .h-label {{ font-size: 12px; color: var(--text-muted); margin-top: 2px; }}
-  .h-meta {{ font-size: 11px; color: var(--text-muted); text-align: right; }}
-
-  footer {{
-    border-top: 1px solid var(--border);
-    padding: 20px 40px;
-    display: flex; justify-content: space-between; align-items: center;
-    margin-top: 40px;
-  }}
-  .footer-text {{ font-size: 12px; color: var(--text-muted); }}
-
-  @media (max-width: 900px) {{
-    header, main, footer {{ padding-left: 20px; padding-right: 20px; }}
-    .two-col {{ grid-template-columns: 1fr; }}
-    .kpi-grid {{ grid-template-columns: 1fr 1fr; }}
-    .horario-grid {{ grid-template-columns: 1fr; }}
-  }}
+:root {{
+  --bg:#f5f2ee;--surface:#fff;--surface2:#ede9e3;--border:#d8d2c8;
+  --text:#1a1612;--text-muted:#8a8279;--accent:#c84b31;--accent2:#2b5f8a;
+  --green:#2d7a4f;--orange:#c97c1a;--yellow:#e8c547;--ink:#21438e;
+}}
+*{{box-sizing:border-box;margin:0;padding:0}}
+body{{background:var(--bg);color:var(--text);font-family:'Poppins',sans-serif;min-height:100vh}}
+header{{background:var(--ink);color:#f5f2ee;padding:0 48px;display:flex;align-items:stretch;justify-content:space-between;height:80px;position:sticky;top:0;z-index:100}}
+.header-left{{display:flex;align-items:center;gap:20px}}
+.header-accent{{width:4px;height:40px;background:var(--accent);border-radius:2px}}
+.header-title{{font-family:'Poppins',sans-serif;font-weight:800;font-size:17px;letter-spacing:-0.3px;line-height:1.25}}
+.header-sub{{font-family:'JetBrains Mono',monospace;font-size:10px;color:rgba(245,242,238,.45);margin-top:3px;letter-spacing:.5px}}
+.header-right{{display:flex;align-items:center;gap:32px}}
+.header-stat{{text-align:right}}
+.hs-val{{font-family:'Poppins',sans-serif;font-size:22px;font-weight:700;letter-spacing:-.5px;color:var(--yellow)}}
+.hs-label{{font-family:'JetBrains Mono',monospace;font-size:10px;color:rgba(245,242,238,.45);letter-spacing:.5px}}
+.controls{{background:var(--surface);border-bottom:1px solid var(--border);padding:14px 48px;display:flex;align-items:center;gap:12px;flex-wrap:wrap;position:sticky;top:80px;z-index:99}}
+.filter-label{{font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--text-muted);letter-spacing:.5px;text-transform:uppercase}}
+.filter-btn{{display:inline-flex;align-items:center;padding:5px 14px;border-radius:2px;border:1px solid var(--border);background:transparent;color:var(--text-muted);font-family:'Poppins',sans-serif;font-size:12px;cursor:pointer;transition:all .15s}}
+.filter-btn:hover{{border-color:var(--ink);color:var(--ink)}}
+.filter-btn.active{{background:var(--ink);color:var(--bg);border-color:var(--ink)}}
+.filter-btn.manha.active{{background:var(--orange);border-color:var(--orange);color:#fff}}
+.filter-btn.tarde.active{{background:var(--accent2);border-color:var(--accent2);color:#fff}}
+.filter-btn.noite.active{{background:#4a3a7a;border-color:#4a3a7a;color:#fff}}
+.sort-select{{padding:5px 28px 5px 12px;border:1px solid var(--border);background:transparent;font-family:'Poppins',sans-serif;font-size:12px;color:var(--text);border-radius:2px;cursor:pointer;appearance:none;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath d='M1 1l4 4 4-4' stroke='%238a8279' stroke-width='1.5' fill='none'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 8px center}}
+.controls-spacer{{flex:1}}
+.search-wrap{{position:relative}}
+.search-input{{padding:6px 12px 6px 32px;border:1px solid var(--border);background:var(--bg);font-family:'Poppins',sans-serif;font-size:12px;color:var(--text);border-radius:2px;width:220px;outline:none}}
+.search-input:focus{{border-color:var(--ink)}}
+.search-icon{{position:absolute;left:10px;top:50%;transform:translateY(-50%);color:var(--text-muted);font-size:12px}}
+main{{padding:32px 48px 60px;max-width:1440px;margin:0 auto}}
+.kpi-row{{display:grid;grid-template-columns:repeat(4,1fr);gap:1px;background:var(--border);border:1px solid var(--border);margin-bottom:32px}}
+.kpi-cell{{background:var(--surface);padding:24px 28px}}
+.kpi-label{{font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--text-muted);letter-spacing:.8px;text-transform:uppercase;margin-bottom:10px}}
+.kpi-val{{font-family:'Poppins',sans-serif;font-size:40px;font-weight:800;letter-spacing:-2px;line-height:1;margin-bottom:4px}}
+.kpi-desc{{font-size:12px;color:var(--text-muted)}}
+.section-row{{display:flex;align-items:baseline;gap:12px;margin-bottom:20px;margin-top:40px}}
+.section-row:first-child{{margin-top:0}}
+.section-title{{font-family:'Poppins',sans-serif;font-size:13px;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:var(--text-muted)}}
+.section-rule{{flex:1;height:1px;background:var(--border)}}
+.section-count{{font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--text-muted)}}
+.charts-grid{{display:grid;grid-template-columns:1.6fr 1fr;gap:20px;margin-bottom:20px}}
+.chart-box{{background:var(--surface);border:1px solid var(--border);padding:24px}}
+.chart-box-title{{font-family:'Poppins',sans-serif;font-size:13px;font-weight:700;letter-spacing:-.2px;margin-bottom:3px}}
+.chart-box-sub{{font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--text-muted);margin-bottom:20px}}
+.course-table-wrap{{background:var(--surface);border:1px solid var(--border);overflow:hidden}}
+table{{width:100%;border-collapse:collapse}}
+thead th{{padding:10px 16px;text-align:left;font-family:'JetBrains Mono',monospace;font-size:10px;letter-spacing:.8px;text-transform:uppercase;color:var(--text-muted);background:var(--surface2);border-bottom:1px solid var(--border);white-space:nowrap;cursor:pointer;user-select:none;transition:color .15s}}
+thead th:hover{{color:var(--text)}}
+thead th.sort-active{{color:var(--accent2)}}
+thead th.right{{text-align:right}}
+thead th .sort-arrow{{margin-left:4px;opacity:.5;font-size:10px}}
+thead th.sort-active .sort-arrow{{opacity:1;color:var(--accent2)}}
+tbody tr{{border-bottom:1px solid var(--border);transition:background .1s}}
+tbody tr:last-child{{border-bottom:none}}
+tbody tr:hover{{background:var(--surface2)}}
+td{{padding:11px 16px;font-size:12.5px}}
+td.mono{{font-family:'JetBrains Mono',monospace;font-size:11.5px}}
+td.right{{text-align:right}}
+.course-name-cell{{max-width:240px;font-weight:600;font-size:12px;line-height:1.3}}
+.unit-chip{{display:inline-block;padding:2px 8px;border-radius:2px;font-family:'JetBrains Mono',monospace;font-size:10px;font-weight:500;background:var(--surface2);color:var(--text-muted);white-space:nowrap}}
+.period-dot{{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:6px}}
+.period-dot.manhã{{background:var(--orange)}}.period-dot.tarde{{background:var(--accent2)}}.period-dot.noite{{background:#4a3a7a}}
+.rate-cell{{min-width:140px}}
+.rate-wrap{{display:flex;align-items:center;gap:8px}}
+.rate-bar{{flex:1;height:5px;background:var(--surface2);overflow:hidden;min-width:60px}}
+.rate-fill{{height:100%}}
+.rate-pct{{font-family:'JetBrains Mono',monospace;font-size:11px;min-width:40px;text-align:right;font-weight:500}}
+.status-flag{{display:inline-flex;align-items:center;gap:5px;font-size:11px;font-family:'JetBrains Mono',monospace;padding:2px 8px;border:1px solid;border-radius:2px}}
+.status-flag.high{{border-color:#2d7a4f;color:#2d7a4f;background:rgba(45,122,79,.06)}}
+.status-flag.mid{{border-color:#c97c1a;color:#c97c1a;background:rgba(201,124,26,.06)}}
+.status-flag.low{{border-color:var(--accent);color:var(--accent);background:rgba(200,75,49,.06)}}
+.empty-state{{text-align:center;padding:48px;color:var(--text-muted);font-size:13px}}
+.update-badge{{font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--text-muted);background:var(--surface2);border:1px solid var(--border);padding:3px 10px;border-radius:2px}}
+footer{{border-top:1px solid var(--border);padding:20px 48px;display:flex;justify-content:space-between;align-items:center;margin-top:48px}}
+.footer-text{{font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--text-muted)}}
+@media(max-width:900px){{header,.controls,main{{padding-left:20px;padding-right:20px}}.charts-grid{{grid-template-columns:1fr}}.kpi-row{{grid-template-columns:1fr 1fr}}}}
 </style>
 </head>
 <body>
 
 <header>
-  <div class="logo">
-    {logo_img}
+  <div class="header-left">
+    <div class="header-accent"></div>
+    <img src="data:image/webp;base64,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" style="height:44px;width:auto;display:block;border-radius:8px" alt="Obra Social Dom Bosco Itaquera">
+    <div>
+      <div class="header-title">Frequência por Curso</div>
+      <div class="header-sub">CEDESP DOM BOSCO ITAQUERA · 1º SEMESTRE 2026</div>
+    </div>
   </div>
-  <div class="header-meta">
-    <div class="hm-item">
-      <div class="hm-val">{total_meta:,}</div>
-      <div class="hm-label">Meta Total</div>
-    </div>
-    <div class="hm-item">
-      <div class="hm-val">{total_matr:,}</div>
-      <div class="hm-label">Matrículas</div>
-    </div>
-    <div class="hm-item">
-      <div class="hm-val" style="color:#4ade80">{superaram}/8</div>
-      <div class="hm-label">Atingiram a Meta</div>
-    </div>
-    <div style="width:1px;height:36px;background:var(--border);margin:0 4px"></div>
-    <div class="hm-item">
-      <div style="font-family:'DM Mono',monospace;font-size:12px;color:var(--text-muted);background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:6px 14px;text-align:center;line-height:1.5">
-        📅 Última atualização<br>
-        <span style="color:#21438e;font-size:13px;font-weight:600">{data_atualizacao}</span>
-      </div>
-    </div>
+  <div class="header-right">
+    <div class="header-stat"><div class="hs-val" id="hdr-cursos">—</div><div class="hs-label">CURSOS</div></div>
+    <div class="header-stat"><div class="hs-val" id="hdr-avg">—</div><div class="hs-label">FREQ. MÉDIA</div></div>
+    <div class="header-stat"><div class="hs-val" id="hdr-ins">—</div><div class="hs-label">INSERIDOS</div></div>
+    <div class="header-stat"><div class="hs-val" id="hdr-matr">—</div><div class="hs-label">MATRÍCULAS</div></div>
   </div>
 </header>
 
+<div class="controls">
+  <div style="display:flex;align-items:center;gap:6px">
+    <span class="filter-label">Unidade:</span>
+    <button class="filter-btn active" data-filter="unit" data-value="all">Todas</button>
+    {"".join(f'<button class="filter-btn" data-filter="unit" data-value="CEDESP {n}">C{n}</button>' for n in range(1,9))}
+  </div>
+  <div style="display:flex;align-items:center;gap:6px">
+    <span class="filter-label">Horário:</span>
+    <button class="filter-btn active" data-filter="period" data-value="all">Todos</button>
+    <button class="filter-btn manha" data-filter="period" data-value="Manhã">☀ Manhã</button>
+    <button class="filter-btn tarde" data-filter="period" data-value="Tarde">🌤 Tarde</button>
+    <button class="filter-btn noite" data-filter="period" data-value="Noite">🌙 Noite</button>
+  </div>
+  <div class="controls-spacer"></div>
+  <span class="update-badge">📅 Atualizado em: {data_atualizacao}</span>
+  <div style="display:flex;align-items:center;gap:6px">
+
+  </div>
+  <div class="search-wrap">
+    <span class="search-icon">⌕</span>
+    <input type="text" class="search-input" id="searchInput" placeholder="Buscar curso...">
+  </div>
+</div>
+
 <main>
 
-  <div class="section-header">
-    <div class="section-title">Indicadores Gerais</div>
-    <div class="section-line"></div>
-    <div class="section-badge">1º Semestre 2026</div>
-  </div>
+<div class="kpi-row">
+  <div class="kpi-cell"><div class="kpi-label">Cursos ativos</div><div class="kpi-val" id="kpi-cursos">—</div><div class="kpi-desc">turmas com frequência registrada</div></div>
+  <div class="kpi-cell"><div class="kpi-label">Taxa de frequência média</div><div class="kpi-val" id="kpi-rate" style="color:var(--accent2)">—</div><div class="kpi-desc">freq. média ÷ meta do curso</div></div>
 
-  <div class="kpi-grid">
-    <div class="kpi-card gold">
-      <div class="kpi-label">Meta Convênio</div>
-      <div class="kpi-value" style="color:var(--accent)">{total_meta:,}</div>
-      <div class="kpi-sub">alunos exigidos · prefeitura</div>
-    </div>
-    <div class="kpi-card blue">
-      <div class="kpi-label">Total Matrículas</div>
-      <div class="kpi-value" style="color:var(--accent2)">{total_matr:,}</div>
-      <div class="kpi-sub">{round(total_matr/total_meta*100,1)}% da meta · captação</div>
-    </div>
-    <div class="kpi-card green">
-      <div class="kpi-label">Unidades Atingindo Meta</div>
-      <div class="kpi-value" style="color:var(--green)">{superaram}</div>
-      <div class="kpi-sub">de 8 · freq ≥ meta convênio</div>
-    </div>
-    <div class="kpi-card purple">
-      <div class="kpi-label">Frequência Total</div>
-      <div class="kpi-value" style="color:var(--purple)">{total_freq:.0f}</div>
-      <div class="kpi-sub">{pct_atingimento}% da meta · {fonte_freq}</div>
-    </div>
-  </div>
+  <div class="kpi-cell"><div class="kpi-label">Cursos com taxa &lt;80%</div><div class="kpi-val" id="kpi-low" style="color:var(--accent)">—</div><div class="kpi-desc">requerem atenção</div></div>
+  <div class="kpi-cell"><div class="kpi-label">Ausência média</div><div class="kpi-val" id="kpi-evasao" style="color:#c84b31">—</div><div class="kpi-desc">matriculados que faltam em média</div></div>
+</div>
 
-  <div class="section-header" style="margin-top:32px">
-    <div class="section-title">Performance Detalhada por Unidade</div>
-    <div class="section-line"></div>
-    <div class="section-badge">CEDESPs 1–8</div>
+<div id="snapshot-panel" style="display:none;background:linear-gradient(135deg,#1a2340 0%,#21438e 100%);border-radius:10px;padding:20px 28px;margin-bottom:24px;color:#fff;position:relative;overflow:hidden">
+  <div style="position:absolute;top:-30px;right:-30px;width:140px;height:140px;background:rgba(255,255,255,.04);border-radius:50%"></div>
+  <div style="position:absolute;bottom:-40px;right:60px;width:90px;height:90px;background:rgba(255,255,255,.03);border-radius:50%"></div>
+  <div style="display:flex;align-items:center;gap:8px;margin-bottom:16px">
+    <span style="font-size:14px">📅</span>
+    <span style="font-size:11px;font-weight:700;letter-spacing:1.2px;text-transform:uppercase;color:rgba(255,255,255,.6)">Dados do Dia</span>
+    <span id="snapshot-date" style="font-size:11px;color:rgba(255,255,255,.4);margin-left:4px"></span>
   </div>
-
-  <div class="table-card" style="margin-bottom:20px">
-    <div class="table-header">
-      <div class="table-sub">Dados consolidados · 1º Semestre 2026</div>
+  <div style="display:flex;gap:40px;flex-wrap:wrap;align-items:flex-end">
+    <div>
+      <div style="font-family:'JetBrains Mono',monospace;font-size:48px;font-weight:800;line-height:1;letter-spacing:-2px" id="snap-last-freq">—</div>
+      <div style="font-size:12px;color:rgba(255,255,255,.65);margin-top:6px">alunos presentes na última aula registrada</div>
     </div>
-    <table>
-      <thead>
-        <tr>
-          <th>Unidade</th>
-          <th class="right">Meta</th>
-          <th class="right">Matr.</th>
-          <th class="right">Freq.</th>
-          <th>Atingimento da Meta <span style="font-weight:400;color:var(--text-muted);font-size:10px">(freq/meta)</span></th>
-          <th>Presença <span style="font-weight:400;color:var(--text-muted);font-size:10px">(freq/matr)</span></th>
-          <th class="right">Saldo</th>
-          <th class="right">Status</th>
-        </tr>
-      </thead>
-      <tbody id="mainTable"></tbody>
-    </table>
-  </div>
-
-  <div class="section-header" style="margin-top:32px">
-    <div class="section-title">Análise por Unidade</div>
-    <div class="section-line"></div>
-    <div class="section-badge">CEDESPs 1–8</div>
-  </div>
-
-  <div class="two-col">
-    <div class="chart-card">
-      <div class="chart-title">Meta vs Matrículas vs Frequência</div>
-      <div class="chart-sub">Comparativo por unidade — valores absolutos</div>
-      <canvas id="barChart" height="240"></canvas>
+    <div style="width:1px;height:60px;background:rgba(255,255,255,.15);align-self:center"></div>
+    <div>
+      <div style="display:flex;align-items:baseline;gap:6px">
+        <span style="font-family:'JetBrains Mono',monospace;font-size:48px;font-weight:800;line-height:1;letter-spacing:-2px" id="snap-max-aulas">—</span>
+        <span style="font-size:14px;color:rgba(255,255,255,.5)">aulas</span>
+      </div>
+      <div style="font-size:12px;color:rgba(255,255,255,.65);margin-top:6px">máximo de chamadas registradas</div>
     </div>
-    <div class="chart-card">
-      <div class="chart-title">Atingimento da Meta e Presença por Unidade</div>
-      <div class="chart-sub">Azul: freq/meta (convênio) · Verde: freq/matr (presença) · Tracejado: 100%</div>
-      <canvas id="radarChart" height="240"></canvas>
+    <div style="width:1px;height:60px;background:rgba(255,255,255,.15);align-self:center"></div>
+    <div>
+      <div style="display:flex;align-items:baseline;gap:6px">
+        <span style="font-family:'JetBrains Mono',monospace;font-size:48px;font-weight:800;line-height:1;letter-spacing:-2px;color:#f59e0b" id="snap-atrasados">—</span>
+        <span style="font-size:14px;color:rgba(255,255,255,.5)">cursos</span>
+      </div>
+      <div style="font-size:12px;color:rgba(255,255,255,.65);margin-top:6px">com menos aulas que o máximo <span style="color:#f59e0b;font-weight:600">(possível chamada em falta)</span></div>
     </div>
   </div>
+</div>
 
-  <div class="section-header">
-    <div class="section-title">Distribuição por Horário</div>
-    <div class="section-line"></div>
-    <div class="section-badge">Sede + Metrô</div>
-  </div>
+<div class="section-row">
+  <div class="section-title">Tabela Completa</div>
+  <div class="section-rule"></div>
+  <span class="section-count" id="resultCount">—</span>
+</div>
 
-  <div class="horario-grid">
-    {manha_block}
-    {tarde_block}
-    {noite_block}
-  </div>
+<div class="course-table-wrap">
+  <table id="courseTable">
+    <thead>
+      <tr>
+        <th data-sort="course">Curso <span class="sort-arrow">↕</span></th>
+        <th data-sort="unit">Unidade <span class="sort-arrow">↕</span></th>
+        <th data-sort="period">Período <span class="sort-arrow">↕</span></th>
+        <th class="right" data-sort="inseridos">Inseridos <span class="sort-arrow">↕</span></th>
+        <th class="right" data-sort="matr">Matr. <span class="sort-arrow">↕</span></th>
+        <th class="right" data-sort="freq_avg">Freq. Média/dia <span class="sort-arrow">↕</span></th>
+        <th class="right" data-sort="n_classes">Aulas <span class="sort-arrow">↕</span></th>
+        <th data-sort="attend_rate">Taxa s/ Meta <span class="sort-arrow">↕</span></th>
+        <th class="right" data-sort="evasao_pct">Ausência <span class="sort-arrow">↕</span></th>
+        <th class="right" data-sort="dem_total">Demanda <span class="sort-arrow">↕</span></th>
+        <th data-sort="status">Status <span class="sort-arrow">↕</span></th>
+      </tr>
+    </thead>
+    <tbody id="courseTableBody"></tbody>
+  </table>
+  <div class="empty-state" id="emptyState" style="display:none">Nenhum curso encontrado.</div>
+</div>
 
-  <div class="section-header">
-    <div class="section-title">Matrículas × Cursos Oferecidos</div>
-    <div class="section-line"></div>
-    <div class="section-badge">Seleção de Cursos</div>
-  </div>
+<div class="section-row"><div class="section-title">Visão Gráfica</div><div class="section-rule"></div></div>
 
-  <div class="two-col">
-    <div class="chart-card">
-      <div class="chart-title">Matrículas por Unidade</div>
-      <div class="chart-sub">Comparativo entre unidades — maior para menor</div>
-      <canvas id="donutChart" height="260"></canvas>
-    </div>
-    <div class="chart-card">
-      <div class="chart-title">Saldo de Frequência por Unidade</div>
-      <div class="chart-sub">Diferença entre frequência realizada e meta convênio</div>
-      <canvas id="saldoChart" height="260"></canvas>
-    </div>
+<div class="charts-grid">
+  <div class="chart-box">
+    <div class="chart-box-title">Taxa de Frequência por Curso</div>
+    <div class="chart-box-sub">Frequência diária média ÷ meta do curso — top 20 cursos</div>
+    <canvas id="courseBarChart" height="320"></canvas>
   </div>
+  <div class="chart-box">
+    <div class="chart-box-title">Distribuição de Taxas</div>
+    <div class="chart-box-sub">Agrupamento por faixa de frequência</div>
+    <canvas id="distChart" height="320"></canvas>
+  </div>
+</div>
+<div class="charts-grid" style="grid-template-columns:1fr">
+  <div class="chart-box">
+    <div class="chart-box-title">Tendência de Frequência Semanal</div>
+    <div class="chart-box-sub">Evolução da presença média semana a semana ao longo do semestre</div>
+    <canvas id="trendChart" height="110"></canvas>
+  </div>
+</div>
 
-  <div class="section-header" style="margin-top:32px">
-    <div class="section-title">Evolução Histórica</div>
-    <div class="section-line"></div>
-    <div class="section-badge">Últimos 4 Semestres</div>
+<div class="charts-grid" style="grid-template-columns:1fr">
+  <div class="chart-box">
+    <div class="chart-box-title">Ausência por Curso — Top 20</div>
+    <div class="chart-box-sub">Cursos com maior taxa de faltas · matriculados que faltam em média</div>
+    <canvas id="evasaoChart" height="160"></canvas>
   </div>
-  <div class="two-col">
-    <div class="chart-card">
-      <div class="chart-title">Matrículas e Inseridos por Semestre</div>
-      <div class="chart-sub">Barra vermelha = semestre atual (1º Sem 2026)</div>
-      <canvas id="evolMatrChart" height="240"></canvas>
-    </div>
-    <div class="chart-card">
-      <div class="chart-title">Taxa de Frequência por Semestre</div>
-      <div class="chart-sub">Linha verde = referência 85% — pontos coloridos por desempenho</div>
-      <canvas id="evolFreqChart" height="240"></canvas>
-    </div>
-  </div>
+</div>
 
 </main>
 
 <footer>
-  <div class="footer-text">CEDESP Dom Bosco Itaquera · 1º Semestre 2026 · Dashboard de Acompanhamento</div>
-  <div class="footer-text">Atualizado em {data_atualizacao} · Frequência: {fonte_freq} (todas as aulas registradas) · Excluindo 30/01</div>
+  <div class="footer-text">CEDESP Dom Bosco Itaquera · Dashboard gerado automaticamente</div>
+  <div class="footer-text">Atualizado em {data_atualizacao}</div>
 </footer>
 
 <script>
-  const units = {units_js};
+const RAW = {dados_js};
 
-  const COLORS = [
-    '#21438e','#3a6bc4','#5a89d4','#e63827',
-    '#bc8cff','#ff7b72','#56d364','#79c0ff'
+let filterUnit='all', filterPeriod='all', sortMode='attend_rate', sortDir=-1, searchQuery='';
+
+function getColor(r){{ return r>=100?'#2d7a4f':r>=80?'#c97c1a':'#c84b31'; }}
+function getStatus(r){{ return r>=100?{{cls:'high',label:'✓ Meta atingida'}}:r>=80?{{cls:'mid',label:'⚠ Atenção média'}}:{{cls:'low',label:'✗ Atenção imediata'}}; }}
+function periodColor(p){{ return p==='Manhã'?'#c97c1a':p==='Tarde'?'#2b5f8a':'#4a3a7a'; }}
+
+function getFiltered(){{
+  return RAW.filter(d=>{{
+    if(filterUnit!=='all'&&d.unit!==filterUnit)return false;
+    if(filterPeriod!=='all'&&d.period!==filterPeriod)return false;
+    if(searchQuery&&!d.course.toLowerCase().includes(searchQuery)&&!d.unit.toLowerCase().includes(searchQuery))return false;
+    return true;
+  }});
+}}
+
+function getSorted(data){{
+  return [...data].sort((a,b)=>{{
+    const statusOrder={{high:0,mid:1,low:2}};
+    let av=a[sortMode], bv=b[sortMode];
+    if(sortMode==='status'){{av=statusOrder[getStatus(a.attend_rate).cls]??3;bv=statusOrder[getStatus(b.attend_rate).cls]??3;}}
+    if(typeof av==='string')return av.localeCompare(bv)*sortDir;
+    av=av??-Infinity; bv=bv??-Infinity;
+    return(av-bv)*sortDir;
+  }});
+}}
+
+Chart.defaults.color='#8a8279';
+Chart.defaults.font.family="'Poppins',sans-serif";
+Chart.defaults.borderColor='#d8d2c8';
+let charts={{}};
+
+function buildCharts(data){{
+  Object.values(charts).forEach(c=>c&&c.destroy());
+  const sorted=[...data].sort((a,b)=>a.attend_rate-b.attend_rate).slice(0,20);
+
+  charts.bar=new Chart(document.getElementById('courseBarChart'),{{
+    type:'bar',
+    data:{{
+      labels:sorted.map(d=>d.course.length>32?d.course.substring(0,30)+'…':d.course),
+      datasets:[{{label:'Taxa %',data:sorted.map(d=>d.attend_rate),backgroundColor:sorted.map(d=>getColor(d.attend_rate)+'cc'),borderColor:sorted.map(d=>getColor(d.attend_rate)),borderWidth:1,borderRadius:0}}]
+    }},
+    options:{{indexAxis:'y',responsive:true,plugins:{{legend:{{display:false}},tooltip:{{backgroundColor:'#1a1612',borderColor:'#d8d2c8',borderWidth:1,callbacks:{{label:ctx=>{{const d=sorted[ctx.dataIndex];return[` ${{ctx.raw.toFixed(1)}}%  —  ${{d.unit}} · ${{d.period}}`,` Presença média: ${{d.freq_avg}} alunos/dia`];}}}}}}}},scales:{{x:{{min:0,max:120,grid:{{color:'rgba(216,210,200,.4)'}},ticks:{{font:{{size:10}},callback:v=>v+'%'}}}},y:{{grid:{{display:false}},ticks:{{font:{{size:10}}}}}}}}}}
+  }});
+
+  const bands=[
+    {{label:'≥ 100% (Meta atingida)',min:100,max:Infinity,color:'#2d7a4f'}},
+    {{label:'80–99.9% (Atenção média)',min:80,max:100,color:'#c97c1a'}},
+    {{label:'< 80% (Atenção imediata)',min:0,max:80,color:'#c84b31'}},
   ];
-
-  // ── TABLE ──
-  const tbody = document.getElementById('mainTable');
-  units.forEach((u, i) => {{
-    // Atingimento da Meta (freq/meta) — exigência do convênio com a prefeitura
-    const pctAtg = +((u.freq / u.meta) * 100).toFixed(1);
-    const atgColor = pctAtg >= 100 ? '#1a7a3e' : pctAtg >= 85 ? '#c97c1a' : '#e63827';
-    const atgW = Math.min(pctAtg, 100);
-
-    // Presença efetiva (freq/matr) — controle pedagógico interno
-    const pctPres = u.pct_presenca;
-    const presColor = pctPres >= 75 ? '#1a7a3e' : pctPres >= 60 ? '#c97c1a' : '#e63827';
-    const presW = Math.min(pctPres, 100);
-
-    // Saldo: freq - meta (saldo do convênio)
-    const saldoClass = u.saldo_freq >= 0 ? 'pos' : 'neg';
-    const saldoSign = u.saldo_freq >= 0 ? '+' : '';
-
-    // Status: meta atingida ou não
-    const status = u.freq >= u.meta ? '✓ Atingiu' : '✗ Abaixo';
-    const statusColor = u.freq >= u.meta ? '#1a7a3e' : '#e63827';
-
-    tbody.innerHTML += `
-      <tr>
-        <td><div class="unit-name"><div class="unit-dot" style="background:${{COLORS[i]}}"></div>${{u.unit}}</div></td>
-        <td class="right mono">${{u.meta}}</td>
-        <td class="right mono">${{u.matr}}</td>
-        <td class="right mono">${{u.freq}}</td>
-        <td>
-          <div class="prog-wrap">
-            <div class="prog-bar" style="max-width:140px">
-              <div class="prog-fill" style="width:${{atgW}}%;background:${{atgColor}}"></div>
-            </div>
-            <div class="prog-pct" style="color:${{atgColor}}">${{pctAtg}}%</div>
-          </div>
-        </td>
-        <td>
-          <div class="prog-wrap">
-            <div class="prog-bar" style="max-width:120px">
-              <div class="prog-fill" style="width:${{presW}}%;background:${{presColor}}"></div>
-            </div>
-            <div class="prog-pct" style="color:${{presColor}}">${{pctPres}}%</div>
-          </div>
-        </td>
-        <td class="right"><span class="saldo-pill ${{saldoClass}}">${{saldoSign}}${{u.saldo_freq}}</span></td>
-        <td class="right" style="font-size:12px;color:${{statusColor}};font-weight:600">${{status}}</td>
-      </tr>`;
+  charts.dist=new Chart(document.getElementById('distChart'),{{
+    type:'doughnut',
+    data:{{labels:bands.map(b=>b.label),datasets:[{{data:bands.map(b=>data.filter(d=>d.attend_rate>=b.min&&d.attend_rate<b.max).length),backgroundColor:bands.map(b=>b.color+'cc'),borderColor:bands.map(b=>b.color),borderWidth:2,hoverOffset:8}}]}},
+    options:{{responsive:true,cutout:'58%',plugins:{{legend:{{position:'right',labels:{{boxWidth:12,padding:12,font:{{size:11}},usePointStyle:true}}}},tooltip:{{backgroundColor:'#1a1612',borderColor:'#d8d2c8',borderWidth:1}}}}}}
   }});
 
-  // ── CHARTS ──
-  Chart.defaults.color = '#5c6b8a';
-  Chart.defaults.font.family = "'Poppins', sans-serif";
-  Chart.defaults.borderColor = '#30363d';
-
-  const gridOpts = {{ color: 'rgba(0,0,0,0.07)', drawBorder: false }};
-
-  new Chart(document.getElementById('barChart'), {{
-    type: 'bar',
-    data: {{
-      labels: units.map(u => u.unit),
-      datasets: [
-        {{ label: 'Meta', data: units.map(u => u.meta),
-           backgroundColor: 'rgba(251,191,36,0.30)', borderColor: '#f59e0b',
-           borderWidth: 1.5, borderRadius: 4 }},
-        {{ label: 'Matrículas', data: units.map(u => u.matr),
-           backgroundColor: 'rgba(99,179,237,0.75)', borderColor: '#3b82f6',
-           borderWidth: 1, borderRadius: 4 }},
-        {{ label: 'Frequência', data: units.map(u => u.freq),
-           backgroundColor: 'rgba(52,211,153,0.75)', borderColor: '#10b981',
-           borderWidth: 1, borderRadius: 4 }},
-      ]
-    }},
-    options: {{
-      responsive: true,
-      plugins: {{
-        legend: {{ position: 'top', labels: {{ boxWidth: 12, padding: 16 }} }},
-        tooltip: {{ backgroundColor: '#1a2340', borderColor: '#d0d8ea', borderWidth: 1, titleColor:'#ffffff', bodyColor:'#d0d8ea' }}
-      }},
-      scales: {{
-        x: {{ grid: gridOpts, ticks: {{ font: {{ size: 11 }} }} }},
-        y: {{ grid: gridOpts, ticks: {{ font: {{ size: 11 }} }} }}
-      }}
-    }}
+  // Tendência de Frequência Semanal
+  const weekMap={{}};
+  data.forEach(d=>{{
+    if(!d.daily) return;
+    d.daily.forEach(([sd, dd, fr])=>{{
+      if(!sd) return;
+      const parts=sd.split('/');
+      if(parts.length<2) return;
+      const month=parseInt(parts[0]), day=parseInt(parts[1]);
+      const dt=new Date(2026, month-1, day);
+      const dow=dt.getDay()||7;
+      const weekStart=new Date(dt); weekStart.setDate(dt.getDate()-dow+1);
+      // Label: "Sem 1 Fev", "Sem 2 Fev" etc.
+      const MONTHS=['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
+      const m=weekStart.getMonth(); // 0-based
+      // Which week of the month? (1st day of month = week 1)
+      const firstDayOfMonth=new Date(weekStart.getFullYear(), m, 1);
+      const weekOfMonth=Math.ceil((weekStart.getDate()+firstDayOfMonth.getDay())/7);
+      const wk=`Sem ${{weekOfMonth}} ${{MONTHS[m]}}`;
+      const sk=`${{String(weekStart.getMonth()+1).padStart(2,'0')}}/${{String(weekStart.getDate()).padStart(2,'0')}}`;
+      if(!weekMap[wk]) weekMap[wk]={{sum:0,n:0,sortKey:sk}};
+      weekMap[wk].sum+=fr; weekMap[wk].n++;
+    }});
   }});
-
-  new Chart(document.getElementById('radarChart'), {{
-    type: 'radar',
-    data: {{
-      labels: units.map(u => u.unit),
-      datasets: [
-        {{ label: 'Atingimento da Meta (freq/meta)',
-           data: units.map(u => +((u.freq / u.meta) * 100).toFixed(1)),
-           backgroundColor: 'rgba(33,67,142,0.20)', borderColor: '#21438e',
-           pointBackgroundColor: '#21438e', pointBorderColor: '#ffffff',
-           pointRadius: 4, borderWidth: 2 }},
-        {{ label: 'Presença (freq/matr)',
-           data: units.map(u => u.pct_presenca),
-           backgroundColor: 'rgba(43,177,157,0.15)', borderColor: '#2bb19d',
-           pointBackgroundColor: '#2bb19d', pointBorderColor: '#ffffff',
-           pointRadius: 4, borderWidth: 2 }},
-        {{ label: 'Referência 100%',
-           data: Array(8).fill(100),
-           backgroundColor: 'rgba(251,191,36,0.05)', borderColor: 'rgba(251,191,36,0.6)',
-           borderDash: [5,3], pointRadius: 0, borderWidth: 1.2 }}
-      ]
-    }},
-    options: {{
-      responsive: true,
-      plugins: {{
-        legend: {{ position: 'top', labels: {{ boxWidth: 12, padding: 14, font: {{size: 11}} }} }},
-        tooltip: {{ backgroundColor: '#1a2340', borderColor: '#d0d8ea', borderWidth: 1, titleColor:'#ffffff', bodyColor:'#d0d8ea',
-                    callbacks: {{ label: ctx => ` ${{ctx.dataset.label}}: ${{ctx.raw}}%` }} }}
-      }},
-      scales: {{
-        r: {{
-          min: 30, max: 130,
-          ticks: {{ backdropColor: 'transparent', font: {{ size: 10 }}, stepSize: 20 }},
-          grid: {{ color: 'rgba(0,0,0,0.07)' }},
-          pointLabels: {{ font: {{ size: 11 }} }}
+  // Sort by first date seen in each week bucket (stored as sortKey)
+  const weeks=Object.keys(weekMap).sort((a,b)=>{{
+    const ka=weekMap[a].sortKey||''; const kb=weekMap[b].sortKey||'';
+    return ka<kb?-1:ka>kb?1:0;
+  }});
+  const weekAvgs=weeks.map(w=>+(weekMap[w].sum/weekMap[w].n).toFixed(1));
+  const weekMeta=weeks.map(()=>{{
+    const tm=data.reduce((s,d)=>s+(d.meta||0),0);
+    return +((tm||0)/(data.length||1)).toFixed(1);
+  }});
+  const trendColor=weekAvgs.length<2||weekAvgs[weekAvgs.length-1]>=weekAvgs[0]?'#2d7a4f':'#c84b31';
+  charts.unit=new Chart(document.getElementById('trendChart'),{{
+    type:'line',
+    data:{{labels:weeks,datasets:[
+      {{label:'Presença média',data:weekAvgs,borderColor:trendColor,backgroundColor:trendColor+'22',borderWidth:2.5,pointRadius:4,pointHoverRadius:6,tension:0.35,fill:true,spanGaps:true}},
+      {{label:'Meta média',data:weekMeta,borderColor:'#c97c1a',backgroundColor:'transparent',borderWidth:1.5,borderDash:[6,4],pointRadius:0,tension:0,fill:false}}
+    ]}},
+    options:{{responsive:true,plugins:{{
+      legend:{{position:'top',labels:{{boxWidth:12,padding:14,font:{{size:10}}}}}},
+      tooltip:{{backgroundColor:'#1a1612',borderColor:'#d8d2c8',borderWidth:1,callbacks:{{
+        label:ctx=>ctx.datasetIndex===0?` Presença média: ${{ctx.raw}} alunos/dia`:` Meta média: ${{ctx.raw}} alunos/dia`
+      }}}}
+    }},scales:{{
+      x:{{grid:{{display:false}},ticks:{{font:{{size:10}}}}}},
+      y:{{
+          grid:{{color:'rgba(216,210,200,.4)'}},
+          ticks:{{font:{{size:10}}}},
+          min:weekAvgs.length?Math.floor(Math.min(...weekAvgs,...weekMeta)*0.95):0,
+          max:weekAvgs.length?Math.ceil(Math.max(...weekAvgs,...weekMeta)*1.05):100,
         }}
-      }}
-    }}
+    }}}}
   }});
+}}
 
-  const sortedUnits = [...units].sort((a, b) => b.matr - a.matr);
-  new Chart(document.getElementById('donutChart'), {{
-    type: 'bar',
-    data: {{
-      labels: sortedUnits.map(u => u.unit.replace('CEDESP ', 'C')),
-      datasets: [{{
-        label: 'Matrículas',
-        data: sortedUnits.map(u => u.matr),
-        backgroundColor: sortedUnits.map((_, i) => COLORS[i % COLORS.length] + 'cc'),
-        borderColor:      sortedUnits.map((_, i) => COLORS[i % COLORS.length]),
-        borderWidth: 1, borderRadius: 3,
-      }}]
-    }},
-    options: {{
-      indexAxis: 'y', responsive: true,
-      plugins: {{
-        legend: {{ display: false }},
-        tooltip: {{ backgroundColor: '#1a2340', borderColor: '#d0d8ea', borderWidth: 1,
-          titleColor: '#ffffff', bodyColor: '#d0d8ea',
-          callbacks: {{ label: ctx => ` ${{ctx.raw}} matrículas — ${{((ctx.raw / {total_matr}) * 100).toFixed(1)}}% do total` }}
+// ── EVASION CHART ──
+let evasaoChart;
+function buildEvasaoChart(data){{
+  if(evasaoChart)evasaoChart.destroy();
+  const withEvasao=data.filter(d=>d.matr&&d.evasao!=null).sort((a,b)=>b.evasao_pct-a.evasao_pct).slice(0,20);
+  const labels=withEvasao.map(d=>{{const n=d.course.length>30?d.course.substring(0,28)+'…':d.course;return n+' ('+d.unit.replace('CEDESP ','C')+')';}});
+  evasaoChart=new Chart(document.getElementById('evasaoChart'),{{
+    type:'bar',
+    data:{{labels,datasets:[{{
+      label:'Ausência (alunos)',
+      data:withEvasao.map(d=>d.evasao),
+      backgroundColor:withEvasao.map(d=>d.evasao_pct>30?'rgba(200,75,49,.85)':d.evasao_pct>15?'rgba(201,124,26,.85)':'rgba(125,133,144,.6)'),
+      borderColor:withEvasao.map(d=>d.evasao_pct>30?'#c84b31':d.evasao_pct>15?'#c97c1a':'#7d8590'),
+      borderWidth:1,borderRadius:0
+    }}]}},
+    options:{{
+      indexAxis:'y',responsive:true,
+      plugins:{{
+        legend:{{display:false}},
+        tooltip:{{backgroundColor:'#1a1612',borderColor:'#d8d2c8',borderWidth:1,
+          callbacks:{{label:ctx=>{{const d=withEvasao[ctx.dataIndex];return` ${{d.evasao.toFixed(0)}} alunos faltam em média — ${{d.evasao_pct.toFixed(1)}}% · ${{d.period}}`;}}}}
         }}
       }},
-      scales: {{
-        x: {{ grid: {{ color: 'rgba(208,216,234,.3)' }}, ticks: {{ font: {{ size: 10 }}, color: '#5c6b8a' }} }},
-        y: {{ grid: {{ display: false }}, ticks: {{ font: {{ size: 11, weight: '500' }}, color: '#1a2340' }} }}
+      scales:{{
+        x:{{grid:{{color:'rgba(216,210,200,.3)'}},ticks:{{font:{{size:10}}}}}},
+        y:{{grid:{{display:false}},ticks:{{font:{{size:10}}}}}}
       }}
     }}
   }});
+}}
 
-  new Chart(document.getElementById('saldoChart'), {{
-    type: 'bar',
-    data: {{
-      labels: units.map(u => u.unit),
-      datasets: [{{
-        label: 'Saldo (Freq − Meta)',
-        data: units.map(u => u.saldo_freq),
-        backgroundColor: units.map(u => u.saldo_freq >= 0 ? 'rgba(26,122,62,0.65)' : 'rgba(230,56,39,0.65)'),
-        borderColor: units.map(u => u.saldo_freq >= 0 ? '#1a7a3e' : '#e63827'),
-        borderWidth: 1.5, borderRadius: 4,
-      }}]
-    }},
-    options: {{
-      responsive: true,
-      plugins: {{
-        legend: {{ display: false }},
-        tooltip: {{ backgroundColor: '#1a2340', borderColor: '#d0d8ea', borderWidth: 1, titleColor:'#ffffff', bodyColor:'#d0d8ea' }}
-      }},
-      scales: {{
-        x: {{ grid: gridOpts, ticks: {{ font: {{ size: 11 }} }} }},
-        y: {{ grid: gridOpts, ticks: {{ font: {{ size: 11 }} }}, border: {{ dash: [4,4] }} }}
-      }}
-    }}
+function buildTable(data){{
+  const tbody=document.getElementById('courseTableBody');
+  tbody.innerHTML='';
+  const sorted=getSorted(data);
+  document.getElementById('resultCount').textContent=sorted.length+' cursos';
+  document.getElementById('emptyState').style.display=sorted.length?'none':'block';
+  sorted.forEach(d=>{{
+    const st=getStatus(d.attend_rate);
+    const cap=Math.min(d.attend_rate,100);
+    const fc=getColor(d.attend_rate);
+    const pd=d.period.toLowerCase().replace('ã','a');
+    const tr=document.createElement('tr');
+    tr.innerHTML=`
+      <td><div class="course-name-cell">${{d.course}}</div></td>
+      <td><span class="unit-chip">${{d.unit.replace('CEDESP ','C')}}</span></td>
+      <td class="mono"><span class="period-dot ${{pd}}"></span>${{d.period}}</td>
+      <td class="right mono">${{d.inseridos||'—'}}</td>
+      <td class="right mono">${{d.matr||'—'}}</td>
+      <td class="right mono">${{d.freq_avg.toFixed(1)}}</td>
+      <td class="right mono">${{d.n_classes}}</td>
+      <td class="rate-cell"><div class="rate-wrap"><div class="rate-bar"><div class="rate-fill" style="width:${{cap}}%;background:${{fc}}"></div></div><div class="rate-pct" style="color:${{fc}}">${{d.attend_rate.toFixed(1)}}%</div></div></td>
+      <td class="right mono">${{d.evasao_pct!=null?'<span style="color:'+(d.evasao_pct>30?'#c84b31':d.evasao_pct>15?'#c97c1a':'#7d8590')+'">'+d.evasao_pct.toFixed(1)+'%</span>':'—'}}</td>
+      <td class="right">${{(()=>{{
+        const c=d.centr,s=d.sentr,t=d.dem_total;
+        if(!t)return'<span style="color:var(--text-muted)">—</span>';
+        const tag=c>0?'<span style="display:inline-flex;gap:3px;align-items:center">'
+          +'<span title="Com entrevista (aguardando vaga)" style="font-size:10px;padding:1px 5px;border-radius:2px;background:rgba(45,122,79,.15);color:#2d7a4f;font-family:JetBrains Mono,monospace">'+c+'✓</span>'
+          +(s>0?'<span title="Sem entrevista (só ficha)" style="font-size:10px;padding:1px 5px;border-radius:2px;background:rgba(88,166,255,.12);color:#58a6ff;font-family:JetBrains Mono,monospace">'+s+'~</span>':'')
+          +'</span>'
+          :'<span title="Só ficha, sem entrevista" style="font-size:10px;padding:1px 5px;border-radius:2px;background:rgba(88,166,255,.12);color:#58a6ff;font-family:JetBrains Mono,monospace">'+s+'~</span>';
+        return tag;
+      }})()}}</td>
+      <td><span class="status-flag ${{st.cls}}">${{st.label}}</span></td>
+    `;
+    tbody.appendChild(tr);
   }});
+}}
 
-  // Evolução Histórica
-  (function() {{
-    var H = {hist_js};
-    var hl = H.map(function(d){{return d.label;}});
-    var n = H.length;
-    new Chart(document.getElementById('evolMatrChart'),{{
-      type:'bar',
-      data:{{labels:hl,datasets:[
-        {{label:'Inseridos',data:H.map(function(d){{return d.inseridos;}}),backgroundColor:'rgba(33,67,142,.2)',borderColor:'#21438e',borderWidth:1.5,borderRadius:4,order:2}},
-        {{label:'Matr\u00edculas',data:H.map(function(d){{return d.matr;}}),backgroundColor:H.map(function(_,i){{return i===n-1?'rgba(230,56,39,.85)':'rgba(33,67,142,.7)'}}),borderColor:H.map(function(_,i){{return i===n-1?'#e63827':'#21438e'}}),borderWidth:1.5,borderRadius:4,order:1}}
-      ]}},
-      options:{{responsive:true,plugins:{{legend:{{position:'top',labels:{{boxWidth:12,padding:12,font:{{size:11}}}}}},tooltip:{{backgroundColor:'#1a2340',borderColor:'#d0d8ea',borderWidth:1,titleColor:'#fff',bodyColor:'#d0d8ea'}}}},scales:{{x:{{grid:{{display:false}}}},y:{{grid:{{color:'rgba(208,216,234,.3)'}}}}}}}}
-    }});
-    new Chart(document.getElementById('evolFreqChart'),{{
-      type:'line',
-      data:{{labels:hl,datasets:[
-        {{label:'Taxa Freq. M\u00e9dia (%)',data:H.map(function(d){{return d.attend_rate;}}),borderColor:'#21438e',backgroundColor:'rgba(33,67,142,.1)',borderWidth:2.5,pointRadius:6,pointHoverRadius:8,pointBackgroundColor:H.map(function(d){{return d.attend_rate>=85?'#1a7a3e':d.attend_rate>=70?'#c97c1a':'#e63827';}}),pointBorderColor:'#fff',pointBorderWidth:2,tension:0.35,fill:true}},
-        {{label:'Meta 85%',data:H.map(function(){{return 85;}}),borderColor:'#1a7a3e',backgroundColor:'transparent',borderWidth:1.5,borderDash:[6,4],pointRadius:0,tension:0,fill:false}}
-      ]}},
-      options:{{responsive:true,plugins:{{legend:{{position:'top',labels:{{boxWidth:12,padding:12,font:{{size:11}}}}}},tooltip:{{backgroundColor:'#1a2340',borderColor:'#d0d8ea',borderWidth:1,titleColor:'#fff',bodyColor:'#d0d8ea',callbacks:{{label:function(ctx){{return' '+ctx.dataset.label+': '+ctx.raw+'%';}}}}}}}},scales:{{x:{{grid:{{display:false}}}},y:{{min:60,max:100,grid:{{color:'rgba(208,216,234,.3)'}},ticks:{{callback:function(v){{return v+'%';}}}}}}}}}}
-    }});
-  }})();
+function updateKPIs(data){{
+  document.getElementById('kpi-cursos').textContent=data.length;
+  const tm=data.reduce((s,d)=>s+(d.meta||0),0);
+  const wr=tm>0?(data.reduce((s,d)=>s+d.attend_rate*(d.meta||0),0)/tm).toFixed(1)+'%':'—';
+  document.getElementById('kpi-rate').textContent=wr;
 
+  document.getElementById('kpi-low').textContent=data.filter(d=>d.attend_rate<80).length;
+  // Ausência ponderada pela matrícula (mais correta para reportar média global)
+  const withEv=data.filter(d=>d.evasao_pct!=null && d.matr);
+  const totalMatrEv=withEv.reduce((s,d)=>s+d.matr,0);
+  const totalAusentes=withEv.reduce((s,d)=>s+(d.matr-d.freq_avg),0);
+  const avgEv=totalMatrEv?(totalAusentes/totalMatrEv*100).toFixed(1):'—';
+  document.getElementById('kpi-evasao').textContent=avgEv!=='—'?avgEv+'%':'—';
+  document.getElementById('hdr-cursos').textContent=data.length;
+  document.getElementById('hdr-avg').textContent=wr;
+  document.getElementById('hdr-matr').textContent=data.reduce((s,d)=>s+(d.matr||0),0);
+  document.getElementById('hdr-ins').textContent=data.reduce((s,d)=>s+(d.inseridos||0),0);
+  // Snapshot do Dia
+  const maxAulas=data.reduce((m,d)=>Math.max(m,d.n_classes||0),0);
+  // Find the most recent date across all courses, sum only those on that date
+  // Per-unit last day: find latest date per unit, sum last_freq on that date
+  const unitLatest={{}};
+  data.forEach(d=>{{if(d.last_date&&(!unitLatest[d.unit]||d.last_date>unitLatest[d.unit]))unitLatest[d.unit]=d.last_date;}});
+  const totalLastFreq=data.reduce((s,d)=>d.last_date&&d.last_date===unitLatest[d.unit]?s+(d.last_freq||0):s,0);
+  // For the date label, show the most recent date among all units
+  const latestDate=Object.values(unitLatest).reduce((mx,d)=>d>mx?d:mx,'');
+  const atrasados=data.filter(d=>(d.n_classes||0)<maxAulas).length;
+  const panel=document.getElementById('snapshot-panel');
+  if(maxAulas>0||totalLastFreq>0){{
+    panel.style.display='block';
+    const fmtDate=d=>{{if(!d)return'';const p=d.match(/(\\d+)\\/(\\d+)/);if(p)return d;return d;}};
+  const latestDisplay=data.find(d=>d.last_date===latestDate)?.last_date_display||'';
+  document.getElementById('snapshot-date').textContent=latestDisplay?'· '+latestDisplay:'';
+  document.getElementById('snap-last-freq').textContent=totalLastFreq||'—';
+    document.getElementById('snap-max-aulas').textContent=maxAulas||'—';
+    document.getElementById('snap-atrasados').textContent=atrasados;
+  }} else {{
+    panel.style.display='none';
+  }}
+}}
+
+function update(){{
+  const f=getFiltered();
+  updateKPIs(f);
+  buildCharts(f);
+  buildEvasaoChart(f);
+  buildTable(f);
+}}
+
+document.querySelectorAll('[data-filter="unit"]').forEach(btn=>{{
+  btn.addEventListener('click',()=>{{
+    document.querySelectorAll('[data-filter="unit"]').forEach(b=>b.classList.remove('active'));
+    btn.classList.add('active');filterUnit=btn.dataset.value;update();
+  }});
+}});
+document.querySelectorAll('[data-filter="period"]').forEach(btn=>{{
+  btn.addEventListener('click',()=>{{
+    document.querySelectorAll('[data-filter="period"]').forEach(b=>b.classList.remove('active'));
+    btn.classList.add('active');filterPeriod=btn.dataset.value;update();
+  }});
+}});
+document.querySelectorAll('#courseTable thead th[data-sort]').forEach(th=>{{
+  th.addEventListener('click',()=>{{
+    const col=th.dataset.sort;
+    if(sortMode===col){{sortDir*=-1;}}else{{sortMode=col;sortDir=col==='attend_rate'?-1:1;}}
+    document.querySelectorAll('#courseTable thead th').forEach(t=>{{
+      t.classList.remove('sort-active');
+      const arr=t.querySelector('.sort-arrow');
+      if(arr)arr.textContent='↕';
+    }});
+    th.classList.add('sort-active');
+    const arr=th.querySelector('.sort-arrow');
+    if(arr)arr.textContent=sortDir===-1?'↓':'↑';
+    buildTable(getFiltered());
+  }});
+}});
+(()=>{{
+  const th=document.querySelector('#courseTable thead th[data-sort="attend_rate"]');
+  if(th){{th.classList.add('sort-active');const arr=th.querySelector('.sort-arrow');if(arr)arr.textContent='↓';}}
+}})();
+document.getElementById('searchInput').addEventListener('input',e=>{{searchQuery=e.target.value.toLowerCase().trim();update();}});
+
+update();
 </script>
 </body>
 </html>"""
+
+    return html
 
 
 def main():
@@ -971,22 +800,28 @@ def main():
     data_atualizacao = datetime.now(timezone(timedelta(hours=-3))).strftime("%d/%m/%Y às %H:%M")
 
     print(f"\n{'='*55}")
-    print(f"  Dashboard Resumo CEDESP — Gerador Automático")
+    print(f"  Dashboard CEDESP — Gerador Automático")
     print(f"  {data_atualizacao}")
     print(f"{'='*55}\n")
 
-    sheets   = carregar_planilha(caminho)
-    units    = extrair_unidades(sheets)
-    horarios = extrair_horarios(sheets)
+    sheets  = carregar_planilha(caminho)
+    totais  = extrair_totais(sheets)
+    cursos  = extrair_cursos(sheets)
 
-    freq_por_periodo = extrair_freq_por_periodo(sheets)
-    html = gerar_html(units, horarios, freq_por_periodo, data_atualizacao)
-    with open(SAIDA, "w", encoding="utf-8") as f:
-        f.write(html)
+    # Filtra apenas cursos com dados válidos
+    cursos_validos = [c for c in cursos if c["attend_rate"] > 0 and c["matr"] and c["matr"] > 0]
 
-    print(f"\n📄  Gerado: {SAIDA}")
+    print(f"\n✅  {len(cursos_validos)} turmas com frequência registrada")
+    print(f"✅  {len(totais)} unidades no resumo\n")
+
+    # Gera dashboard de cursos
+    html_cursos = gerar_html_cursos(cursos_validos, data_atualizacao)
+    with open(SAIDA_CURSOS, "w", encoding="utf-8") as f:
+        f.write(html_cursos)
+    print(f"📄  Gerado: {SAIDA_CURSOS}")
+
     print(f"\n{'='*55}")
-    print(f"  ✅  Concluído!")
+    print(f"  ✅  Concluído! Arquivos prontos para publicar.")
     print(f"{'='*55}\n")
 
 
