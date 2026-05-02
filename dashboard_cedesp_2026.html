@@ -262,14 +262,14 @@
       <div class="hm-label">Matrículas</div>
     </div>
     <div class="hm-item">
-      <div class="hm-val" style="color:#4ade80">1/8</div>
-      <div class="hm-label">Superaram a Meta</div>
+      <div class="hm-val" style="color:#4ade80">4/8</div>
+      <div class="hm-label">Atingiram a Meta</div>
     </div>
     <div style="width:1px;height:36px;background:var(--border);margin:0 4px"></div>
     <div class="hm-item">
       <div style="font-family:'DM Mono',monospace;font-size:12px;color:var(--text-muted);background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:6px 14px;text-align:center;line-height:1.5">
         📅 Última atualização<br>
-        <span style="color:#21438e;font-size:13px;font-weight:600">01/05/2026 às 10:15</span>
+        <span style="color:#21438e;font-size:13px;font-weight:600">02/05/2026 às 10:15</span>
       </div>
     </div>
   </div>
@@ -285,24 +285,24 @@
 
   <div class="kpi-grid">
     <div class="kpi-card gold">
-      <div class="kpi-label">Meta Total Convênio</div>
+      <div class="kpi-label">Meta Convênio</div>
       <div class="kpi-value" style="color:var(--accent)">1,880</div>
-      <div class="kpi-sub">alunos planejados · 8 unidades</div>
+      <div class="kpi-sub">alunos exigidos · prefeitura</div>
     </div>
     <div class="kpi-card blue">
       <div class="kpi-label">Total Matrículas</div>
       <div class="kpi-value" style="color:var(--accent2)">2,281</div>
-      <div class="kpi-sub">121.3% da meta total</div>
+      <div class="kpi-sub">121.3% da meta · captação</div>
     </div>
     <div class="kpi-card green">
-      <div class="kpi-label">Unidades Acima da Meta de Freq.</div>
-      <div class="kpi-value" style="color:var(--green)">1</div>
-      <div class="kpi-sub">de 8 unidades ativas</div>
+      <div class="kpi-label">Unidades Atingindo Meta</div>
+      <div class="kpi-value" style="color:var(--green)">4</div>
+      <div class="kpi-sub">de 8 · freq ≥ meta convênio</div>
     </div>
     <div class="kpi-card purple">
-      <div class="kpi-label">Alunos Frequentes no Dia</div>
-      <div class="kpi-value" style="color:var(--purple)">1464</div>
-      <div class="kpi-sub">presentes no último dia registrado</div>
+      <div class="kpi-label">Frequência Total</div>
+      <div class="kpi-value" style="color:var(--purple)">1863</div>
+      <div class="kpi-sub">99.1% da meta · média semestral</div>
     </div>
   </div>
 
@@ -321,9 +321,10 @@
         <tr>
           <th>Unidade</th>
           <th class="right">Meta</th>
-          <th class="right">Matrículas</th>
-          <th class="right">Frequência</th>
-          <th>Atingimento da Meta</th>
+          <th class="right">Matr.</th>
+          <th class="right">Freq.</th>
+          <th>Atingimento da Meta <span style="font-weight:400;color:var(--text-muted);font-size:10px">(freq/meta)</span></th>
+          <th>Presença <span style="font-weight:400;color:var(--text-muted);font-size:10px">(freq/matr)</span></th>
           <th class="right">Saldo</th>
           <th class="right">Status</th>
         </tr>
@@ -345,8 +346,8 @@
       <canvas id="barChart" height="240"></canvas>
     </div>
     <div class="chart-card">
-      <div class="chart-title">Taxa de Frequência (% da Meta)</div>
-      <div class="chart-sub">Frequência realizada ÷ Meta convênio × 100</div>
+      <div class="chart-title">Atingimento da Meta e Presença por Unidade</div>
+      <div class="chart-sub">Azul: freq/meta (convênio) · Verde: freq/matr (presença) · Tracejado: 100%</div>
       <canvas id="radarChart" height="240"></canvas>
     </div>
   </div>
@@ -461,11 +462,11 @@
 
 <footer>
   <div class="footer-text">CEDESP Dom Bosco Itaquera · 1º Semestre 2026 · Dashboard de Acompanhamento</div>
-  <div class="footer-text">Atualizado em 01/05/2026 às 10:15 · Frequência excluindo 30/01 (dia opcional)</div>
+  <div class="footer-text">Atualizado em 02/05/2026 às 10:15 · Frequência: média semestral (todas as aulas registradas) · Excluindo 30/01</div>
 </footer>
 
 <script>
-  const units = [{"unit": "CEDESP 1", "meta": 240, "matr": 286, "freq": 235.0, "saldo": -5.0}, {"unit": "CEDESP 2", "meta": 280, "matr": 317, "freq": 240.0, "saldo": -40.0}, {"unit": "CEDESP 3", "meta": 240, "matr": 261, "freq": 171.0, "saldo": -69.0}, {"unit": "CEDESP 4", "meta": 240, "matr": 283, "freq": 160.0, "saldo": -80.0}, {"unit": "CEDESP 5", "meta": 280, "matr": 324, "freq": 250.0, "saldo": -30.0}, {"unit": "CEDESP 6", "meta": 200, "matr": 266, "freq": 133.0, "saldo": -67.0}, {"unit": "CEDESP 7", "meta": 240, "matr": 228, "freq": 114.0, "saldo": -126.0}, {"unit": "CEDESP 8", "meta": 160, "matr": 316, "freq": 161.0, "saldo": 1.0}];
+  const units = [{"unit": "CEDESP 1", "meta": 240, "matr": 286, "freq": 262.8, "n_cursos": 12, "freq_source": "semestral", "last_date": "média semestral", "saldo_matr": 46.0, "saldo_freq": 22.8, "pct_matr": 119.2, "pct_presenca": 91.9}, {"unit": "CEDESP 2", "meta": 280, "matr": 317, "freq": 262.9, "n_cursos": 14, "freq_source": "semestral", "last_date": "média semestral", "saldo_matr": 37.0, "saldo_freq": -17.1, "pct_matr": 113.2, "pct_presenca": 82.9}, {"unit": "CEDESP 3", "meta": 240, "matr": 261, "freq": 216.6, "n_cursos": 12, "freq_source": "semestral", "last_date": "média semestral", "saldo_matr": 21.0, "saldo_freq": -23.4, "pct_matr": 108.7, "pct_presenca": 83.0}, {"unit": "CEDESP 4", "meta": 240, "matr": 283, "freq": 258.8, "n_cursos": 12, "freq_source": "semestral", "last_date": "média semestral", "saldo_matr": 43.0, "saldo_freq": 18.8, "pct_matr": 117.9, "pct_presenca": 91.4}, {"unit": "CEDESP 5", "meta": 280, "matr": 324, "freq": 273.6, "n_cursos": 14, "freq_source": "semestral", "last_date": "média semestral", "saldo_matr": 44.0, "saldo_freq": -6.4, "pct_matr": 115.7, "pct_presenca": 84.4}, {"unit": "CEDESP 6", "meta": 200, "matr": 266, "freq": 226.3, "n_cursos": 10, "freq_source": "semestral", "last_date": "média semestral", "saldo_matr": 66.0, "saldo_freq": 26.3, "pct_matr": 133.0, "pct_presenca": 85.1}, {"unit": "CEDESP 7", "meta": 240, "matr": 228, "freq": 182.4, "n_cursos": 12, "freq_source": "semestral", "last_date": "média semestral", "saldo_matr": -12.0, "saldo_freq": -57.6, "pct_matr": 95.0, "pct_presenca": 80.0}, {"unit": "CEDESP 8", "meta": 160, "matr": 316, "freq": 179.9, "n_cursos": 8, "freq_source": "semestral", "last_date": "média semestral", "saldo_matr": 156.0, "saldo_freq": 19.9, "pct_matr": 197.5, "pct_presenca": 56.9}];
 
   const COLORS = [
     '#21438e','#3a6bc4','#5a89d4','#e63827',
@@ -475,14 +476,24 @@
   // ── TABLE ──
   const tbody = document.getElementById('mainTable');
   units.forEach((u, i) => {
-    const pct = ((u.freq / u.meta) * 100).toFixed(1);
-    const pctNum = parseFloat(pct);
-    const fillColor = pctNum >= 100 ? '#1a7a3e' : pctNum >= 85 ? '#c97c1a' : '#e63827';
-    const fillW = Math.min(pctNum, 100);
-    const saldoClass = u.saldo >= 0 ? 'pos' : 'neg';
-    const saldoSign = u.saldo >= 0 ? '+' : '';
+    // Atingimento da Meta (freq/meta) — exigência do convênio com a prefeitura
+    const pctAtg = +((u.freq / u.meta) * 100).toFixed(1);
+    const atgColor = pctAtg >= 100 ? '#1a7a3e' : pctAtg >= 85 ? '#c97c1a' : '#e63827';
+    const atgW = Math.min(pctAtg, 100);
+
+    // Presença efetiva (freq/matr) — controle pedagógico interno
+    const pctPres = u.pct_presenca;
+    const presColor = pctPres >= 75 ? '#1a7a3e' : pctPres >= 60 ? '#c97c1a' : '#e63827';
+    const presW = Math.min(pctPres, 100);
+
+    // Saldo: freq - meta (saldo do convênio)
+    const saldoClass = u.saldo_freq >= 0 ? 'pos' : 'neg';
+    const saldoSign = u.saldo_freq >= 0 ? '+' : '';
+
+    // Status: meta atingida ou não
     const status = u.freq >= u.meta ? '✓ Atingiu' : '✗ Abaixo';
     const statusColor = u.freq >= u.meta ? '#1a7a3e' : '#e63827';
+
     tbody.innerHTML += `
       <tr>
         <td><div class="unit-name"><div class="unit-dot" style="background:${COLORS[i]}"></div>${u.unit}</div></td>
@@ -491,13 +502,21 @@
         <td class="right mono">${u.freq}</td>
         <td>
           <div class="prog-wrap">
-            <div class="prog-bar" style="max-width:160px">
-              <div class="prog-fill" style="width:${fillW}%;background:${fillColor}"></div>
+            <div class="prog-bar" style="max-width:140px">
+              <div class="prog-fill" style="width:${atgW}%;background:${atgColor}"></div>
             </div>
-            <div class="prog-pct" style="color:${fillColor}">${pct}%</div>
+            <div class="prog-pct" style="color:${atgColor}">${pctAtg}%</div>
           </div>
         </td>
-        <td class="right"><span class="saldo-pill ${saldoClass}">${saldoSign}${u.saldo}</span></td>
+        <td>
+          <div class="prog-wrap">
+            <div class="prog-bar" style="max-width:120px">
+              <div class="prog-fill" style="width:${presW}%;background:${presColor}"></div>
+            </div>
+            <div class="prog-pct" style="color:${presColor}">${pctPres}%</div>
+          </div>
+        </td>
+        <td class="right"><span class="saldo-pill ${saldoClass}">${saldoSign}${u.saldo_freq}</span></td>
         <td class="right" style="font-size:12px;color:${statusColor};font-weight:600">${status}</td>
       </tr>`;
   });
@@ -543,26 +562,32 @@
     data: {
       labels: units.map(u => u.unit),
       datasets: [
-        { label: 'Freq/Meta %',
+        { label: 'Atingimento da Meta (freq/meta)',
            data: units.map(u => +((u.freq / u.meta) * 100).toFixed(1)),
-           backgroundColor: 'rgba(99,102,241,0.20)', borderColor: '#6366f1',
-           pointBackgroundColor: '#6366f1', pointBorderColor: '#ffffff',
+           backgroundColor: 'rgba(33,67,142,0.20)', borderColor: '#21438e',
+           pointBackgroundColor: '#21438e', pointBorderColor: '#ffffff',
+           pointRadius: 4, borderWidth: 2 },
+        { label: 'Presença (freq/matr)',
+           data: units.map(u => u.pct_presenca),
+           backgroundColor: 'rgba(43,177,157,0.15)', borderColor: '#2bb19d',
+           pointBackgroundColor: '#2bb19d', pointBorderColor: '#ffffff',
            pointRadius: 4, borderWidth: 2 },
         { label: 'Referência 100%',
            data: Array(8).fill(100),
-           backgroundColor: 'rgba(251,191,36,0.06)', borderColor: 'rgba(251,191,36,0.7)',
-           borderDash: [5,3], pointRadius: 0, borderWidth: 1.5 }
+           backgroundColor: 'rgba(251,191,36,0.05)', borderColor: 'rgba(251,191,36,0.6)',
+           borderDash: [5,3], pointRadius: 0, borderWidth: 1.2 }
       ]
     },
     options: {
       responsive: true,
       plugins: {
-        legend: { position: 'top', labels: { boxWidth: 12, padding: 16 } },
-        tooltip: { backgroundColor: '#1a2340', borderColor: '#d0d8ea', borderWidth: 1, titleColor:'#ffffff', bodyColor:'#d0d8ea' }
+        legend: { position: 'top', labels: { boxWidth: 12, padding: 14, font: {size: 11} } },
+        tooltip: { backgroundColor: '#1a2340', borderColor: '#d0d8ea', borderWidth: 1, titleColor:'#ffffff', bodyColor:'#d0d8ea',
+                    callbacks: { label: ctx => ` ${ctx.dataset.label}: ${ctx.raw}%` } }
       },
       scales: {
         r: {
-          min: 50, max: 130,
+          min: 30, max: 130,
           ticks: { backdropColor: 'transparent', font: { size: 10 }, stepSize: 20 },
           grid: { color: 'rgba(0,0,0,0.07)' },
           pointLabels: { font: { size: 11 } }
@@ -606,9 +631,9 @@
       labels: units.map(u => u.unit),
       datasets: [{
         label: 'Saldo (Freq − Meta)',
-        data: units.map(u => u.saldo),
-        backgroundColor: units.map(u => u.saldo >= 0 ? 'rgba(26,122,62,0.65)' : 'rgba(230,56,39,0.65)'),
-        borderColor: units.map(u => u.saldo >= 0 ? '#1a7a3e' : '#e63827'),
+        data: units.map(u => u.saldo_freq),
+        backgroundColor: units.map(u => u.saldo_freq >= 0 ? 'rgba(26,122,62,0.65)' : 'rgba(230,56,39,0.65)'),
+        borderColor: units.map(u => u.saldo_freq >= 0 ? '#1a7a3e' : '#e63827'),
         borderWidth: 1.5, borderRadius: 4,
       }]
     },
@@ -627,7 +652,7 @@
 
   // Evolução Histórica
   (function() {
-    var H = [{"label": "2º Sem 2024", "matr": 2104, "inseridos": 2670, "attend_rate": 84.6}, {"label": "1º Sem 2025", "matr": 2093, "inseridos": 2754, "attend_rate": 78.8}, {"label": "2º Sem 2025", "matr": 1878, "inseridos": 2526, "attend_rate": 80.6}, {"label": "1º Sem 2026", "matr": 1783, "inseridos": 2243, "attend_rate": 86.0}];
+    var H = [{"label": "2º Sem 2024", "matr": 2104, "inseridos": 2670, "attend_rate": 84.6}, {"label": "1º Sem 2025", "matr": 2093, "inseridos": 2754, "attend_rate": 78.8}, {"label": "2º Sem 2025", "matr": 1878, "inseridos": 2526, "attend_rate": 80.6}, {"label": "1º Sem 2026", "matr": 2281, "inseridos": 2281, "attend_rate": 99.1}];
     var hl = H.map(function(d){return d.label;});
     var n = H.length;
     new Chart(document.getElementById('evolMatrChart'),{
