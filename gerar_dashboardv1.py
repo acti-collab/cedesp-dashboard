@@ -76,6 +76,8 @@ def extrair_cursos(sheets):
         print(f"  📊  Processando {sheet_name}...", end=" ")
 
         # Identifica linhas de cabeçalho de período
+        # Exige a célula contenha "CURSO" + identificador do período
+        # (mais robusto que aceitar qualquer "MANHÃ"/"TARDE"/"NOITE" isolado)
         period_rows = {}
         for idx in range(len(df)):
             row = df.iloc[idx]
@@ -83,6 +85,8 @@ def extrair_cursos(sheets):
                 val = row.iloc[col_idx]
                 if pd.notna(val) and isinstance(val, str):
                     v = val.strip().upper()
+                    if "CURSO" not in v:
+                        continue
                     if "MANHÃ" in v or "MANHA" in v:
                         period_rows[idx] = "Manhã"; break
                     elif "TARDE" in v:
@@ -116,6 +120,31 @@ def extrair_cursos(sheets):
         # Identifica colunas FREQ por período
         # Todas as colunas com cabeçalho FREQ, excluindo 30/01 (dia opcional)
         SKIP_DATES = {"30/01", "30/1"}
+        
+        def parse_date_br(val):
+            """Converte data para (mês, dia) no formato BR DD/MM.
+            
+            ATENÇÃO: O Excel auto-converte certas strings DD/MM (ex: '06/02', '09/02') em
+            datetime objects interpretando-as como MM/DD (americano). Exemplo:
+              '06/02' (6 de fev) → datetime(2025, 6, 2) onde .month=6, .day=2
+            Para recuperar a data correta, INVERTEMOS .day↔.month nos datetime objects.
+            """
+            import re as _re
+            if val is None or (isinstance(val, float) and pd.isna(val)):
+                return None
+            # Datetime do Excel: inverte day↔month para recuperar o original BR
+            if hasattr(val, "month"):
+                real_month = val.day
+                real_day   = val.month
+                if not (1 <= real_month <= 12 and 1 <= real_day <= 31):
+                    return None
+                return (real_month, real_day)
+            s = str(val).strip()
+            m = _re.match(r"^(\d{1,2})[/\-](\d{1,2})$", s)
+            if m:
+                return (int(m.group(2)), int(m.group(1)))  # (mês, dia)
+            return None
+        
         freq_cols_by_period = {}
         for pidx in period_col_layouts:
             header   = df.iloc[pidx]
@@ -123,15 +152,17 @@ def extrair_cursos(sheets):
             cols = []
             for c in range(len(header)):
                 if pd.notna(header.iloc[c]) and str(header.iloc[c]).strip().upper() == "FREQ":
-                    date_val = str(date_row.iloc[c]).strip() if date_row is not None and pd.notna(date_row.iloc[c]) else ""
-                    if date_val in SKIP_DATES:
+                    raw = date_row.iloc[c] if date_row is not None and pd.notna(date_row.iloc[c]) else None
+                    date_str = str(raw).strip() if raw is not None else ""
+                    if date_str in SKIP_DATES:
                         continue  # ignora dia opcional 30/01
-                    # Convert DD/MM → MM/DD for sortable string comparison
-                    import re as _re
-                    m_dv = _re.match(r'^(\d{1,2})/(\d{1,2})$', date_val)
-                    sort_date = f"{int(m_dv.group(2)):02d}/{int(m_dv.group(1)):02d}" if m_dv else date_val
-                    display_date = date_val  # keep original DD/MM for display
-                    cols.append((c, sort_date, display_date))  # store (col_idx, sortable_MM/DD, display_DD/MM)
+                    parsed = parse_date_br(raw)
+                    if parsed is None:
+                        continue  # data inválida, pula
+                    month, day = parsed
+                    sort_date    = f"{month:02d}/{day:02d}"   # MM/DD para ordenação
+                    display_date = f"{day:02d}/{month:02d}"   # DD/MM para exibição BR
+                    cols.append((c, sort_date, display_date))
             freq_cols_by_period[pidx] = cols
 
         # Extrai linhas de curso
@@ -389,7 +420,7 @@ footer{{border-top:1px solid var(--border);padding:20px 48px;display:flex;justif
   <div class="kpi-cell"><div class="kpi-label">Taxa de frequência média</div><div class="kpi-val" id="kpi-rate" style="color:var(--accent2)">—</div><div class="kpi-desc">freq. média ÷ meta do curso</div></div>
 
   <div class="kpi-cell"><div class="kpi-label">Cursos com taxa &lt;80%</div><div class="kpi-val" id="kpi-low" style="color:var(--accent)">—</div><div class="kpi-desc">requerem atenção</div></div>
-  <div class="kpi-cell"><div class="kpi-label">Evasão média</div><div class="kpi-val" id="kpi-evasao" style="color:#c84b31">—</div><div class="kpi-desc">matriculados que não frequentam</div></div>
+  <div class="kpi-cell"><div class="kpi-label">Ausência média</div><div class="kpi-val" id="kpi-evasao" style="color:#c84b31">—</div><div class="kpi-desc">matriculados que faltam em média</div></div>
 </div>
 
 <div id="snapshot-panel" style="display:none;background:linear-gradient(135deg,#1a2340 0%,#21438e 100%);border-radius:10px;padding:20px 28px;margin-bottom:24px;color:#fff;position:relative;overflow:hidden">
@@ -442,7 +473,7 @@ footer{{border-top:1px solid var(--border);padding:20px 48px;display:flex;justif
         <th class="right" data-sort="freq_avg">Freq. Média/dia <span class="sort-arrow">↕</span></th>
         <th class="right" data-sort="n_classes">Aulas <span class="sort-arrow">↕</span></th>
         <th data-sort="attend_rate">Taxa s/ Meta <span class="sort-arrow">↕</span></th>
-        <th class="right" data-sort="evasao_pct">Evasão <span class="sort-arrow">↕</span></th>
+        <th class="right" data-sort="evasao_pct">Ausência <span class="sort-arrow">↕</span></th>
         <th class="right" data-sort="dem_total">Demanda <span class="sort-arrow">↕</span></th>
         <th data-sort="status">Status <span class="sort-arrow">↕</span></th>
       </tr>
@@ -476,8 +507,8 @@ footer{{border-top:1px solid var(--border);padding:20px 48px;display:flex;justif
 
 <div class="charts-grid" style="grid-template-columns:1fr">
   <div class="chart-box">
-    <div class="chart-box-title">Evasão por Curso — Top 20</div>
-    <div class="chart-box-sub">Cursos com maior evasão · matriculados que não frequentam</div>
+    <div class="chart-box-title">Ausência por Curso — Top 20</div>
+    <div class="chart-box-sub">Cursos com maior taxa de faltas · matriculados que faltam em média</div>
     <canvas id="evasaoChart" height="160"></canvas>
   </div>
 </div>
@@ -614,7 +645,7 @@ function buildEvasaoChart(data){{
   evasaoChart=new Chart(document.getElementById('evasaoChart'),{{
     type:'bar',
     data:{{labels,datasets:[{{
-      label:'Evasão (alunos)',
+      label:'Ausência (alunos)',
       data:withEvasao.map(d=>d.evasao),
       backgroundColor:withEvasao.map(d=>d.evasao_pct>30?'rgba(200,75,49,.85)':d.evasao_pct>15?'rgba(201,124,26,.85)':'rgba(125,133,144,.6)'),
       borderColor:withEvasao.map(d=>d.evasao_pct>30?'#c84b31':d.evasao_pct>15?'#c97c1a':'#7d8590'),
@@ -625,7 +656,7 @@ function buildEvasaoChart(data){{
       plugins:{{
         legend:{{display:false}},
         tooltip:{{backgroundColor:'#1a1612',borderColor:'#d8d2c8',borderWidth:1,
-          callbacks:{{label:ctx=>{{const d=withEvasao[ctx.dataIndex];return` ${{d.evasao.toFixed(0)}} alunos evadidos — ${{d.evasao_pct.toFixed(1)}}% · ${{d.period}}`;}}}}
+          callbacks:{{label:ctx=>{{const d=withEvasao[ctx.dataIndex];return` ${{d.evasao.toFixed(0)}} alunos faltam em média — ${{d.evasao_pct.toFixed(1)}}% · ${{d.period}}`;}}}}
         }}
       }},
       scales:{{
@@ -681,8 +712,11 @@ function updateKPIs(data){{
   document.getElementById('kpi-rate').textContent=wr;
 
   document.getElementById('kpi-low').textContent=data.filter(d=>d.attend_rate<80).length;
-  const withEv=data.filter(d=>d.evasao_pct!=null);
-  const avgEv=withEv.length?(withEv.reduce((s,d)=>s+d.evasao_pct,0)/withEv.length).toFixed(1):'—';
+  // Ausência ponderada pela matrícula (mais correta para reportar média global)
+  const withEv=data.filter(d=>d.evasao_pct!=null && d.matr);
+  const totalMatrEv=withEv.reduce((s,d)=>s+d.matr,0);
+  const totalAusentes=withEv.reduce((s,d)=>s+(d.matr-d.freq_avg),0);
+  const avgEv=totalMatrEv?(totalAusentes/totalMatrEv*100).toFixed(1):'—';
   document.getElementById('kpi-evasao').textContent=avgEv!=='—'?avgEv+'%':'—';
   document.getElementById('hdr-cursos').textContent=data.length;
   document.getElementById('hdr-avg').textContent=wr;
