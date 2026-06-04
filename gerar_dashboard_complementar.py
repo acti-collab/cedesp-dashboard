@@ -12,6 +12,88 @@ logging.basicConfig(level=logging.INFO, format='  %(message)s')
 
 SKIP_DATES = {'30/01','30/1'}
 
+# ── FERIADOS 2026 (nacional + estadual/municipal SP) dentro do semestre letivo ──
+# Regra de emenda da OSDB: feriado na TERÇA → segunda também sem aula;
+#                          feriado na QUINTA → sexta também sem aula.
+def feriados_do_ano(ano):
+    """Feriados relevantes ao semestre letivo (fev–jul), calculados para o ano.
+    Os móveis (Carnaval, Sexta Santa, Corpus Christi) derivam da Páscoa, então o
+    calendário se ajusta sozinho a cada ano."""
+    from datetime import date as _date, timedelta as _td
+    # Páscoa (algoritmo de Meeus/Gregoriano)
+    a=ano%19; b=ano//100; c=ano%100; d=b//4; e=b%4; f=(b+8)//25
+    g=(b-f+1)//3; h=(19*a+b-d-g+15)%30; i=c//4; k=c%4
+    l=(32+2*e+2*i-h-k)%7; m=(a+11*h+22*l)//451
+    mes=(h+l-7*m+114)//31; dia=((h+l-7*m+114)%31)+1
+    pascoa=_date(ano,mes,dia)
+    fer={}
+    fer[(pascoa-_td(days=48)).isoformat()]='Carnaval'            # segunda
+    fer[(pascoa-_td(days=47)).isoformat()]='Carnaval'            # terça
+    fer[(pascoa-_td(days=46)).isoformat()]='Quarta-feira de Cinzas'
+    fer[(pascoa-_td(days=2)).isoformat()] ='Sexta-feira Santa'
+    fer[(pascoa+_td(days=60)).isoformat()]='Corpus Christi'
+    fer[f'{ano}-04-21']='Tiradentes'
+    fer[f'{ano}-05-01']='Dia do Trabalho'
+    fer[f'{ano}-07-09']='Revolução Constitucionalista (SP)'
+    return fer
+
+# Paradas institucionais (dia inteiro / quase todo sem aula) — não dá para calcular,
+# precisam ser informadas manualmente conforme o calendário da Obra.
+PARADAS_FULL = {
+    '2026-04-09': 'Parada pedagógica',
+    '2026-04-10': 'Parada pedagógica',
+    '2026-05-22': 'Parada pedagógica',
+    '2026-05-29': 'Parada pedagógica',
+}
+
+# Paradas PARCIAIS: dias em que alguns educadores não estavam; nesses dias, a turma
+# SEM registro = não houve aula para ela (educador ausente) → não conta como lacuna.
+# A turma COM registro manteve a aula normalmente.
+PARADAS_PARCIAIS = {
+    '2026-03-06', '2026-03-13', '2026-03-20', '2026-03-23',
+}
+
+def montar_no_class(enriched):
+    """Monta o conjunto de dias SEM AULA: feriados + emendas (terça→segunda,
+    quinta→sexta) + fechamentos institucionais detectados na própria planilha
+    (datas <= corte com 0% de frequência). Retorna (cutoff, {data: motivo})."""
+    from datetime import date as _date, timedelta as _td
+    # ano de referência = ano predominante nas datas da grade
+    anos = [int(s['date'][:4]) for s in enriched if s.get('date')]
+    ano = max(set(anos), key=anos.count) if anos else 2026
+    feriados = feriados_do_ano(ano)
+    # 1) Feriados do calendário + emendas
+    no_class = {}
+    for ds, nome in feriados.items():
+        no_class[ds] = nome
+        y, m, d = map(int, ds.split('-'))
+        wd = _date(y, m, d).weekday()  # 0=seg ... 6=dom
+        if wd == 1:    # terça → segunda anterior
+            ant = (_date(y, m, d) - _td(days=1)).isoformat()
+            no_class.setdefault(ant, f'Emenda ({nome} na terça)')
+        elif wd == 3:  # quinta → sexta seguinte
+            seg = (_date(y, m, d) + _td(days=1)).isoformat()
+            no_class.setdefault(seg, f'Emenda ({nome} na quinta)')
+    # 2) Data de corte = último dia com qualquer frequência lançada
+    datas_com_freq = [s['date'] for s in enriched for w in ['1','2'] if s.get(f'freq{w}') is not None]
+    cutoff = max(datas_com_freq) if datas_com_freq else None
+    # 3) Fechamentos institucionais: datas <= corte com aulas na grade mas 0% de freq
+    tot = {}; com = {}
+    for s in enriched:
+        if cutoff and s['date'] > cutoff: continue
+        for w in ['1','2']:
+            if not s.get(f'nome{w}'): continue
+            tot[s['date']] = tot.get(s['date'], 0) + 1
+            if s.get(f'freq{w}') is not None:
+                com[s['date']] = com.get(s['date'], 0) + 1
+    for d in tot:
+        if com.get(d, 0) == 0 and d not in no_class:
+            no_class[d] = 'Parada / sem aula (detectado na planilha)'
+    # 4) Paradas pedagógicas explícitas (dia inteiro) — rótulo tem prioridade
+    for d, motivo in PARADAS_FULL.items():
+        no_class[d] = motivo
+    return cutoff, no_class, set(PARADAS_PARCIAIS)
+
 def date_to_str(val):
     """Converte valor de data (string DD/MM ou datetime) para ISO 2026-MM-DD.
     
@@ -104,7 +186,7 @@ def normalize(s):
 def extrair_freq(freq_path):
     xl = pd.ExcelFile(freq_path)
     cedesp_sheets = [s for s in xl.sheet_names if 'CEDESP' in s or s in ['LibrasHidráulica','CURSOS DIVERSOS']]
-    all_freq = {}; course_meta = {}
+    all_freq = {}; course_meta = {}; course_target = {}
     for sheet in cedesp_sheets:
         df = pd.read_excel(freq_path, sheet_name=sheet, header=None)
         period_rows = []
@@ -128,12 +210,13 @@ def extrair_freq(freq_path):
                     ds = date_to_str(date_row.iloc[c])
                     if ds: freq_date_map[c] = ds
             next_idx = period_rows[pidx+1] if pidx+1<len(period_rows) else len(df)
-            name_col=3; matr_col=None
+            name_col=3; matr_col=None; meta_col=None
             for c in range(df.shape[1]):
                 if pd.notna(header.iloc[c]):
                     h = str(header.iloc[c]).upper()
                     if 'CURSO' in h: name_col=c
                     if 'MATR' in h and matr_col is None: matr_col=c
+                    if 'META' in h and meta_col is None: meta_col=c
             for ridx in range(header_idx+2, next_idx):
                 row = df.iloc[ridx]
                 cv = row.iloc[name_col] if name_col<len(row) else None
@@ -146,6 +229,9 @@ def extrair_freq(freq_path):
                 if matr_col and matr_col<len(row):
                     mv=row.iloc[matr_col]
                     if pd.notna(mv) and isinstance(mv,(int,float)): course_meta[key]=int(mv)
+                if meta_col and meta_col<len(row):
+                    tv=row.iloc[meta_col]
+                    if pd.notna(tv) and isinstance(tv,(int,float)) and tv>0: course_target[key]=int(tv)
                 for col,ds in freq_date_map.items():
                     if col<len(row):
                         v=row.iloc[col]
@@ -155,7 +241,7 @@ def extrair_freq(freq_path):
         vals = [v for v in dates.values() if v > 0]
         if vals:
             course_freq_avg[key] = round(sum(vals) / len(vals), 1)
-    return all_freq, course_meta, course_freq_avg
+    return all_freq, course_meta, course_freq_avg, course_target
 
 def find_freq_key(nome, all_freq, freq_keys, turno='', turno_freq_keys=None):
     """Encontra a chave de frequência correspondente ao nome do curso da grade.
@@ -233,7 +319,7 @@ def extrair_grade(grade_files):
                     'nome2':code_map.get(cod2,cod2) if cod2 else None})
     return list(courses.values()), schedule
 
-def enriquecer(schedule, all_freq, course_meta, course_freq_avg):
+def enriquecer(schedule, all_freq, course_meta, course_freq_avg, course_target):
     # Build two lookup dicts: plain normalized and turno-prefixed
     freq_keys = {normalize(k):k for k in all_freq if '|' not in k}
     # turno_freq_keys: 'TARDE NOME NORMALIZADO' -> 'TARDE|NOME ORIGINAL'
@@ -242,61 +328,99 @@ def enriquecer(schedule, all_freq, course_meta, course_freq_avg):
         if '|' in k:
             turno, nome = k.split('|', 1)
             turno_freq_keys[turno + ' ' + normalize(nome)] = k
-    enriched=[]
-    # Diagnóstico: rastrear cursos sem match
-    _unmatched = set()
+
     _match_methods = {'TURNO_COD_MAP':0, 'COD_MAP':0, 'find_freq_key':0, 'none':0}
+    _unmatched = set()
+
+    def resolve(nome, cod, turno):
+        """Resolve (nome, cod, turno) -> chave de frequência. Retorna (fk, metodo)."""
+        if cod and (turno, cod) in TURNO_COD_MAP:
+            tk = turno + '|' + TURNO_COD_MAP[(turno, cod)]
+            if tk in all_freq: return tk, 'TURNO_COD_MAP'
+        if cod and cod in COD_MAP:
+            tk = turno + '|' + COD_MAP[cod]
+            if tk in all_freq: return tk, 'COD_MAP'
+            if COD_MAP[cod] in all_freq: return COD_MAP[cod], 'COD_MAP'
+        if nome:
+            fk = find_freq_key(nome, all_freq, freq_keys, turno, turno_freq_keys)
+            if fk: return fk, 'find_freq_key'
+        return None, 'none'
+
+    # ── PASSADA 1: resolve cada slot e coleta as datas de COMPLEMENTAR por curso ──
+    resolved = []  # paralelo a (s, w): (fk)
+    comp_dates_by_fk = {}
     for s in schedule:
-        e=dict(s)
+        row_fk = {}
         for w in ['1','2']:
-            nome=s[f'nome{w}']
-            cod=s.get(f'cod{w}')
-            turno=s.get('turno','').upper()
-            fk = None
-            method = 'none'
-            # 1) TURNO_COD_MAP (turno-dependente, maior prioridade)
-            if cod and (turno, cod) in TURNO_COD_MAP:
-                mapped = TURNO_COD_MAP[(turno, cod)]
-                turno_key = turno + '|' + mapped
-                if turno_key in all_freq:
-                    fk = turno_key
-                    method = 'TURNO_COD_MAP'
-            # 2) COD_MAP global (fallback)
-            if fk is None and cod and cod in COD_MAP:
-                mapped = COD_MAP[cod]
-                turno_key = turno + '|' + mapped
-                fk = turno_key if turno_key in all_freq else (mapped if mapped in all_freq else None)
-                if fk: method = 'COD_MAP'
-            # 3) find_freq_key (MANUAL_MAP + normalize + similarity)
-            if fk is None and nome:
-                fk = find_freq_key(nome, all_freq, freq_keys, turno, turno_freq_keys)
-                if fk: method = 'find_freq_key'
-            # Diagnóstico
-            _match_methods[method] = _match_methods.get(method, 0) + 1
-            if fk is None and nome:
-                _unmatched.add(f"{turno}|{cod}|{nome}")
+            nome = s[f'nome{w}']; cod = s.get(f'cod{w}'); turno = s.get('turno','').upper()
+            fk, method = (None, 'none')
+            if nome:
+                fk, method = resolve(nome, cod, turno)
+                _match_methods[method] = _match_methods.get(method, 0) + 1
+                if fk is None:
+                    _unmatched.add(f"{turno}|{cod}|{nome}")
+                else:
+                    comp_dates_by_fk.setdefault(fk, set()).add(s['date'])
+            row_fk[w] = fk
+        resolved.append(row_fk)
+
+    # ── BASE FIC: média de presença SÓ nos dias SEM complementar (não exclui zeros) ──
+    # É a referência correta para medir a evasão da complementar: o "normal" do curso.
+    base_fic = {}
+    for fk, datas in all_freq.items():
+        comp = comp_dates_by_fk.get(fk, set())
+        fic_vals = [v for d, v in datas.items() if d not in comp]
+        if fic_vals:
+            base_fic[fk] = round(sum(fic_vals) / len(fic_vals), 1)
+        else:
+            # curso sem dias de FIC com dado: cai para a média geral (fallback)
+            allv = list(datas.values())
+            base_fic[fk] = round(sum(allv) / len(allv), 1) if allv else None
+
+    # ── PASSADA 2: monta os registros enriquecidos ──
+    enriched = []
+    for s, row_fk in zip(schedule, resolved):
+        e = dict(s)
+        for w in ['1','2']:
+            fk = row_fk[w]
             freq_on_date = all_freq[fk].get(s['date']) if fk else None
-            freq_avg     = course_freq_avg.get(fk)     if fk else None
-            matr         = course_meta.get(fk)         if fk else None
-            pct = round(freq_on_date / freq_avg * 100, 1) if (freq_on_date is not None and freq_avg) else None
+            base   = base_fic.get(fk)        if fk else None   # referência = dias de FIC
+            matr   = course_meta.get(fk)     if fk else None
+            meta   = course_target.get(fk)   if fk else None
+            # pct = presença do dia ÷ base FIC × 100  (100% = comportamento normal; <100 = queda)
+            pct = round(freq_on_date / base * 100, 1) if (freq_on_date is not None and base) else None
+            # evasão da complementar = quanto caiu vs dias de FIC (positivo = perdeu aluno)
+            evasao = round(100 - pct, 1) if pct is not None else None
+            # taxa s/ meta = conformidade com a Norma Técnica (piso 75%) — indicador separado
+            taxa_meta = round(freq_on_date / meta * 100, 1) if (freq_on_date is not None and meta) else None
             e[f'freq{w}']     = freq_on_date
-            e[f'freq_avg{w}'] = freq_avg
+            e[f'freq_avg{w}'] = base          # referência FIC (mantém nome p/ compat. do front)
             e[f'matr{w}']     = matr
-            e[f'pct{w}']      = pct
+            e[f'meta{w}']     = meta
+            e[f'pct{w}']      = pct           # % do normal (base FIC)
+            e[f'evasao{w}']   = evasao        # queda vs FIC
+            e[f'taxa{w}']     = taxa_meta     # freq ÷ meta convênio
         enriched.append(e)
-    # Log de diagnóstico
+
     logging.info(f"   Matching: {_match_methods}")
+    com_freq = sum(1 for s in enriched for w in ['1','2'] if s.get(f'freq{w}') is not None)
+    aulas_turma = sum(1 for s in enriched for w in ['1','2'] if s.get(f'nome{w}'))
+    logging.info(f"   Cobertura de frequência: {com_freq}/{aulas_turma} aulas-turma ({round(com_freq/aulas_turma*100) if aulas_turma else 0}%)")
     if _unmatched:
-        logging.warning(f"   ⚠ {len(_unmatched)} cursos sem match de frequência:")
+        logging.warning(f"   ⚠ {len(_unmatched)} cursos (com nome) sem match de frequência:")
         for u in sorted(_unmatched):
             logging.warning(f"     - {u}")
     else:
-        logging.info("   ✅ Todos os cursos com match de frequência!")
+        logging.info("   ✅ Todos os cursos com nome foram cruzados (slots 'sem turma' não contam)")
     return enriched
 
-def gerar_html(courses, schedule, data_at):
+def gerar_html(courses, schedule, data_at, cutoff=None, no_class=None, partial_no_class=None):
+    no_class = no_class or {}
+    partial_no_class = set(partial_no_class or [])
     courses_json  = json.dumps(courses,  ensure_ascii=False)
     schedule_json = json.dumps(schedule, ensure_ascii=False)
+    no_class_json = json.dumps(no_class, ensure_ascii=False)
+    partial_json  = json.dumps(sorted(partial_no_class), ensure_ascii=False)
     n_cursos   = len(courses)
     n_slots    = len(schedule)
     # Aulas-turma reais (cada slot pode ter 1 ou 2 turmas)
@@ -309,9 +433,25 @@ def gerar_html(courses, schedule, data_at):
         if s.startswith('Esp'): return 'Esporte'
         return s
     n_materias = len(set(subj_base(s['subject']) for s in schedule))
-    # Aulas-turma com frequência (não slots)
     com_freq_turma = sum(1 for s in schedule for w in ['1','2'] if s.get(f'freq{w}') is not None)
-    pct_freq = round(com_freq_turma / n_aulas_turma * 100) if n_aulas_turma else 0
+    # ── Classificação das aulas-turma em estados ──
+    n_feriado = n_aguardando = n_lacuna = n_parcial = 0
+    for s in schedule:
+        fut = (cutoff is not None and s['date'] > cutoff)
+        fer = s['date'] in no_class
+        par = s['date'] in partial_no_class
+        for w in ['1','2']:
+            if not s.get(f'nome{w}'): continue
+            if s.get(f'freq{w}') is not None: continue
+            if fer:      n_feriado += 1
+            elif par:    n_parcial += 1   # educador ausente nesse dia → sem aula p/ a turma
+            elif fut:    n_aguardando += 1
+            else:        n_lacuna += 1
+    n_sem_aula = n_feriado + n_parcial
+    # Cobertura HONESTA: só sobre aulas "lançáveis" (<= corte, não-feriado, não-parcial)
+    lancaveis = com_freq_turma + n_lacuna
+    pct_freq = round(com_freq_turma / lancaveis * 100) if lancaveis else 0
+    cutoff_fmt = ('/'.join(reversed(cutoff.split('-')[1:])) ) if cutoff else '—'
     return f"""<!DOCTYPE html>
 <html lang="pt-BR">
 <head>
@@ -428,8 +568,13 @@ footer{{text-align:center;padding:32px;font-size:11px;color:var(--muted)}}
     <div class="kpi-card red"><div class="kpi-lbl">Aulas-turma</div><div class="kpi-val" style="color:var(--red)">{n_aulas_turma}</div><div class="kpi-sub">no semestre ({n_slots} slots)</div></div>
     <div class="kpi-card green"><div class="kpi-lbl">Matérias</div><div class="kpi-val" style="color:var(--green)">{n_materias}</div><div class="kpi-sub">disciplinas complementares</div></div>
     <div class="kpi-card amber"><div class="kpi-lbl">Hoje</div><div class="kpi-val" style="color:var(--amber)" id="kpi-hoje">—</div><div class="kpi-sub">aulas complementares</div></div>
-    <div class="kpi-card indigo"><div class="kpi-lbl">Com Frequência</div><div class="kpi-val" style="color:var(--indigo)">{com_freq_turma}</div><div class="kpi-sub">{pct_freq}% das aulas-turma</div></div>
+    <div class="kpi-card indigo"><div class="kpi-lbl">Cobertura</div><div class="kpi-val" style="color:var(--indigo)">{pct_freq}%</div><div class="kpi-sub">das aulas lançáveis (até {cutoff_fmt})</div></div>
   </div>
+  <div style="display:flex;flex-wrap:wrap;gap:10px;margin-top:6px;font-size:11px">
+    <span style="background:var(--surface);border:1px solid var(--border);border-left:3px solid var(--green);border-radius:6px;padding:6px 12px"><strong>{com_freq_turma}</strong> aulas com frequência</span>
+    <span style="background:var(--surface);border:1px solid var(--border);border-left:3px solid var(--red);border-radius:6px;padding:6px 12px"><strong>{n_lacuna}</strong> lacunas reais (≤ {cutoff_fmt}, sem registro)</span>
+    <span style="background:var(--surface);border:1px solid var(--border);border-left:3px solid var(--indigo);border-radius:6px;padding:6px 12px">⏳ <strong>{n_aguardando}</strong> aguardando lançamento (após {cutoff_fmt})</span>
+    <span style="background:var(--surface);border:1px solid var(--border);border-left:3px solid var(--blue);border-radius:6px;padding:6px 12px" title="Feriados, emendas, paradas pedagógicas e dias de educador ausente">🗓 <strong>{n_sem_aula}</strong> sem aula (feriado/parada{', incl. '+str(n_parcial)+' por educador ausente' if n_parcial else ''})</span>
 </div>
 
 <!-- INSIGHTS AUTOMÁTICOS -->
@@ -453,20 +598,38 @@ footer{{text-align:center;padding:32px;font-size:11px;color:var(--muted)}}
 <!-- GRÁFICOS -->
 <div class="grid-2">
   <div class="card">
-    <div class="card-title">Frequência Média por Matéria</div>
-    <div class="card-sub">% média da matrícula nos dias com aula complementar</div>
+    <div class="card-title">Evasão Média por Matéria Complementar</div>
+    <div class="card-sub">Queda de presença no dia da complementar vs. dias de FIC do mesmo curso — maior = mais evasão</div>
     <canvas id="freqSubjChart" height="260"></canvas>
   </div>
   <div class="card">
     <div class="card-title">Evolução da Presença nas Complementares</div>
-    <div class="card-sub">Média mensal: presença no dia da complementar ÷ média geral do curso (100% = comportamento normal)</div>
+    <div class="card-sub">Média mensal: presença no dia da complementar ÷ média do curso nos dias de FIC (100% = comportamento normal)</div>
     <canvas id="evolucaoChart" height="260"></canvas>
   </div>
 </div>
 
 <div class="card" style="margin-bottom:28px">
+  <div class="card-title">Evasão por Curso nos Dias de Complementar — Ranking</div>
+  <div class="card-sub">Queda de presença no dia da complementar vs. média do curso nos dias de FIC. Cor = turno. Conformidade com a meta no tooltip (indicador separado).</div>
+  <div style="display:flex;gap:6px;flex-wrap:wrap;margin:6px 0 14px" id="evasao-curso-turno">
+    <button class="chip active" data-v="all">Todos os turnos</button>
+    <button class="chip" data-v="Manhã">Manhã</button>
+    <button class="chip" data-v="Tarde">Tarde</button>
+    <button class="chip" data-v="Noite">Noite</button>
+  </div>
+  <canvas id="evasaoCursoChart" height="340"></canvas>
+</div>
+
+<div class="card" style="margin-bottom:28px">
+  <div class="card-title">Cursos com Lançamentos Pendentes</div>
+  <div class="card-sub">Top 5 cursos com mais aulas-dia sem registro até {cutoff_fmt} — não são feriado/parada nem futuro. Para cobrança de lançamento junto aos educadores.</div>
+  <div id="lacunasTable" style="margin-top:10px"></div>
+</div>
+
+<div class="card" style="margin-bottom:28px">
   <div class="card-title">Evolução por Matéria Complementar</div>
-  <div class="card-sub">Selecione a matéria, turno e período para análise detalhada — 100% = comportamento normal do curso</div>
+  <div class="card-sub">Selecione a matéria, turno e período para análise detalhada — 100% = média do curso nos dias de FIC</div>
   <div style="display:flex;flex-wrap:wrap;gap:14px;align-items:center;margin:14px 0 18px;padding:12px;background:var(--surface2);border-radius:10px">
     <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">
       <span class="flbl">Matéria:</span>
@@ -494,7 +657,7 @@ footer{{text-align:center;padding:32px;font-size:11px;color:var(--muted)}}
 
 <div class="card" style="margin-bottom:28px">
   <div class="card-title">Evolução por Curso FIC</div>
-  <div class="card-sub">Selecione um curso e veja como ele se comporta em cada matéria complementar — 100% = comportamento normal do curso</div>
+  <div class="card-sub">Selecione um curso e veja como ele se comporta em cada matéria complementar — 100% = média do curso nos dias de FIC</div>
   <div style="display:flex;flex-wrap:wrap;gap:14px;align-items:center;margin:14px 0 18px;padding:12px;background:var(--surface2);border-radius:10px">
     <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;flex:1;min-width:280px">
       <span class="flbl">Curso:</span>
@@ -545,7 +708,7 @@ footer{{text-align:center;padding:32px;font-size:11px;color:var(--muted)}}
     <div class="flbl" style="margin-left:8px">Freq:</div>
     <div class="chip-group" id="chips-freq">
       <button class="chip active" data-v="all">Todos</button>
-      <button class="chip" data-v="low">Abaixo 80%</button>
+      <button class="chip" data-v="low">Queda > 20%</button>
       <button class="chip" data-v="has">Com dados</button>
     </div>
     <input class="search-input" id="search" placeholder="🔍 Buscar curso..." type="text">
@@ -584,6 +747,17 @@ footer{{text-align:center;padding:32px;font-size:11px;color:var(--muted)}}
 <script>
 const COURSES  = {courses_json};
 const SCHEDULE = {schedule_json};
+const CUTOFF   = {json.dumps(cutoff)};      // última data com lançamento de frequência
+const NO_CLASS = {no_class_json};           // {{data: motivo}} feriados/paradas/emendas (dia inteiro)
+const PARTIAL_NO_CLASS = new Set({partial_json});  // dias de parada parcial (educador ausente)
+function cellState(date,freq){{
+  // retorna estado quando NÃO há frequência: 'feriado' | 'parcial' | 'aguardando' | 'lacuna'
+  if(freq!=null) return null;
+  if(NO_CLASS[date]) return 'feriado';
+  if(PARTIAL_NO_CLASS.has(date)) return 'parcial';  // educador ausente → sem aula p/ a turma
+  if(CUTOFF && date>CUTOFF) return 'aguardando';
+  return 'lacuna';
+}}
 const WD = ['Dom','Seg','Ter','Qua','Qui','Sex','Sáb'];
 const MONTHS = {{'02':'Fev','03':'Mar','04':'Abr','05':'Mai','06':'Jun'}};
 const SUBJ_COLORS = {{
@@ -646,21 +820,30 @@ function getFiltered(){{
   }});
 }}
 
-function freqCell(nome,cod,freq,freqAvg,matr,pct){{
+function freqCell(nome,cod,freq,freqAvg,matr,pct,evasao,taxa,date){{
   if(!nome&&!cod) return '<td colspan="2"><span style="display:inline-flex;align-items:center;gap:5px;background:rgba(201,124,26,.12);border:1px solid rgba(201,124,26,.35);color:#c97c1a;font-size:10px;font-weight:600;padding:2px 9px;border-radius:3px;letter-spacing:.3px">— SEM TURMA</span></td>';
   const nc = `<span class="cod-badge">${{cod||''}}</span> ${{(nome||'').substring(0,32)}}`;
   if(freq==null){{
-    return `<td>${{nc}}</td><td class="muted mono" style="font-size:10px;text-align:right">sem dados</td>`;
+    const st=cellState(date,freq);
+    let chip;
+    if(st==='feriado')    chip=`<span title="${{NO_CLASS[date]||'feriado/parada'}}" style="font-size:10px;color:var(--blue);background:rgba(33,67,142,.08);border:1px solid rgba(33,67,142,.25);border-radius:3px;padding:1px 7px">🗓 sem aula</span>`;
+    else if(st==='parcial') chip=`<span title="Educador ausente neste dia — não houve aula para esta turma" style="font-size:10px;color:var(--blue);background:rgba(33,67,142,.06);border:1px solid rgba(33,67,142,.22);border-radius:3px;padding:1px 7px">🗓 sem aula (educ. ausente)</span>`;
+    else if(st==='aguardando') chip=`<span title="Após o último lançamento (${{CUTOFF||'—'}})" style="font-size:10px;color:var(--indigo);background:rgba(79,70,229,.07);border:1px solid rgba(79,70,229,.25);border-radius:3px;padding:1px 7px">⏳ aguardando</span>`;
+    else                  chip=`<span title="Data já lançada, mas este curso não tem registro" style="font-size:10px;color:var(--red);background:rgba(230,56,39,.06);border:1px solid rgba(230,56,39,.25);border-radius:3px;padding:1px 7px">sem registro</span>`;
+    return `<td>${{nc}}</td><td style="text-align:right">${{chip}}</td>`;
   }}
   const col=pctColor(pct);
-  const alerta=pct!=null&&pct<90?'<span class="alerta">⚠ faltou</span>':'';
-  const tip=freqAvg!=null?`title="Dia da complementar: ${{freq}} | Média geral: ${{freqAvg}}"`:'';
+  const queda=evasao!=null&&evasao>=10?`<span class="alerta">↓ ${{evasao.toFixed(0)}}%</span>`:'';
+  const metaCol=taxa==null?'var(--muted)':taxa>=100?'var(--green)':taxa>=75?'var(--amber)':'var(--red)';
+  const metaChip=taxa!=null?`<span class="mono" title="freq ÷ meta convênio" style="font-size:9px;color:${{metaCol}};border:1px solid ${{metaCol}}55;border-radius:3px;padding:0 4px">${{taxa.toFixed(0)}}% meta</span>`:'';
+  const tip=freqAvg!=null?`title="Presença no dia: ${{freq}} | Média nos dias de FIC: ${{freqAvg}} | Queda: ${{evasao!=null?evasao.toFixed(0)+'%':'—'}}"`:'';
   return `<td>${{nc}}</td>
   <td style="text-align:right;white-space:nowrap" ${{tip}}>
     <div style="display:flex;align-items:center;gap:6px;justify-content:flex-end">
-      ${{alerta}}
+      ${{queda}}
       <span class="mono" style="font-size:11px;color:${{col}};font-weight:500">${{freq}}</span>
-      <span style="color:var(--muted);font-size:10px">/ ~${{freqAvg??'—'}}</span>
+      <span style="color:var(--muted);font-size:10px">/ ~${{freqAvg??'—'}} FIC</span>
+      ${{metaChip}}
     </div>
   </td>`;
 }}
@@ -684,8 +867,8 @@ function renderTable(){{
       <td class="muted" style="font-size:11px">${{wd(s.date)}}</td>
       <td><span class="turno-${{tc}}" style="font-size:10px;padding:2px 7px;border-radius:3px;font-weight:500">${{s.turno}}</span></td>
       <td><span class="subj-pill" style="color:${{cc}};border-color:${{cc}}22;background:${{cc}}11">${{s.subject}}</span></td>
-      ${{freqCell(s.nome1,s.cod1,s.freq1,s.freq_avg1,s.matr1,s.pct1)}}
-      ${{freqCell(s.nome2,s.cod2,s.freq2,s.freq_avg2,s.matr2,s.pct2)}}
+      ${{freqCell(s.nome1,s.cod1,s.freq1,s.freq_avg1,s.matr1,s.pct1,s.evasao1,s.taxa1,s.date)}}
+      ${{freqCell(s.nome2,s.cod2,s.freq2,s.freq_avg2,s.matr2,s.pct2,s.evasao2,s.taxa2,s.date)}}
     </tr>`;
   }}).join('');
   renderPag(filtered.length,maxP);
@@ -725,7 +908,18 @@ function renderHoje(){{
 
   const SEM_TURMA = '<span style="display:inline-flex;align-items:center;gap:5px;background:rgba(201,124,26,.12);border:1px solid rgba(201,124,26,.35);color:#c97c1a;font-size:10px;font-weight:600;padding:2px 9px;border-radius:3px;letter-spacing:.3px">— SEM TURMA</span>';
 
-  const fmtH=(freq,avg,pct)=>freq==null?'':`<span class="mono" style="font-size:10px;color:${{pctColor(pct)}}">${{freq}} / ~${{avg??'—'}}</span>${{pct!=null&&pct<90?' <span class="alerta">⚠ faltou</span>':''}}`;
+  const fmtH=(freq,avg,pct,evasao,taxa,date)=>{{
+    if(freq==null){{
+      const st=cellState(date,freq);
+      if(st==='feriado')    return `<span style="font-size:10px;color:var(--blue)">🗓 sem aula</span>`;
+      if(st==='parcial')    return `<span style="font-size:10px;color:var(--blue)" title="Educador ausente — sem aula para a turma">🗓 sem aula</span>`;
+      if(st==='aguardando') return `<span style="font-size:10px;color:var(--indigo)">⏳ aguardando</span>`;
+      return `<span class="muted" style="font-size:10px">sem registro</span>`;
+    }}
+    const queda=evasao!=null&&evasao>=10?` <span class="alerta">↓ ${{evasao.toFixed(0)}}%</span>`:'';
+    const mc=taxa==null?'':` <span class="mono" style="font-size:9px;color:${{taxa>=100?'var(--green)':taxa>=75?'var(--amber)':'var(--red)'}}">(${{taxa.toFixed(0)}}% meta)</span>`;
+    return `<span class="mono" style="font-size:10px;color:${{pctColor(pct)}}">${{freq}} / ~${{avg??'—'}} FIC</span>${{mc}}${{queda}}`;
+  }};
 
   let html='';
   ['Manhã','Tarde','Noite'].forEach(turno=>{{
@@ -743,8 +937,8 @@ function renderHoje(){{
     const cards=Object.entries(bySubj).map(([subj,entries])=>{{
       const col=sc(subj);
       const pairs=entries.map(i=>{{
-        const f1=fmtH(i.freq1,i.freq_avg1,i.pct1);
-        const f2=fmtH(i.freq2,i.freq_avg2,i.pct2);
+        const f1=fmtH(i.freq1,i.freq_avg1,i.pct1,i.evasao1,i.taxa1,i.date);
+        const f2=fmtH(i.freq2,i.freq_avg2,i.pct2,i.evasao2,i.taxa2,i.date);
         const l1=i.nome1?`<strong style="font-weight:600">${{i.cod1}}</strong> ${{i.nome1.substring(0,35)}} ${{f1}}`:SEM_TURMA;
         const l2=i.nome2?`<strong style="font-weight:600">${{i.cod2}}</strong> ${{i.nome2.substring(0,35)}} ${{f2}}`:SEM_TURMA;
         return `<div style="padding:7px 0;border-bottom:1px solid var(--border);line-height:1.8;font-size:12px">
@@ -830,8 +1024,9 @@ function renderProg(){{
         const planned = c.planned[normSubj(s)] || 0;
         totalDone+=done; totalPlan+=planned;
         if(!planned) return`<td style="text-align:center;color:var(--muted);font-size:11px">—</td>`;
-        const pct = Math.min(100,Math.round(done/planned*100));
-        const col = pct>=100?'var(--green)':pct>=50?'var(--amber)':'var(--red)';
+        const pctReal = Math.round(done/planned*100);
+        const pct = Math.min(100,pctReal);   // largura da barra limita em 100%, mas o número mostra o real
+        const col = pctReal>=100?'var(--green)':pctReal>=50?'var(--amber)':'var(--red)';
         const avgF = cs[s]?.freqN>0?(cs[s].freqSum/cs[s].freqN).toFixed(0)+'%':null;
         return`<td style="text-align:center">
           <div style="display:inline-flex;flex-direction:column;align-items:center;gap:2px">
@@ -884,22 +1079,23 @@ function renderCharts(){{
     return s;
   }}
   // Freq por matéria (das aulas com dados) — agrupa por matéria-base
-  const freqBySubj={{}};
+  const evBySubj={{}};
   SCHEDULE.forEach(s=>{{
     const subjBase=subjBaseChart(s.subject);
-    [{{p:s.pct1}},{{p:s.pct2}}].forEach(x=>{{
-      if(x.p==null) return;
-      if(!freqBySubj[subjBase]) freqBySubj[subjBase]={{sum:0,n:0}};
-      freqBySubj[subjBase].sum+=x.p; freqBySubj[subjBase].n++;
+    [{{e:s.evasao1}},{{e:s.evasao2}}].forEach(x=>{{
+      if(x.e==null) return;
+      if(!evBySubj[subjBase]) evBySubj[subjBase]={{sum:0,n:0}};
+      evBySubj[subjBase].sum+=x.e; evBySubj[subjBase].n++;
     }});
   }});
-  const fLabels=Object.keys(freqBySubj).sort((a,b)=>freqBySubj[b].sum/freqBySubj[b].n - freqBySubj[a].sum/freqBySubj[a].n);
-  const fData=fLabels.map(k=>(freqBySubj[k].sum/freqBySubj[k].n).toFixed(1));
+  // ordena da MAIOR evasão para a menor
+  const fLabels=Object.keys(evBySubj).sort((a,b)=>evBySubj[b].sum/evBySubj[b].n - evBySubj[a].sum/evBySubj[a].n);
+  const fData=fLabels.map(k=>(evBySubj[k].sum/evBySubj[k].n).toFixed(1));
   const fColors=fLabels.map(k=>sc(k));
   new Chart(document.getElementById('freqSubjChart'),{{
     type:'bar',
     data:{{labels:fLabels,datasets:[{{data:fData,backgroundColor:fColors.map(c=>c+'aa'),borderColor:fColors,borderWidth:1,borderRadius:4}}]}},
-    options:{{indexAxis:'y',responsive:true,plugins:{{legend:{{display:false}},tooltip:{{backgroundColor:'#1a2340',borderColor:'#cdd5e8',borderWidth:1,callbacks:{{label:ctx=>`Freq média: ${{ctx.raw}}%`}}}}}},scales:{{x:{{min:0,max:100,grid:{{color:'rgba(0,0,0,.06)'}},ticks:{{callback:v=>v+'%'}}}},y:{{grid:{{display:false}}}}}}}}
+    options:{{indexAxis:'y',responsive:true,plugins:{{legend:{{display:false}},tooltip:{{backgroundColor:'#1a2340',borderColor:'#cdd5e8',borderWidth:1,callbacks:{{label:ctx=>`Queda média na complementar: ${{ctx.raw}}%`}}}}}},scales:{{x:{{min:0,suggestedMax:25,grid:{{color:'rgba(0,0,0,.06)'}},ticks:{{callback:v=>v+'%'}}}},y:{{grid:{{display:false}}}}}}}}
   }});
 
   // Evolução mensal da presença nas complementares
@@ -1396,41 +1592,41 @@ function renderInsights(){{
 
   const insights=[];
 
-  // 1) Matéria com maior/menor presença média
+  // 1) Matéria que mais/menos perde aluno na complementar (evasão)
   const bySubj={{}};
   SCHEDULE.forEach(s=>{{
     const sb=subjBaseI(s.subject);
     ['1','2'].forEach(w=>{{
-      const p=s['pct'+w];
-      if(p==null) return;
+      const ev=s['evasao'+w];
+      if(ev==null) return;
       if(!bySubj[sb]) bySubj[sb]={{sum:0,n:0}};
-      bySubj[sb].sum+=p; bySubj[sb].n++;
+      bySubj[sb].sum+=ev; bySubj[sb].n++;
     }});
   }});
   const subjAvgs=Object.entries(bySubj).map(([k,v])=>({{k, avg:v.sum/v.n, n:v.n}}))
     .filter(x=>x.n>=20).sort((a,b)=>b.avg-a.avg);
   if(subjAvgs.length){{
-    const best=subjAvgs[0], worst=subjAvgs[subjAvgs.length-1];
-    insights.push({{icon:'📈',label:'Maior presença', val:best.k, sub:best.avg.toFixed(0)+'% de média', color:'var(--green)'}});
-    insights.push({{icon:'📉',label:'Menor presença', val:worst.k, sub:worst.avg.toFixed(0)+'% de média', color:'var(--red)'}});
+    const worst=subjAvgs[0], best=subjAvgs[subjAvgs.length-1];
+    insights.push({{icon:'📉',label:'Maior evasão (matéria)', val:worst.k, sub:worst.avg.toFixed(0)+'% de queda média', color:'var(--red)'}});
+    insights.push({{icon:'📈',label:'Menor evasão (matéria)', val:best.k, sub:best.avg.toFixed(0)+'% de queda média', color:'var(--green)'}});
   }}
 
-  // 2) Dia da semana com menor presença
+  // 2) Dia da semana com MAIOR evasão
   const WD=['Dom','Seg','Ter','Qua','Qui','Sex','Sáb'];
   const byWD={{}};
   SCHEDULE.forEach(s=>{{
     const wd=new Date(s.date+'T12:00:00').getDay();
     ['1','2'].forEach(w=>{{
-      const p=s['pct'+w]; if(p==null) return;
+      const ev=s['evasao'+w]; if(ev==null) return;
       if(!byWD[wd]) byWD[wd]={{sum:0,n:0}};
-      byWD[wd].sum+=p; byWD[wd].n++;
+      byWD[wd].sum+=ev; byWD[wd].n++;
     }});
   }});
   const wdAvgs=Object.entries(byWD).map(([k,v])=>({{wd:+k,avg:v.sum/v.n,n:v.n}}))
-    .filter(x=>x.n>=20).sort((a,b)=>a.avg-b.avg);
+    .filter(x=>x.n>=20).sort((a,b)=>b.avg-a.avg);
   if(wdAvgs.length>=2){{
     const worstWD=wdAvgs[0];
-    insights.push({{icon:'📅', label:'Pior dia da semana', val:WD[worstWD.wd]+'-feira', sub:worstWD.avg.toFixed(0)+'% de presença', color:'var(--amber)'}});
+    insights.push({{icon:'📅', label:'Pior dia da semana', val:WD[worstWD.wd]+'-feira', sub:worstWD.avg.toFixed(0)+'% de queda média', color:'var(--amber)'}});
   }}
 
   // 3) Cursos com poucos dados
@@ -1448,28 +1644,35 @@ function renderInsights(){{
     insights.push({{icon:'⚠',label:'Atenção',val:lowData+' cursos',sub:'com menos de 10 dias de dados',color:'var(--amber)'}});
   }}
 
-  // 4) Total de aulas críticas (pct < 75)
+  // 4) Total de aulas críticas (queda > 25% vs FIC)
   let criticas=0;
-  SCHEDULE.forEach(s=>{{['1','2'].forEach(w=>{{ if(s['pct'+w]!=null && s['pct'+w]<75) criticas++; }});}});
+  SCHEDULE.forEach(s=>{{['1','2'].forEach(w=>{{ if(s['evasao'+w]!=null && s['evasao'+w]>25) criticas++; }});}});
   if(criticas){{
-    insights.push({{icon:'🔴',label:'Aulas críticas',val:criticas,sub:'com presença abaixo de 75%',color:'var(--red)'}});
+    insights.push({{icon:'🔴',label:'Aulas críticas',val:criticas,sub:'com queda acima de 25% vs FIC',color:'var(--red)'}});
   }}
 
-  // 5) Mês com melhor desempenho
+  // 4b) Conformidade com a meta (indicador separado)
+  let abaixoMeta=0, comTaxa=0;
+  SCHEDULE.forEach(s=>{{['1','2'].forEach(w=>{{ if(s['taxa'+w]!=null){{comTaxa++; if(s['taxa'+w]<75) abaixoMeta++;}} }});}});
+  if(comTaxa){{
+    insights.push({{icon:'🎯',label:'Abaixo da meta (75%)',val:abaixoMeta,sub:'aulas-dia abaixo do piso da Norma Técnica',color:'var(--amber)'}});
+  }}
+
+  // 5) Mês com menor evasão
   const byMonth={{}};
   SCHEDULE.forEach(s=>{{
     const m=s.date.substr(0,7);
-    ['1','2'].forEach(w=>{{ const p=s['pct'+w]; if(p==null) return;
+    ['1','2'].forEach(w=>{{ const ev=s['evasao'+w]; if(ev==null) return;
       if(!byMonth[m]) byMonth[m]={{sum:0,n:0}};
-      byMonth[m].sum+=p; byMonth[m].n++;
+      byMonth[m].sum+=ev; byMonth[m].n++;
     }});
   }});
   const monthAvgs=Object.entries(byMonth).map(([m,v])=>({{m,avg:v.sum/v.n,n:v.n}}))
-    .filter(x=>x.n>=30).sort((a,b)=>b.avg-a.avg);
+    .filter(x=>x.n>=30).sort((a,b)=>a.avg-b.avg);
   if(monthAvgs.length>=2){{
     const bestM=monthAvgs[0];
     const ML={{'02':'Fevereiro','03':'Março','04':'Abril','05':'Maio','06':'Junho'}};
-    insights.push({{icon:'🏆',label:'Melhor mês',val:ML[bestM.m.split('-')[1]]||bestM.m,sub:bestM.avg.toFixed(0)+'% de presença',color:'var(--green)'}});
+    insights.push({{icon:'🏆',label:'Mês com menor evasão',val:ML[bestM.m.split('-')[1]]||bestM.m,sub:bestM.avg.toFixed(0)+'% de queda média',color:'var(--green)'}});
   }}
 
   container.innerHTML=insights.map(i=>
@@ -1484,14 +1687,90 @@ function renderInsights(){{
   ).join('');
 }}
 
+// RANKING DE EVASÃO POR CURSO
+let evasaoCursoChartObj=null;
+let evCursoTurno='all';
+function renderEvasaoCurso(){{
+  const canvas=document.getElementById('evasaoCursoChart');
+  if(!canvas) return;
+  const TC={{'Manhã':'#f37f1f','Tarde':'#2bb19d','Noite':'#21438e'}};
+  // agrega por curso (turno|nome) a evasão média e a conformidade média
+  const agg={{}};
+  SCHEDULE.forEach(s=>{{
+    if(evCursoTurno!=='all' && s.turno!==evCursoTurno) return;
+    ['1','2'].forEach(w=>{{
+      const nome=s['nome'+w]; if(!nome) return;
+      const ev=s['evasao'+w]; if(ev==null) return;
+      const k=s.turno+'|'+nome;
+      if(!agg[k]) agg[k]={{turno:s.turno,nome:nome,ev:[],taxa:[]}};
+      agg[k].ev.push(ev);
+      if(s['taxa'+w]!=null) agg[k].taxa.push(s['taxa'+w]);
+    }});
+  }});
+  const mean=a=>a.length?a.reduce((x,y)=>x+y,0)/a.length:null;
+  let arr=Object.values(agg).map(c=>({{
+    turno:c.turno, nome:c.nome,
+    ev:mean(c.ev), taxa:mean(c.taxa), n:c.ev.length
+  }})).filter(c=>c.n>=3);                 // ao menos 3 dias de complementar
+  arr.sort((a,b)=>b.ev-a.ev);
+  arr=arr.slice(0,15);
+  const labels=arr.map(c=>`[${{c.turno[0]}}] ${{c.nome.substring(0,34)}}`);
+  const data=arr.map(c=>+c.ev.toFixed(1));
+  const colors=arr.map(c=>TC[c.turno]||'#5c6b8a');
+  if(evasaoCursoChartObj) evasaoCursoChartObj.destroy();
+  evasaoCursoChartObj=new Chart(canvas,{{
+    type:'bar',
+    data:{{labels,datasets:[{{data,backgroundColor:colors.map(c=>c+'cc'),borderColor:colors,borderWidth:1,borderRadius:4}}]}},
+    options:{{indexAxis:'y',responsive:true,
+      plugins:{{legend:{{display:false}},tooltip:{{backgroundColor:'#1a2340',borderColor:'#cdd5e8',borderWidth:1,callbacks:{{
+        label:ctx=>{{const c=arr[ctx.dataIndex];return `Evasão na complementar: ${{c.ev.toFixed(1)}}%`;}},
+        afterLabel:ctx=>{{const c=arr[ctx.dataIndex];return (c.taxa!=null?`Conformidade c/ meta: ${{c.taxa.toFixed(0)}}%`:'')+`  ·  ${{c.n}} dias`;}}
+      }}}}}},
+      scales:{{x:{{min:0,suggestedMax:40,grid:{{color:'rgba(0,0,0,.06)'}},ticks:{{callback:v=>v+'%'}}}},y:{{grid:{{display:false}},ticks:{{font:{{size:10}}}}}}}}
+    }}
+  }});
+}}
+document.querySelectorAll('#evasao-curso-turno .chip').forEach(b=>{{
+  b.addEventListener('click',()=>{{
+    document.querySelectorAll('#evasao-curso-turno .chip').forEach(x=>x.classList.remove('active'));
+    b.classList.add('active'); evCursoTurno=b.dataset.v; renderEvasaoCurso();
+  }});
+}});
+
+// TABELA DE LANÇAMENTOS PENDENTES (lacunas reais)
+function renderLacunas(){{
+  const agg={{}};
+  SCHEDULE.forEach(s=>{{
+    ['1','2'].forEach(w=>{{
+      const nome=s['nome'+w]; if(!nome) return;
+      if(cellState(s.date,s['freq'+w])!=='lacuna') return;
+      const k=s.turno+'|'+nome;
+      if(!agg[k]) agg[k]={{turno:s.turno,nome:nome,dates:new Set()}};
+      agg[k].dates.add(s.date);
+    }});
+  }});
+  let arr=Object.values(agg).map(c=>({{turno:c.turno,nome:c.nome,n:c.dates.size,datas:[...c.dates].sort()}}));
+  arr.sort((a,b)=>b.n-a.n);
+  arr=arr.slice(0,5);
+  const el=document.getElementById('lacunasTable'); if(!el) return;
+  if(!arr.length){{ el.innerHTML='<div class="muted" style="font-size:12px">Nenhuma lacuna pendente 🎉</div>'; return; }}
+  const fmt=d=>d.slice(8,10)+'/'+d.slice(5,7);
+  let html='<table style="width:100%;border-collapse:collapse;font-size:12px"><thead><tr style="text-align:left;color:var(--muted);border-bottom:1px solid var(--border)"><th style="padding:7px 8px">Curso</th><th style="padding:7px 8px">Turno</th><th style="padding:7px 8px;text-align:center">Pendências</th><th style="padding:7px 8px">Datas sem registro</th></tr></thead><tbody>';
+  arr.forEach(c=>{{
+    html+=`<tr style="border-bottom:1px solid var(--border)"><td style="padding:7px 8px;font-weight:500">${{c.nome.substring(0,42)}}</td><td style="padding:7px 8px">${{c.turno}}</td><td style="padding:7px 8px;text-align:center"><span style="background:rgba(230,56,39,.1);color:var(--red);border-radius:10px;padding:2px 10px;font-weight:600">${{c.n}}</span></td><td style="padding:7px 8px;color:var(--muted);font-family:'JetBrains Mono',monospace;font-size:10px">${{c.datas.map(fmt).join(', ')}}</td></tr>`;
+  }});
+  html+='</tbody></table>';
+  el.innerHTML=html;
+}}
+
 // INIT
-renderHoje(); renderInsights(); renderTable(); renderProg(); renderCharts();
+renderHoje(); renderInsights(); renderTable(); renderProg(); renderCharts(); renderEvasaoCurso(); renderLacunas();
 </script>
 </body></html>"""
 
 if __name__ == '__main__':
     print("\n" + "="*55)
-    print("  Dashboard Grade Complementar — Gerador v2.0")
+    print("  Dashboard Grade Complementar — Gerador v3.3 (feriados móveis + pendências + paradas)")
     print("="*55)
 
     base = sys.argv[1] if len(sys.argv) > 1 else '.'
@@ -1520,19 +1799,24 @@ if __name__ == '__main__':
         print(f"  ⚠  Frequência não encontrada: {freq_path}")
 
     print("\n📊 Extraindo frequência...")
-    all_freq, course_meta, course_freq_avg = extrair_freq(freq_path) if os.path.exists(freq_path) else ({},{},{})
+    all_freq, course_meta, course_freq_avg, course_target = extrair_freq(freq_path) if os.path.exists(freq_path) else ({},{},{},{})
 
     print("📅 Extraindo grade...")
     courses, schedule = extrair_grade(grade_files)
 
     print("🔗 Cruzando dados...")
-    enriched = enriquecer(schedule, all_freq, course_meta, course_freq_avg)
+    enriched = enriquecer(schedule, all_freq, course_meta, course_freq_avg, course_target)
+
+    cutoff, no_class, partial_no_class = montar_no_class(enriched)
+    logging.info(f"   Data de corte (último lançamento): {cutoff}")
+    logging.info(f"   Dias sem aula mapeados (feriado/emenda/parada): {len(no_class)}")
+    logging.info(f"   Dias de parada parcial (educador ausente): {len(partial_no_class)}")
 
     com_freq = sum(1 for s in enriched if s.get('freq1') is not None or s.get('freq2') is not None)
     print(f"   {len(schedule)} aulas | {com_freq} com frequência cruzada")
 
     data_at = datetime.now(timezone(timedelta(hours=-3))).strftime('%d/%m/%Y às %H:%M')
-    html = gerar_html(courses, enriched, data_at)
+    html = gerar_html(courses, enriched, data_at, cutoff, no_class, partial_no_class)
 
     out = 'dashboard_complementar.html'
     with open(out, 'w', encoding='utf-8') as f:
@@ -1541,4 +1825,5 @@ if __name__ == '__main__':
     print("="*55)
     print("  ✅  Concluído!")
     print("="*55 + "\n")
+
 
