@@ -25,6 +25,182 @@ SAIDA_CURSOS    = "dashboard_cursos_frequencia.html"
 SAIDA_RESUMO    = "dashboard_resumo.html"
 # ─────────────────────────────────────────────────────────────────────────────
 
+# ── CALENDÁRIO DE DIAS SEM AULA ───────────────────────────────────────────────
+# Feriados móveis são CALCULADOS a partir da Páscoa (ajustam-se sozinhos a cada
+# ano). Paradas institucionais NÃO dá para calcular — ficam nestas listas, fáceis
+# de editar conforme o semestre avança.
+#
+# IMPORTANTE (diferença em relação ao dashboard complementar): nos cursos FIC
+# principais, 09/04 e 22/05 tiveram presença normal em dezenas de turmas — então
+# AQUI eles entram como PARADA PARCIAL (educador ausente em parte das turmas), e
+# não como parada de dia inteiro. Confirme com a coordenação e ajuste se preciso.
+
+# Paradas de DIA INTEIRO (nenhuma turma teve aula → data não conta como pendência)
+PARADAS_FULL = {
+    "2026-04-10": "Parada pedagógica",
+    "2026-05-29": "Parada pedagógica",
+}
+
+# Paradas PARCIAIS: parte dos educadores ausente. Nesses dias, a turma SEM registro
+# = não houve aula para ela (não é pendência); a turma COM registro teve aula normal.
+PARADAS_PARCIAIS = {
+    "2026-03-06", "2026-03-13", "2026-03-20", "2026-03-23", "2026-03-30",
+    "2026-04-09", "2026-05-22",
+}
+
+# Datas anômalas pendentes de classificação (nenhuma no momento — todas confirmadas).
+PARADAS_A_CONFIRMAR = {}
+
+
+def feriados_do_ano(ano):
+    """Retorna {YYYY-MM-DD: nome} dos feriados que afetam o calendário letivo de SP.
+    Os móveis (Carnaval, Cinzas, Sexta Santa, Corpus Christi) derivam da Páscoa."""
+    from datetime import date, timedelta
+    # Páscoa (algoritmo de Gauss/Anonymous Gregorian)
+    a = ano % 19
+    b = ano // 100
+    c = ano % 100
+    d = b // 4
+    e = b % 4
+    f = (b + 8) // 25
+    g = (b - f + 1) // 3
+    h = (19 * a + b - d - g + 15) % 30
+    i = c // 4
+    k = c % 4
+    l = (32 + 2 * e + 2 * i - h - k) % 7
+    m = (a + 11 * h + 22 * l) // 451
+    mes = (h + l - 7 * m + 114) // 31
+    dia = ((h + l - 7 * m + 114) % 31) + 1
+    pascoa = date(ano, mes, dia)
+    fer = {
+        (pascoa - timedelta(days=48)).isoformat(): "Carnaval",
+        (pascoa - timedelta(days=47)).isoformat(): "Carnaval",
+        (pascoa - timedelta(days=46)).isoformat(): "Quarta-feira de Cinzas",
+        (pascoa - timedelta(days=2)).isoformat():  "Sexta-feira Santa",
+        (pascoa + timedelta(days=60)).isoformat(): "Corpus Christi",
+        f"{ano}-01-25": "Aniversário de São Paulo",
+        f"{ano}-04-21": "Tiradentes",
+        f"{ano}-05-01": "Dia do Trabalho",
+        f"{ano}-07-09": "Revolução Constitucionalista (SP)",
+        f"{ano}-09-07": "Independência",
+        f"{ano}-10-12": "Nossa Senhora Aparecida",
+        f"{ano}-11-02": "Finados",
+        f"{ano}-11-15": "Proclamação da República",
+        f"{ano}-11-20": "Consciência Negra",
+        f"{ano}-12-25": "Natal",
+    }
+    return fer
+
+
+def _sortdate_to_iso(sort_date, ano):
+    """'MM/DD' -> 'YYYY-MM-DD'."""
+    mm, dd = sort_date.split("/")
+    return f"{ano}-{int(mm):02d}-{int(dd):02d}"
+
+
+def calcular_pendencias(cursos, period_dates):
+    """Calcula, de forma honesta e ciente do calendário, as pendências de lançamento.
+
+    Para cada turma:
+      esperado   = datas-coluna do período ATÉ o cutoff, exceto feriados/paradas full
+      registrado = datas com valor numérico
+      pendência  = esperado − registrado − (paradas parciais sem registro)
+
+    Retorna (cutoff_display, no_class_map, resumo_global) e injeta em cada curso:
+      'pendentes' (int), 'pendentes_datas' (list[str DD/MM]), 'dias_sem_aula' (int).
+    """
+    # ano de referência = ano dominante (datas vêm como MM/DD, sem ano → assume 2026)
+    ano = 2026
+    feriados = feriados_do_ano(ano)
+
+    # cutoff = última data com QUALQUER lançamento (global)
+    todas = sorted({sd for c in cursos for (sd, dd, fr) in c["daily"]})
+    cutoff_sort = todas[-1] if todas else None
+    cutoff_disp = None
+    if cutoff_sort:
+        mm, dd = cutoff_sort.split("/")
+        cutoff_disp = f"{int(dd):02d}/{int(mm):02d}"
+
+    # mapa de dias sem aula {DD/MM: motivo} — feriados/paradas full que caem em dia
+    # ÚTIL dentro da janela do semestre (independe de haver coluna na planilha)
+    from datetime import date as _date
+    no_class = {}
+    if todas:
+        ini_iso = _sortdate_to_iso(todas[0], ano)
+        fim_iso = _sortdate_to_iso(todas[-1], ano)
+        for iso, nome in {**feriados, **PARADAS_FULL}.items():
+            if ini_iso <= iso <= fim_iso:
+                y, m, dd = map(int, iso.split("-"))
+                if _date(y, m, dd).weekday() < 5:        # seg–sex
+                    no_class[f"{dd:02d}/{m:02d}"] = nome
+
+    paradas_full_sort  = {_iso_to_sort(i) for i in PARADAS_FULL}
+    paradas_parc_sort  = {_iso_to_sort(i) for i in PARADAS_PARCIAIS}
+    feriados_sort      = {_iso_to_sort(i) for i in feriados}
+
+    # DIAS SEM AULA DETECTADOS POR DADOS: qualquer data-coluna em que NENHUMA turma
+    # da rede lançou frequência é, na prática, dia sem aula (emenda/parada não
+    # mapeada). Pega automaticamente casos como a véspera de feriado (emenda).
+    from collections import Counter as _C
+    cnt = _C(sd for c in cursos for (sd, dd, fr) in c["daily"])
+    todas_colunas = set()
+    for pds in period_dates.values():
+        for (sd, dd) in pds:
+            todas_colunas.add((sd, dd))
+    zero_dates = {sd for (sd, dd) in todas_colunas
+                  if cnt.get(sd, 0) == 0 and (not cutoff_sort or sd <= cutoff_sort)}
+    for (sd, dd) in todas_colunas:
+        if sd in zero_dates:
+            nome = feriados.get(_sortdate_to_iso(sd, ano)) \
+                   or PARADAS_FULL.get(_sortdate_to_iso(sd, ano)) \
+                   or "Sem aula (emenda/parada)"
+            no_class[dd] = nome
+    no_aula_sort = feriados_sort | paradas_full_sort | zero_dates
+
+    total_pend = 0
+    for c in cursos:
+        pdates = period_dates.get((c["unit"], c["period"]), [])
+        registrado = {sd for (sd, dd, fr) in c["daily"]}
+        if not registrado:
+            c["pendentes"] = 0; c["pendentes_datas"] = []; c["dias_sem_aula"] = 0
+            continue
+        first_rec = min(registrado)
+        last_rec  = max(registrado)
+        pend = []
+        for (sd, dd) in sorted(pdates):
+            # LACUNA INTERNA: só entre a 1ª e a última chamada da turma
+            # (evita falso-positivo de turma que começou tarde ou terminou cedo)
+            if not (first_rec < sd < last_rec):
+                continue
+            if sd in no_aula_sort:
+                continue            # feriado/parada/emenda → não há aula
+            if sd in registrado:
+                continue            # já lançado
+            if sd in paradas_parc_sort:
+                continue            # parada parcial s/ registro → sem aula p/ a turma
+            pend.append(dd)         # pendência real (lacuna no meio do curso)
+        c["pendentes"] = len(pend)
+        c["pendentes_datas"] = pend
+        c["dias_sem_aula"] = sum(
+            1 for (sd, dd) in pdates
+            if (first_rec <= sd <= last_rec) and sd in no_aula_sort
+        )
+        total_pend += len(pend)
+
+    resumo = {
+        "cutoff": cutoff_disp,
+        "total_pendentes": total_pend,
+        "cursos_com_pendencia": sum(1 for c in cursos if c["pendentes"] > 0),
+        "dias_sem_aula": len(no_class),
+    }
+    return cutoff_disp, no_class, resumo
+
+
+def _iso_to_sort(iso):
+    """'YYYY-MM-DD' -> 'MM/DD'."""
+    _, mm, dd = iso.split("-")
+    return f"{int(mm):02d}/{int(dd):02d}"
+
 
 def carregar_planilha(caminho):
     print(f"📂  Lendo planilha: {caminho}")
@@ -63,8 +239,14 @@ def extrair_totais(sheets):
 
 
 def extrair_cursos(sheets):
-    """Extrai dados de frequência por curso de cada aba CEDESP."""
+    """Extrai dados de frequência por curso de cada aba CEDESP.
+
+    Retorna (all_courses, period_dates) onde period_dates[(unit,period)] é a lista
+    de (sort_date, display_date) de TODAS as colunas FREQ daquele período — ou seja,
+    os dias letivos previstos (usado para calcular pendências honestas).
+    """
     all_courses = []
+    period_dates = {}
 
     for i in range(1, 9):
         sheet_name = f"CEDESP {i}"
@@ -172,6 +354,13 @@ def extrair_cursos(sheets):
         for p_i, pidx in enumerate(period_list):
             period, layout = period_col_layouts[pidx]
             freq_cols = freq_cols_by_period[pidx]
+            # Dias letivos previstos do período (todas as colunas FREQ com data)
+            pd_key = (sheet_name, period)
+            seen = period_dates.setdefault(pd_key, [])
+            seen_set = {sd for sd, _ in seen}
+            for (_c, sd, dd) in freq_cols:
+                if sd not in seen_set:
+                    seen.append((sd, dd)); seen_set.add(sd)
             next_pidx = period_list[p_i + 1] if p_i + 1 < len(period_list) else len(df)
 
             name_col = layout.get("name_col", 3)
@@ -242,8 +431,17 @@ def extrair_cursos(sheets):
                         pass
                 week_avgs = {wk: round(v[0]/v[1], 1) for wk, v in week_agg.items()}
                 attend_rate = round(freq_avg / meta * 100, 1) if meta and meta > 0 and freq_avg > 0 else 0
-                evasao      = round(matr - freq_avg, 1) if matr else None
+                evasao      = round(matr - freq_avg, 1) if matr else None      # ausência/dia
                 evasao_pct  = round(evasao / matr * 100, 1) if matr and evasao is not None else None
+
+                # EVASÃO ACUMULADA: alunos que entraram (inseridos) e não seguem
+                # matriculados → desistências desde o início do semestre.
+                if inseridos and matr and inseridos >= matr:
+                    desistentes     = int(round(inseridos - matr))
+                    evasao_acum_pct = round(desistentes / inseridos * 100, 1) if inseridos else None
+                else:
+                    desistentes     = None
+                    evasao_acum_pct = None
 
                 centr     = int(row.iloc[0]) if pd.notna(row.iloc[0]) and isinstance(row.iloc[0], (int, float)) else 0
                 sentr     = int(row.iloc[1]) if pd.notna(row.iloc[1]) and isinstance(row.iloc[1], (int, float)) else 0
@@ -266,6 +464,8 @@ def extrair_cursos(sheets):
                     "last_date":    last_date,
                     "last_date_display": last_date_display,
                     "evasao_pct":   evasao_pct,
+                    "desistentes":  desistentes,
+                    "evasao_acum_pct": evasao_acum_pct,
                     "centr":        centr,
                     "sentr":        sentr,
                     "dem_total":    dem_total,
@@ -274,13 +474,16 @@ def extrair_cursos(sheets):
 
         print(f"{cursos_encontrados} turmas")
 
-    return all_courses
+    return all_courses, period_dates
 
 
-def gerar_html_cursos(cursos, data_atualizacao):
+def gerar_html_cursos(cursos, data_atualizacao, cutoff=None, no_class=None, resumo=None):
     """Gera o HTML do dashboard de frequência por curso."""
 
     dados_js = json.dumps(cursos, ensure_ascii=False, indent=2)
+    no_class_js = json.dumps(no_class or {}, ensure_ascii=False)
+    resumo_js   = json.dumps(resumo or {}, ensure_ascii=False)
+    cutoff_js   = json.dumps(cutoff)
 
     html = f"""<!DOCTYPE html>
 <html lang="pt-BR">
@@ -322,7 +525,7 @@ header{{background:var(--ink);color:#f5f2ee;padding:0 48px;display:flex;align-it
 .search-input:focus{{border-color:var(--ink)}}
 .search-icon{{position:absolute;left:10px;top:50%;transform:translateY(-50%);color:var(--text-muted);font-size:12px}}
 main{{padding:32px 48px 60px;max-width:1440px;margin:0 auto}}
-.kpi-row{{display:grid;grid-template-columns:repeat(4,1fr);gap:1px;background:var(--border);border:1px solid var(--border);margin-bottom:32px}}
+.kpi-row{{display:grid;grid-template-columns:repeat(5,1fr);gap:1px;background:var(--border);border:1px solid var(--border);margin-bottom:32px}}
 .kpi-cell{{background:var(--surface);padding:24px 28px}}
 .kpi-label{{font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--text-muted);letter-spacing:.8px;text-transform:uppercase;margin-bottom:10px}}
 .kpi-val{{font-family:'Poppins',sans-serif;font-size:40px;font-weight:800;letter-spacing:-2px;line-height:1;margin-bottom:4px}}
@@ -365,6 +568,10 @@ td.right{{text-align:right}}
 .status-flag.low{{border-color:var(--accent);color:var(--accent);background:rgba(200,75,49,.06)}}
 .empty-state{{text-align:center;padding:48px;color:var(--text-muted);font-size:13px}}
 .update-badge{{font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--text-muted);background:var(--surface2);border:1px solid var(--border);padding:3px 10px;border-radius:2px}}
+.pdf-btn{{display:inline-flex;align-items:center;gap:5px;padding:6px 14px;border-radius:2px;border:1px solid var(--ink);background:var(--ink);color:#fff;font-family:'Poppins',sans-serif;font-size:12px;font-weight:600;cursor:pointer;transition:all .15s}}
+.pdf-btn:hover{{background:#1a3573;border-color:#1a3573}}
+.pdf-btn:disabled{{opacity:.6;cursor:default}}
+@media print{{.controls,.pdf-btn{{display:none}}}}
 footer{{border-top:1px solid var(--border);padding:20px 48px;display:flex;justify-content:space-between;align-items:center;margin-top:48px}}
 .footer-text{{font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--text-muted)}}
 @media(max-width:900px){{header,.controls,main{{padding-left:20px;padding-right:20px}}.charts-grid{{grid-template-columns:1fr}}.kpi-row{{grid-template-columns:1fr 1fr}}}}
@@ -405,7 +612,7 @@ footer{{border-top:1px solid var(--border);padding:20px 48px;display:flex;justif
   <div class="controls-spacer"></div>
   <span class="update-badge">📅 Atualizado em: {data_atualizacao}</span>
   <div style="display:flex;align-items:center;gap:6px">
-
+    <button class="pdf-btn" id="pdfBtn" onclick="exportPDF()">⬇ Exportar PDF</button>
   </div>
   <div class="search-wrap">
     <span class="search-icon">⌕</span>
@@ -419,8 +626,9 @@ footer{{border-top:1px solid var(--border);padding:20px 48px;display:flex;justif
   <div class="kpi-cell"><div class="kpi-label">Cursos ativos</div><div class="kpi-val" id="kpi-cursos">—</div><div class="kpi-desc">turmas com frequência registrada</div></div>
   <div class="kpi-cell"><div class="kpi-label">Taxa de frequência média</div><div class="kpi-val" id="kpi-rate" style="color:var(--accent2)">—</div><div class="kpi-desc">freq. média ÷ meta do curso</div></div>
 
-  <div class="kpi-cell"><div class="kpi-label">Cursos com taxa &lt;80%</div><div class="kpi-val" id="kpi-low" style="color:var(--accent)">—</div><div class="kpi-desc">requerem atenção</div></div>
-  <div class="kpi-cell"><div class="kpi-label">Ausência média</div><div class="kpi-val" id="kpi-evasao" style="color:#c84b31">—</div><div class="kpi-desc">matriculados que faltam em média</div></div>
+  <div class="kpi-cell"><div class="kpi-label">Cursos graves (&lt;80%)</div><div class="kpi-val" id="kpi-low" style="color:var(--accent)">—</div><div class="kpi-desc">abaixo da faixa satisfatória — ação imediata</div></div>
+  <div class="kpi-cell"><div class="kpi-label">Faltas por dia (média)</div><div class="kpi-val" id="kpi-evasao" style="color:#c97c1a">—</div><div class="kpi-desc">matriculados ausentes em média/dia</div></div>
+  <div class="kpi-cell"><div class="kpi-label">Evasão acumulada</div><div class="kpi-val" id="kpi-desist" style="color:#c84b31">—</div><div class="kpi-desc"><span id="kpi-desist-n">—</span> desistências desde o início</div></div>
 </div>
 
 <div id="snapshot-panel" style="display:none;background:linear-gradient(135deg,#1a2340 0%,#21438e 100%);border-radius:10px;padding:20px 28px;margin-bottom:24px;color:#fff;position:relative;overflow:hidden">
@@ -439,18 +647,18 @@ footer{{border-top:1px solid var(--border);padding:20px 48px;display:flex;justif
     <div style="width:1px;height:60px;background:rgba(255,255,255,.15);align-self:center"></div>
     <div>
       <div style="display:flex;align-items:baseline;gap:6px">
-        <span style="font-family:'JetBrains Mono',monospace;font-size:48px;font-weight:800;line-height:1;letter-spacing:-2px" id="snap-max-aulas">—</span>
-        <span style="font-size:14px;color:rgba(255,255,255,.5)">aulas</span>
+        <span style="font-family:'JetBrains Mono',monospace;font-size:48px;font-weight:800;line-height:1;letter-spacing:-2px;color:#f59e0b" id="snap-pendentes">—</span>
+        <span style="font-size:14px;color:rgba(255,255,255,.5)">chamadas</span>
       </div>
-      <div style="font-size:12px;color:rgba(255,255,255,.65);margin-top:6px">máximo de chamadas registradas</div>
+      <div style="font-size:12px;color:rgba(255,255,255,.65);margin-top:6px">pendentes de lançamento até {{cutoff}} <span style="color:#f59e0b;font-weight:600">(em <span id="snap-pend-cursos">—</span> turmas)</span></div>
     </div>
     <div style="width:1px;height:60px;background:rgba(255,255,255,.15);align-self:center"></div>
     <div>
       <div style="display:flex;align-items:baseline;gap:6px">
-        <span style="font-family:'JetBrains Mono',monospace;font-size:48px;font-weight:800;line-height:1;letter-spacing:-2px;color:#f59e0b" id="snap-atrasados">—</span>
-        <span style="font-size:14px;color:rgba(255,255,255,.5)">cursos</span>
+        <span style="font-family:'JetBrains Mono',monospace;font-size:48px;font-weight:800;line-height:1;letter-spacing:-2px;color:#9bc4ff" id="snap-semaula">—</span>
+        <span style="font-size:14px;color:rgba(255,255,255,.5)">dias</span>
       </div>
-      <div style="font-size:12px;color:rgba(255,255,255,.65);margin-top:6px">com menos aulas que o máximo <span style="color:#f59e0b;font-weight:600">(possível chamada em falta)</span></div>
+      <div style="font-size:12px;color:rgba(255,255,255,.65);margin-top:6px">sem aula no calendário <span style="color:#9bc4ff;font-weight:600">(feriado / parada)</span></div>
     </div>
   </div>
 </div>
@@ -468,12 +676,13 @@ footer{{border-top:1px solid var(--border);padding:20px 48px;display:flex;justif
         <th data-sort="course">Curso <span class="sort-arrow">↕</span></th>
         <th data-sort="unit">Unidade <span class="sort-arrow">↕</span></th>
         <th data-sort="period">Período <span class="sort-arrow">↕</span></th>
-        <th class="right" data-sort="inseridos">Inseridos <span class="sort-arrow">↕</span></th>
+        <th class="right" data-sort="inseridos" title="Total de alunos que entraram no curso desde o início">Entraram <span class="sort-arrow">↕</span></th>
         <th class="right" data-sort="matr">Matr. <span class="sort-arrow">↕</span></th>
         <th class="right" data-sort="freq_avg">Freq. Média/dia <span class="sort-arrow">↕</span></th>
         <th class="right" data-sort="n_classes">Aulas <span class="sort-arrow">↕</span></th>
         <th data-sort="attend_rate">Taxa s/ Meta <span class="sort-arrow">↕</span></th>
-        <th class="right" data-sort="evasao_pct">Ausência <span class="sort-arrow">↕</span></th>
+        <th class="right" data-sort="evasao_acum_pct" title="Alunos que entraram e desistiram (inseridos − matrícula)">Evasão <span class="sort-arrow">↕</span></th>
+        <th class="right" data-sort="evasao_pct" title="Matriculados ausentes em média por dia">Faltas/dia <span class="sort-arrow">↕</span></th>
         <th class="right" data-sort="dem_total">Demanda <span class="sort-arrow">↕</span></th>
         <th data-sort="status">Status <span class="sort-arrow">↕</span></th>
       </tr>
@@ -499,6 +708,14 @@ footer{{border-top:1px solid var(--border);padding:20px 48px;display:flex;justif
 </div>
 <div class="charts-grid" style="grid-template-columns:1fr">
   <div class="chart-box">
+    <div class="chart-box-title">Evasão × Frequência — diagnóstico por turma</div>
+    <div class="chart-box-sub">Cada ponto é uma turma · eixo X: taxa de frequência (freq/meta) · eixo Y: evasão acumulada. Canto superior esquerdo = turma que esvaziou e quem ficou falta muito.</div>
+    <canvas id="scatterChart" height="150"></canvas>
+  </div>
+</div>
+
+<div class="charts-grid" style="grid-template-columns:1fr">
+  <div class="chart-box">
     <div class="chart-box-title">Tendência de Frequência Semanal</div>
     <div class="chart-box-sub">Evolução da presença média semana a semana ao longo do semestre</div>
     <canvas id="trendChart" height="110"></canvas>
@@ -507,10 +724,29 @@ footer{{border-top:1px solid var(--border);padding:20px 48px;display:flex;justif
 
 <div class="charts-grid" style="grid-template-columns:1fr">
   <div class="chart-box">
-    <div class="chart-box-title">Ausência por Curso — Top 20</div>
-    <div class="chart-box-sub">Cursos com maior taxa de faltas · matriculados que faltam em média</div>
+    <div class="chart-box-title">Evasão Acumulada por Curso — Top 20</div>
+    <div class="chart-box-sub">Alunos que entraram e desistiram desde o início do semestre (inseridos − matrícula)</div>
+    <canvas id="desistChart" height="160"></canvas>
+  </div>
+</div>
+
+<div class="charts-grid" style="grid-template-columns:1fr">
+  <div class="chart-box">
+    <div class="chart-box-title">Faltas por Dia — Top 20</div>
+    <div class="chart-box-sub">Cursos com maior ausência média diária · matriculados que faltam por dia</div>
     <canvas id="evasaoChart" height="160"></canvas>
   </div>
+</div>
+
+<div class="section-row"><div class="section-title">Acompanhamento Operacional</div><div class="section-rule"></div></div>
+
+<div id="pend-panel" style="display:none;background:var(--surface);border:1px solid var(--border);border-left:3px solid var(--orange);border-radius:8px;padding:18px 24px;margin-bottom:24px">
+  <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
+    <span style="font-size:13px">📋</span>
+    <span style="font-size:12px;font-weight:700;letter-spacing:.8px;text-transform:uppercase;color:var(--text-muted)">Turmas com lançamentos pendentes</span>
+  </div>
+  <div style="font-size:12px;color:var(--text-muted);margin-bottom:12px">Dias letivos sem chamada até {{cutoff}} — já descontados feriados e paradas. Pronto para a coordenação cobrar.</div>
+  <div id="pend-list"></div>
 </div>
 
 </main>
@@ -522,11 +758,14 @@ footer{{border-top:1px solid var(--border);padding:20px 48px;display:flex;justif
 
 <script>
 const RAW = {dados_js};
+const NO_CLASS = {no_class_js};   // {{DD/MM: motivo}} feriados/paradas de dia inteiro
+const RESUMO   = {resumo_js};     // {{cutoff, total_pendentes, cursos_com_pendencia, dias_sem_aula}}
+const CUTOFF   = {cutoff_js};     // última data lançada (DD/MM)
 
 let filterUnit='all', filterPeriod='all', sortMode='attend_rate', sortDir=-1, searchQuery='';
 
-function getColor(r){{ return r>=100?'#2d7a4f':r>=80?'#c97c1a':'#c84b31'; }}
-function getStatus(r){{ return r>=100?{{cls:'high',label:'✓ Meta atingida'}}:r>=80?{{cls:'mid',label:'⚠ Atenção média'}}:{{cls:'low',label:'✗ Atenção imediata'}}; }}
+function getColor(r){{ return r>90?'#2d7a4f':r>=80?'#c97c1a':'#c84b31'; }}
+function getStatus(r){{ return r>90?{{cls:'high',label:'✓ Ótimo'}}:r>=80?{{cls:'mid',label:'⚠ Satisfatório'}}:{{cls:'low',label:'✗ Grave (&lt;80%)'}}; }}
 function periodColor(p){{ return p==='Manhã'?'#c97c1a':p==='Tarde'?'#2b5f8a':'#4a3a7a'; }}
 
 function getFiltered(){{
@@ -568,9 +807,9 @@ function buildCharts(data){{
   }});
 
   const bands=[
-    {{label:'≥ 100% (Meta atingida)',min:100,max:Infinity,color:'#2d7a4f'}},
-    {{label:'80–99.9% (Atenção média)',min:80,max:100,color:'#c97c1a'}},
-    {{label:'< 80% (Atenção imediata)',min:0,max:80,color:'#c84b31'}},
+    {{label:'> 90% (Ótimo)',min:90.0001,max:Infinity,color:'#2d7a4f'}},
+    {{label:'80–90% (Satisfatório)',min:80,max:90.0001,color:'#c97c1a'}},
+    {{label:'< 80% (Grave)',min:0,max:80,color:'#c84b31'}},
   ];
   charts.dist=new Chart(document.getElementById('distChart'),{{
     type:'doughnut',
@@ -636,7 +875,75 @@ function buildCharts(data){{
   }});
 }}
 
-// ── EVASION CHART ──
+// ── EVASÃO ACUMULADA (desistências) ──
+let scatterChart;
+function buildScatter(data){{
+  if(scatterChart)scatterChart.destroy();
+  const pts=data.filter(d=>d.evasao_acum_pct!=null && d.attend_rate>0);
+  const color=d=>{{
+    const grave=d.attend_rate<80, evade=d.evasao_acum_pct>=35;
+    if(grave&&evade) return 'rgba(200,75,49,.9)';      // crítico: esvaziou e falta
+    if(grave||evade) return 'rgba(201,124,26,.85)';     // atenção
+    return 'rgba(45,122,79,.7)';                         // saudável
+  }};
+  scatterChart=new Chart(document.getElementById('scatterChart'),{{
+    type:'scatter',
+    data:{{datasets:[{{
+      label:'Turmas',
+      data:pts.map(d=>({{x:d.attend_rate,y:d.evasao_acum_pct,c:d.course,u:d.unit,p:d.period,des:d.desistentes,ins:d.inseridos}})),
+      backgroundColor:pts.map(color),
+      borderColor:pts.map(color),
+      pointRadius:5,pointHoverRadius:7
+    }}]}},
+    options:{{
+      responsive:true,
+      plugins:{{
+        legend:{{display:false}},
+        tooltip:{{backgroundColor:'#1a1612',borderColor:'#d8d2c8',borderWidth:1,callbacks:{{
+          label:ctx=>{{const d=ctx.raw;return [` ${{d.c}} (${{d.u.replace('CEDESP ','C')}} · ${{d.p}})`,` Frequência: ${{d.x.toFixed(0)}}% · Evasão: ${{d.y.toFixed(0)}}% (${{d.des}}/${{d.ins}})`];}}
+        }}}}
+      }},
+      scales:{{
+        x:{{title:{{display:true,text:'Taxa de frequência (freq/meta) %',font:{{size:10}}}},grid:{{color:'rgba(216,210,200,.4)'}},ticks:{{font:{{size:10}},callback:v=>v+'%'}}}},
+        y:{{title:{{display:true,text:'Evasão acumulada %',font:{{size:10}}}},grid:{{color:'rgba(216,210,200,.4)'}},ticks:{{font:{{size:10}},callback:v=>v+'%'}},min:0}}
+      }}
+    }}
+  }});
+}}
+
+// ── EVASÃO ACUMULADA (desistências) ──
+let desistChart;
+function buildDesistChart(data){{
+  if(desistChart)desistChart.destroy();
+  const wd=data.filter(d=>d.desistentes!=null&&d.desistentes>0)
+               .sort((a,b)=>b.desistentes-a.desistentes).slice(0,20);
+  const labels=wd.map(d=>{{const n=d.course.length>30?d.course.substring(0,28)+'…':d.course;return n+' ('+d.unit.replace('CEDESP ','C')+')';}});
+  desistChart=new Chart(document.getElementById('desistChart'),{{
+    type:'bar',
+    data:{{labels,datasets:[{{
+      label:'Desistências',
+      data:wd.map(d=>d.desistentes),
+      backgroundColor:wd.map(d=>d.evasao_acum_pct>=40?'rgba(200,75,49,.85)':d.evasao_acum_pct>=25?'rgba(201,124,26,.85)':'rgba(125,133,144,.6)'),
+      borderColor:wd.map(d=>d.evasao_acum_pct>=40?'#c84b31':d.evasao_acum_pct>=25?'#c97c1a':'#7d8590'),
+      borderWidth:1,borderRadius:0
+    }}]}},
+    options:{{
+      indexAxis:'y',responsive:true,
+      plugins:{{
+        legend:{{display:false}},
+        tooltip:{{backgroundColor:'#1a1612',borderColor:'#d8d2c8',borderWidth:1,
+          callbacks:{{label:ctx=>{{const d=wd[ctx.dataIndex];return` ${{d.desistentes}} de ${{d.inseridos}} desistiram — ${{d.evasao_acum_pct.toFixed(1)}}% · ${{d.period}}`;}}}}
+        }}
+      }},
+      scales:{{
+        x:{{grid:{{color:'rgba(216,210,200,.3)'}},ticks:{{font:{{size:10}}}}}},
+        y:{{grid:{{display:false}},ticks:{{font:{{size:10}}}}}}
+      }}
+    }}
+  }});
+}}
+
+// ── FALTAS POR DIA ──
 let evasaoChart;
 function buildEvasaoChart(data){{
   if(evasaoChart)evasaoChart.destroy();
@@ -688,7 +995,8 @@ function buildTable(data){{
       <td class="right mono">${{d.freq_avg.toFixed(1)}}</td>
       <td class="right mono">${{d.n_classes}}</td>
       <td class="rate-cell"><div class="rate-wrap"><div class="rate-bar"><div class="rate-fill" style="width:${{cap}}%;background:${{fc}}"></div></div><div class="rate-pct" style="color:${{fc}}">${{d.attend_rate.toFixed(1)}}%</div></div></td>
-      <td class="right mono">${{d.evasao_pct!=null?'<span style="color:'+(d.evasao_pct>30?'#c84b31':d.evasao_pct>15?'#c97c1a':'#7d8590')+'">'+d.evasao_pct.toFixed(1)+'%</span>':'—'}}</td>
+      <td class="right mono">${{d.desistentes!=null?'<span title="'+d.desistentes+' de '+d.inseridos+' que entraram desistiram" style="color:'+(d.evasao_acum_pct>=40?'#c84b31':d.evasao_acum_pct>=25?'#c97c1a':'#7d8590')+'">'+d.desistentes+' <span style="opacity:.7">('+d.evasao_acum_pct.toFixed(0)+'%)</span></span>':'—'}}</td>
+      <td class="right mono">${{d.evasao_pct!=null?(d.evasao_pct<0?'<span title="Frequência média acima da matrícula registrada — matrícula provavelmente desatualizada" style="color:#7d8590">0%*</span>':'<span style="color:'+(d.evasao_pct>30?'#c84b31':d.evasao_pct>15?'#c97c1a':'#7d8590')+'">'+d.evasao_pct.toFixed(1)+'%</span>'):'—'}}</td>
       <td class="right">${{(()=>{{
         const c=d.centr,s=d.sentr,t=d.dem_total;
         if(!t)return'<span style="color:var(--text-muted)">—</span>';
@@ -712,37 +1020,66 @@ function updateKPIs(data){{
   document.getElementById('kpi-rate').textContent=wr;
 
   document.getElementById('kpi-low').textContent=data.filter(d=>d.attend_rate<80).length;
-  // Ausência ponderada pela matrícula (mais correta para reportar média global)
-  const withEv=data.filter(d=>d.evasao_pct!=null && d.matr);
+  // Ausência ponderada pela matrícula. freq_avg pode exceder matr (matrícula
+  // desatualizada) → 'ausentes' nunca é negativo (clamp em 0) para não falsear a média.
+  const withEv=data.filter(d=>d.matr);
   const totalMatrEv=withEv.reduce((s,d)=>s+d.matr,0);
-  const totalAusentes=withEv.reduce((s,d)=>s+(d.matr-d.freq_avg),0);
+  const totalAusentes=withEv.reduce((s,d)=>s+Math.max(0,d.matr-d.freq_avg),0);
   const avgEv=totalMatrEv?(totalAusentes/totalMatrEv*100).toFixed(1):'—';
   document.getElementById('kpi-evasao').textContent=avgEv!=='—'?avgEv+'%':'—';
+  // Evasão acumulada (desistências desde o início) = Σdesistentes / Σinseridos
+  const withDes=data.filter(d=>d.desistentes!=null && d.inseridos);
+  const totDesist=withDes.reduce((s,d)=>s+d.desistentes,0);
+  const totIns=withDes.reduce((s,d)=>s+d.inseridos,0);
+  const desistPct=totIns?(totDesist/totIns*100).toFixed(1):'—';
+  document.getElementById('kpi-desist').textContent=desistPct!=='—'?desistPct+'%':'—';
+  document.getElementById('kpi-desist-n').textContent=totDesist;
   document.getElementById('hdr-cursos').textContent=data.length;
   document.getElementById('hdr-avg').textContent=wr;
   document.getElementById('hdr-matr').textContent=data.reduce((s,d)=>s+(d.matr||0),0);
   document.getElementById('hdr-ins').textContent=data.reduce((s,d)=>s+(d.inseridos||0),0);
-  // Snapshot do Dia
-  const maxAulas=data.reduce((m,d)=>Math.max(m,d.n_classes||0),0);
-  // Find the most recent date across all courses, sum only those on that date
-  // Per-unit last day: find latest date per unit, sum last_freq on that date
+
+  // ── Dados do Dia (ciente do calendário) ──
   const unitLatest={{}};
   data.forEach(d=>{{if(d.last_date&&(!unitLatest[d.unit]||d.last_date>unitLatest[d.unit]))unitLatest[d.unit]=d.last_date;}});
   const totalLastFreq=data.reduce((s,d)=>d.last_date&&d.last_date===unitLatest[d.unit]?s+(d.last_freq||0):s,0);
-  // For the date label, show the most recent date among all units
   const latestDate=Object.values(unitLatest).reduce((mx,d)=>d>mx?d:mx,'');
-  const atrasados=data.filter(d=>(d.n_classes||0)<maxAulas).length;
+  // Pendências reais (já descontados feriados/paradas, calculadas no Python)
+  const totPend=data.reduce((s,d)=>s+(d.pendentes||0),0);
+  const cursosPend=data.filter(d=>(d.pendentes||0)>0).length;
+  const diasSemAula=Object.keys(NO_CLASS||{{}}).length;
   const panel=document.getElementById('snapshot-panel');
-  if(maxAulas>0||totalLastFreq>0){{
+  if(totalLastFreq>0||totPend>0||data.length){{
     panel.style.display='block';
-    const fmtDate=d=>{{if(!d)return'';const p=d.match(/(\\d+)\\/(\\d+)/);if(p)return d;return d;}};
-  const latestDisplay=data.find(d=>d.last_date===latestDate)?.last_date_display||'';
-  document.getElementById('snapshot-date').textContent=latestDisplay?'· '+latestDisplay:'';
-  document.getElementById('snap-last-freq').textContent=totalLastFreq||'—';
-    document.getElementById('snap-max-aulas').textContent=maxAulas||'—';
-    document.getElementById('snap-atrasados').textContent=atrasados;
+    const latestDisplay=data.find(d=>d.last_date===latestDate)?.last_date_display||CUTOFF||'';
+    document.getElementById('snapshot-date').textContent=latestDisplay?'· '+latestDisplay:'';
+    document.getElementById('snap-last-freq').textContent=totalLastFreq||'—';
+    document.getElementById('snap-pendentes').textContent=totPend;
+    document.getElementById('snap-pend-cursos').textContent=cursosPend;
+    document.getElementById('snap-semaula').textContent=diasSemAula;
   }} else {{
     panel.style.display='none';
+  }}
+
+  // ── Lista de turmas com lançamentos pendentes (top 12) ──
+  const pendPanel=document.getElementById('pend-panel');
+  const pendList=document.getElementById('pend-list');
+  const comPend=data.filter(d=>(d.pendentes||0)>0)
+                    .sort((a,b)=>b.pendentes-a.pendentes).slice(0,12);
+  if(comPend.length){{
+    pendPanel.style.display='block';
+    pendList.innerHTML=comPend.map(d=>{{
+      const datas=(d.pendentes_datas||[]).join(' · ');
+      return `<div style="display:flex;align-items:flex-start;gap:10px;padding:7px 0;border-bottom:1px solid var(--surface2)">
+        <span style="flex-shrink:0;min-width:30px;text-align:center;font-family:'JetBrains Mono',monospace;font-weight:700;color:var(--orange)">${{d.pendentes}}</span>
+        <div style="flex:1">
+          <div style="font-size:13px;font-weight:600">${{d.course}} <span style="color:var(--text-muted);font-weight:400">· ${{d.unit.replace('CEDESP ','C')}} · ${{d.period}}</span></div>
+          <div style="font-size:11px;color:var(--text-muted);font-family:'JetBrains Mono',monospace;margin-top:2px">${{datas}}</div>
+        </div>
+      </div>`;
+    }}).join('');
+  }} else {{
+    pendPanel.style.display='none';
   }}
 }}
 
@@ -751,6 +1088,8 @@ function update(){{
   updateKPIs(f);
   buildCharts(f);
   buildEvasaoChart(f);
+  buildDesistChart(f);
+  buildScatter(f);
   buildTable(f);
 }}
 
@@ -787,6 +1126,113 @@ document.querySelectorAll('#courseTable thead th[data-sort]').forEach(th=>{{
 }})();
 document.getElementById('searchInput').addEventListener('input',e=>{{searchQuery=e.target.value.toLowerCase().trim();update();}});
 
+// ── Exportação PDF (mesmo sistema do dashboard de atendimento) ──────────────
+async function exportPDF(){{
+  const btn=document.getElementById('pdfBtn');
+  btn.textContent='⏳ Gerando...'; btn.disabled=true;
+  async function loadScript(src){{
+    return new Promise((res,rej)=>{{
+      if(document.querySelector(`script[src="${{src}}"]`)){{res();return;}}
+      const s=document.createElement('script'); s.src=src; s.onload=res; s.onerror=rej;
+      document.head.appendChild(s);
+    }});
+  }}
+  try{{
+    await loadScript('https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js');
+    await loadScript('https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js');
+  }}catch(e){{
+    alert('Erro ao carregar bibliotecas de PDF. Verifique sua conexão.');
+    btn.textContent='⬇ Exportar PDF'; btn.disabled=false; return;
+  }}
+
+  const {{ jsPDF }}=window.jspdf;
+  const pdf=new jsPDF({{orientation:'portrait',unit:'mm',format:'a4'}});
+  const PW=210, PH=297, MARGIN=12, CONTENT_W=PW-MARGIN*2;
+  let pageNum=1;
+
+  // Rótulo de escopo a partir dos filtros ativos (nome, não "FILTRO ATIVO")
+  let parts=[];
+  if(filterUnit!=='all')   parts.push(filterUnit);
+  if(filterPeriod!=='all') parts.push(filterPeriod);
+  if(searchQuery)          parts.push('busca: "'+searchQuery+'"');
+  const filterLabel=parts.join('   ·   ');
+  const headerHeight=filterLabel?26:16;
+
+  function addPageHeader(pageNum){{
+    pdf.setFillColor(33,67,142);
+    pdf.rect(0,0,PW,14,'F');
+    const bars=[['#21438e',0],['#e63827',52.5],['#2bb19d',105],['#f37f1f',157.5]];
+    bars.forEach(([c,x])=>{{
+      const rgb=c.match(/[\\da-f]{{2}}/gi).map(h=>parseInt(h,16));
+      pdf.setFillColor(...rgb); pdf.rect(x,14,52.5,2,'F');
+    }});
+    pdf.setFont('helvetica','bold'); pdf.setFontSize(10); pdf.setTextColor(255,255,255);
+    pdf.text('CEDESP DOM BOSCO — Frequência por Curso', MARGIN, 9);
+    pdf.setFont('helvetica','normal'); pdf.setFontSize(8); pdf.setTextColor(180,190,210);
+    pdf.text(`{data_atualizacao}`, PW-MARGIN, 9, {{align:'right'}});
+    pdf.setFontSize(7); pdf.setTextColor(140,150,170);
+    pdf.text(`Página ${{pageNum}}`, PW-MARGIN, PH-4, {{align:'right'}});
+    if(filterLabel){{
+      pdf.setFillColor(245,248,255); pdf.rect(0,16,PW,10,'F');
+      pdf.setDrawColor(33,67,142); pdf.setLineWidth(0.4); pdf.line(0,16,PW,16);
+      pdf.setFont('helvetica','bold'); pdf.setFontSize(9.5); pdf.setTextColor(33,67,142);
+      pdf.text(filterLabel, MARGIN, 23);
+      pdf.setFont('helvetica','normal'); pdf.setFontSize(7); pdf.setTextColor(120,130,155);
+      pdf.text('RELATÓRIO FILTRADO', PW-MARGIN, 23, {{align:'right'}});
+    }}
+  }}
+
+  // Coloca um canvas podendo fluir por várias páginas (tabela longa fica legível)
+  function placePaged(canvas, startY){{
+    const imgW=CONTENT_W;
+    const pxPerMm=canvas.width/imgW;
+    let srcY=0, y=startY;
+    let remainingPx=canvas.height;
+    while(remainingPx>0){{
+      let availMm=(PH-10)-y;
+      if(availMm<20){{ pdf.addPage(); pageNum++; addPageHeader(pageNum); y=headerHeight+2; availMm=(PH-10)-y; }}
+      const slicePx=Math.min(remainingPx, Math.floor(availMm*pxPerMm));
+      const sliceMm=slicePx/pxPerMm;
+      const c=document.createElement('canvas'); c.width=canvas.width; c.height=slicePx;
+      c.getContext('2d').drawImage(canvas,0,srcY,canvas.width,slicePx,0,0,canvas.width,slicePx);
+      pdf.addImage(c.toDataURL('image/png'),'PNG',MARGIN,y,imgW,sliceMm);
+      srcY+=slicePx; remainingPx-=slicePx; y+=sliceMm+5;
+      if(remainingPx>0){{ pdf.addPage(); pageNum++; addPageHeader(pageNum); y=headerHeight+2; }}
+    }}
+    return y;
+  }}
+
+  // Seções a capturar, na ordem da tela
+  const sections=[];
+  const kpis=document.querySelector('.kpi-row'); if(kpis) sections.push(kpis);
+  const snap=document.getElementById('snapshot-panel'); if(snap&&snap.style.display!=='none') sections.push(snap);
+  const tbl=document.querySelector('.course-table-wrap'); if(tbl) sections.push(tbl);
+  document.querySelectorAll('.chart-box').forEach(cb=>sections.push(cb));
+  const pend=document.getElementById('pend-panel'); if(pend&&pend.style.display!=='none') sections.push(pend);
+
+  let curY=headerHeight+2;
+  addPageHeader(pageNum);
+
+  for(const el of sections){{
+    const canvas=await html2canvas(el,{{scale:2,useCORS:true,backgroundColor:'#ffffff',logging:false,windowWidth:document.documentElement.scrollWidth}});
+    const imgW=CONTENT_W;
+    const imgH=(canvas.height/canvas.width)*imgW;
+    const pageContentH=(PH-10)-(headerHeight+2);
+    if(imgH>pageContentH){{
+      if(curY>headerHeight+4){{ pdf.addPage(); pageNum++; addPageHeader(pageNum); curY=headerHeight+2; }}
+      curY=placePaged(canvas, curY);
+    }} else {{
+      if(curY+imgH>PH-10){{ pdf.addPage(); pageNum++; addPageHeader(pageNum); curY=headerHeight+2; }}
+      pdf.addImage(canvas.toDataURL('image/png'),'PNG',MARGIN,curY,imgW,imgH);
+      curY+=imgH+5;
+    }}
+  }}
+
+  pdf.save(`dashboard_cursos_cedesp_${{new Date().toISOString().slice(0,10)}}.pdf`);
+  btn.textContent='✅ PDF gerado!';
+  setTimeout(()=>{{btn.textContent='⬇ Exportar PDF'; btn.disabled=false;}}, 3000);
+}}
+
 update();
 </script>
 </body>
@@ -806,16 +1252,55 @@ def main():
 
     sheets  = carregar_planilha(caminho)
     totais  = extrair_totais(sheets)
-    cursos  = extrair_cursos(sheets)
+    cursos, period_dates = extrair_cursos(sheets)
 
     # Filtra apenas cursos com dados válidos
     cursos_validos = [c for c in cursos if c["attend_rate"] > 0 and c["matr"] and c["matr"] > 0]
 
-    print(f"\n✅  {len(cursos_validos)} turmas com frequência registrada")
+    # ── Pendências honestas (ciente de feriados/paradas) ──────────────────────
+    cutoff, no_class, resumo = calcular_pendencias(cursos_validos, period_dates)
+
+    # ── Diagnósticos de integridade ───────────────────────────────────────────
+    print(f"\n{'─'*55}")
+    print("  🔎  AUDITORIA DE INTEGRIDADE")
+    print(f"{'─'*55}")
+
+    # 1) Prováveis erros de digitação: freq > 1.5×matr num dia
+    typos = []
+    for c in cursos_validos:
+        for (sd, dd, fr) in c["daily"]:
+            if c["matr"] and fr > 1.5 * c["matr"]:
+                typos.append((c["unit"], c["period"], c["course"], dd, fr, c["matr"]))
+    print(f"  • Prováveis erros de digitação (freq > 1,5×matr): {len(typos)}")
+    for t in typos[:12]:
+        print(f"      {t[0]} | {t[1]:>5} | {t[2][:30]:<30} {t[3]}: freq={t[4]:.0f} vs matr={t[5]:.0f}")
+    if len(typos) > 12:
+        print(f"      … e mais {len(typos)-12}")
+
+    # 2) Ausência negativa (freq_avg > matr → matrícula provavelmente desatualizada)
+    neg = [c for c in cursos_validos if c.get("evasao") is not None and c["evasao"] < 0]
+    print(f"  • Turmas com 'ausência' negativa (freq_avg > matr): {len(neg)}")
+    for c in neg:
+        print(f"      {c['unit']} | {c['period']:>5} | {c['course'][:30]:<30} "
+              f"freq_avg={c['freq_avg']:.1f} > matr={c['matr']:.0f}")
+
+    # 3) Datas a confirmar
+    if PARADAS_A_CONFIRMAR:
+        print("  • Datas anômalas a CLASSIFICAR manualmente:")
+        for iso, motivo in PARADAS_A_CONFIRMAR.items():
+            print(f"      {iso}: {motivo}")
+
+    print(f"\n  • Cutoff (última data lançada): {cutoff}")
+    print(f"  • Pendências reais de lançamento: {resumo['total_pendentes']} "
+          f"em {resumo['cursos_com_pendencia']} turmas")
+    print(f"  • Dias sem aula no calendário (feriado/parada): {resumo['dias_sem_aula']}")
+    print(f"{'─'*55}\n")
+
+    print(f"✅  {len(cursos_validos)} turmas com frequência registrada")
     print(f"✅  {len(totais)} unidades no resumo\n")
 
     # Gera dashboard de cursos
-    html_cursos = gerar_html_cursos(cursos_validos, data_atualizacao)
+    html_cursos = gerar_html_cursos(cursos_validos, data_atualizacao, cutoff, no_class, resumo)
     with open(SAIDA_CURSOS, "w", encoding="utf-8") as f:
         f.write(html_cursos)
     print(f"📄  Gerado: {SAIDA_CURSOS}")
@@ -827,4 +1312,6 @@ def main():
 
 if __name__ == "__main__":
     main()
+
+
 
