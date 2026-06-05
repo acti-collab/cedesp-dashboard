@@ -579,6 +579,7 @@ footer{{text-align:center;padding:32px;font-size:11px;color:var(--muted)}}
     <span style="background:var(--surface);border:1px solid var(--border);border-left:3px solid var(--indigo);border-radius:6px;padding:6px 12px">⏳ <strong>{n_aguardando}</strong> aguardando lançamento (após {cutoff_fmt})</span>
     <span style="background:var(--surface);border:1px solid var(--border);border-left:3px solid var(--blue);border-radius:6px;padding:6px 12px" title="Feriados, emendas, paradas pedagógicas e dias de educador ausente">🗓 <strong>{n_sem_aula}</strong> sem aula (feriado/parada{', incl. '+str(n_parcial)+' por educador ausente' if n_parcial else ''})</span>
 </div>
+</div>
 
 <!-- INSIGHTS AUTOMÁTICOS -->
 <div class="card" style="margin-bottom:28px;border-left:4px solid var(--indigo)" id="sec-insights">
@@ -1812,20 +1813,41 @@ async function exportPDF(){{
   let curY=HEADER_H+3, pageNum=1;
   addPageHeader(pageNum);
 
+  function novaPagina(){{ pdf.addPage(); pageNum++; addPageHeader(pageNum); curY=HEADER_H+3; }}
+
   for(const sel of sections){{
     const el=document.querySelector(sel);
     if(!el) continue;
     const canvas=await html2canvas(el,{{scale:2,useCORS:true,backgroundColor:'#ffffff',logging:false,windowWidth:document.documentElement.scrollWidth}});
     const imgW=CONTENT_W;
     const imgH=(canvas.height/canvas.width)*imgW;
-    if(curY+imgH>PH-10){{
-      pdf.addPage(); pageNum++; addPageHeader(pageNum); curY=HEADER_H+3;
+    const avail=PH-HEADER_H-14;                 // altura útil por página (mm)
+
+    if(imgH<=avail){{
+      // cabe inteira: nova página se não couber no que resta
+      if(curY+imgH>PH-10) novaPagina();
+      pdf.addImage(canvas.toDataURL('image/png'),'PNG',MARGIN,curY,imgW,imgH);
+      curY+=imgH+6;
+    }} else {{
+      // mais alta que uma página: fatiar em pedaços, sempre na largura cheia
+      if(curY>HEADER_H+3) novaPagina();
+      const pxPerMm=canvas.width/imgW;
+      const slicePx=Math.floor(avail*pxPerMm);
+      let sy=0;
+      while(sy<canvas.height){{
+        const hPx=Math.min(slicePx, canvas.height-sy);
+        const tmp=document.createElement('canvas');
+        tmp.width=canvas.width; tmp.height=hPx;
+        const ctx=tmp.getContext('2d');
+        ctx.fillStyle='#ffffff'; ctx.fillRect(0,0,tmp.width,tmp.height);
+        ctx.drawImage(canvas,0,sy,canvas.width,hPx,0,0,canvas.width,hPx);
+        const sliceH=(hPx/canvas.width)*imgW;
+        if(curY+sliceH>PH-10 && curY>HEADER_H+3) novaPagina();
+        pdf.addImage(tmp.toDataURL('image/png'),'PNG',MARGIN,curY,imgW,sliceH);
+        curY+=sliceH+(hPx<slicePx?6:0);
+        sy+=hPx;
+      }}
     }}
-    const finalH=Math.min(imgH, PH-HEADER_H-12);
-    const finalW=(finalH/imgH)*imgW;
-    const xOff=MARGIN+(CONTENT_W-finalW)/2;
-    pdf.addImage(canvas.toDataURL('image/png'),'PNG',xOff,curY,finalW,finalH);
-    curY+=finalH+5;
   }}
 
   pdf.save('grade_complementar_'+new Date().toISOString().slice(0,10)+'.pdf');
@@ -1840,7 +1862,7 @@ renderHoje(); renderInsights(); renderTable(); renderProg(); renderCharts(); ren
 
 if __name__ == '__main__':
     print("\n" + "="*55)
-    print("  Dashboard Grade Complementar — Gerador v3.4 (+ exportação PDF institucional)")
+    print("  Dashboard Grade Complementar — Gerador v3.5 (PDF corrigido: seções + fatiamento)")
     print("="*55)
 
     base = sys.argv[1] if len(sys.argv) > 1 else '.'
@@ -1895,5 +1917,7 @@ if __name__ == '__main__':
     print("="*55)
     print("  ✅  Concluído!")
     print("="*55 + "\n")
+
+
 
 
