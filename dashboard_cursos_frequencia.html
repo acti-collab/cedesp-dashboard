@@ -38,7 +38,7 @@ header{background:var(--ink);color:#f5f2ee;padding:0 48px;display:flex;align-ite
 .search-input:focus{border-color:var(--ink)}
 .search-icon{position:absolute;left:10px;top:50%;transform:translateY(-50%);color:var(--text-muted);font-size:12px}
 main{padding:32px 48px 60px;max-width:1440px;margin:0 auto}
-.kpi-row{display:grid;grid-template-columns:repeat(4,1fr);gap:1px;background:var(--border);border:1px solid var(--border);margin-bottom:32px}
+.kpi-row{display:grid;grid-template-columns:repeat(5,1fr);gap:1px;background:var(--border);border:1px solid var(--border);margin-bottom:32px}
 .kpi-cell{background:var(--surface);padding:24px 28px}
 .kpi-label{font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--text-muted);letter-spacing:.8px;text-transform:uppercase;margin-bottom:10px}
 .kpi-val{font-family:'Poppins',sans-serif;font-size:40px;font-weight:800;letter-spacing:-2px;line-height:1;margin-bottom:4px}
@@ -81,6 +81,10 @@ td.right{text-align:right}
 .status-flag.low{border-color:var(--accent);color:var(--accent);background:rgba(200,75,49,.06)}
 .empty-state{text-align:center;padding:48px;color:var(--text-muted);font-size:13px}
 .update-badge{font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--text-muted);background:var(--surface2);border:1px solid var(--border);padding:3px 10px;border-radius:2px}
+.pdf-btn{display:inline-flex;align-items:center;gap:5px;padding:6px 14px;border-radius:2px;border:1px solid var(--ink);background:var(--ink);color:#fff;font-family:'Poppins',sans-serif;font-size:12px;font-weight:600;cursor:pointer;transition:all .15s}
+.pdf-btn:hover{background:#1a3573;border-color:#1a3573}
+.pdf-btn:disabled{opacity:.6;cursor:default}
+@media print{.controls,.pdf-btn{display:none}}
 footer{border-top:1px solid var(--border);padding:20px 48px;display:flex;justify-content:space-between;align-items:center;margin-top:48px}
 .footer-text{font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--text-muted)}
 @media(max-width:900px){header,.controls,main{padding-left:20px;padding-right:20px}.charts-grid{grid-template-columns:1fr}.kpi-row{grid-template-columns:1fr 1fr}}
@@ -119,9 +123,9 @@ footer{border-top:1px solid var(--border);padding:20px 48px;display:flex;justify
     <button class="filter-btn noite" data-filter="period" data-value="Noite">🌙 Noite</button>
   </div>
   <div class="controls-spacer"></div>
-  <span class="update-badge">📅 Atualizado em: 05/06/2026 às 08:08</span>
+  <span class="update-badge">📅 Atualizado em: 05/06/2026 às 09:18</span>
   <div style="display:flex;align-items:center;gap:6px">
-
+    <button class="pdf-btn" id="pdfBtn" onclick="exportPDF()">⬇ Exportar PDF</button>
   </div>
   <div class="search-wrap">
     <span class="search-icon">⌕</span>
@@ -135,8 +139,9 @@ footer{border-top:1px solid var(--border);padding:20px 48px;display:flex;justify
   <div class="kpi-cell"><div class="kpi-label">Cursos ativos</div><div class="kpi-val" id="kpi-cursos">—</div><div class="kpi-desc">turmas com frequência registrada</div></div>
   <div class="kpi-cell"><div class="kpi-label">Taxa de frequência média</div><div class="kpi-val" id="kpi-rate" style="color:var(--accent2)">—</div><div class="kpi-desc">freq. média ÷ meta do curso</div></div>
 
-  <div class="kpi-cell"><div class="kpi-label">Cursos com taxa &lt;80%</div><div class="kpi-val" id="kpi-low" style="color:var(--accent)">—</div><div class="kpi-desc">requerem atenção</div></div>
-  <div class="kpi-cell"><div class="kpi-label">Ausência média</div><div class="kpi-val" id="kpi-evasao" style="color:#c84b31">—</div><div class="kpi-desc">matriculados que faltam em média</div></div>
+  <div class="kpi-cell"><div class="kpi-label">Cursos graves (&lt;80%)</div><div class="kpi-val" id="kpi-low" style="color:var(--accent)">—</div><div class="kpi-desc">abaixo da faixa satisfatória — ação imediata</div></div>
+  <div class="kpi-cell"><div class="kpi-label">Faltas por dia (média)</div><div class="kpi-val" id="kpi-evasao" style="color:#c97c1a">—</div><div class="kpi-desc">matriculados ausentes em média/dia</div></div>
+  <div class="kpi-cell"><div class="kpi-label">Evasão acumulada</div><div class="kpi-val" id="kpi-desist" style="color:#c84b31">—</div><div class="kpi-desc"><span id="kpi-desist-n">—</span> desistências desde o início</div></div>
 </div>
 
 <div id="snapshot-panel" style="display:none;background:linear-gradient(135deg,#1a2340 0%,#21438e 100%);border-radius:10px;padding:20px 28px;margin-bottom:24px;color:#fff;position:relative;overflow:hidden">
@@ -155,18 +160,18 @@ footer{border-top:1px solid var(--border);padding:20px 48px;display:flex;justify
     <div style="width:1px;height:60px;background:rgba(255,255,255,.15);align-self:center"></div>
     <div>
       <div style="display:flex;align-items:baseline;gap:6px">
-        <span style="font-family:'JetBrains Mono',monospace;font-size:48px;font-weight:800;line-height:1;letter-spacing:-2px" id="snap-max-aulas">—</span>
-        <span style="font-size:14px;color:rgba(255,255,255,.5)">aulas</span>
+        <span style="font-family:'JetBrains Mono',monospace;font-size:48px;font-weight:800;line-height:1;letter-spacing:-2px;color:#f59e0b" id="snap-pendentes">—</span>
+        <span style="font-size:14px;color:rgba(255,255,255,.5)">chamadas</span>
       </div>
-      <div style="font-size:12px;color:rgba(255,255,255,.65);margin-top:6px">máximo de chamadas registradas</div>
+      <div style="font-size:12px;color:rgba(255,255,255,.65);margin-top:6px">pendentes de lançamento até {cutoff} <span style="color:#f59e0b;font-weight:600">(em <span id="snap-pend-cursos">—</span> turmas)</span></div>
     </div>
     <div style="width:1px;height:60px;background:rgba(255,255,255,.15);align-self:center"></div>
     <div>
       <div style="display:flex;align-items:baseline;gap:6px">
-        <span style="font-family:'JetBrains Mono',monospace;font-size:48px;font-weight:800;line-height:1;letter-spacing:-2px;color:#f59e0b" id="snap-atrasados">—</span>
-        <span style="font-size:14px;color:rgba(255,255,255,.5)">cursos</span>
+        <span style="font-family:'JetBrains Mono',monospace;font-size:48px;font-weight:800;line-height:1;letter-spacing:-2px;color:#9bc4ff" id="snap-semaula">—</span>
+        <span style="font-size:14px;color:rgba(255,255,255,.5)">dias</span>
       </div>
-      <div style="font-size:12px;color:rgba(255,255,255,.65);margin-top:6px">com menos aulas que o máximo <span style="color:#f59e0b;font-weight:600">(possível chamada em falta)</span></div>
+      <div style="font-size:12px;color:rgba(255,255,255,.65);margin-top:6px">sem aula no calendário <span style="color:#9bc4ff;font-weight:600">(feriado / parada)</span></div>
     </div>
   </div>
 </div>
@@ -184,12 +189,13 @@ footer{border-top:1px solid var(--border);padding:20px 48px;display:flex;justify
         <th data-sort="course">Curso <span class="sort-arrow">↕</span></th>
         <th data-sort="unit">Unidade <span class="sort-arrow">↕</span></th>
         <th data-sort="period">Período <span class="sort-arrow">↕</span></th>
-        <th class="right" data-sort="inseridos">Inseridos <span class="sort-arrow">↕</span></th>
+        <th class="right" data-sort="inseridos" title="Total de alunos que entraram no curso desde o início">Entraram <span class="sort-arrow">↕</span></th>
         <th class="right" data-sort="matr">Matr. <span class="sort-arrow">↕</span></th>
         <th class="right" data-sort="freq_avg">Freq. Média/dia <span class="sort-arrow">↕</span></th>
         <th class="right" data-sort="n_classes">Aulas <span class="sort-arrow">↕</span></th>
         <th data-sort="attend_rate">Taxa s/ Meta <span class="sort-arrow">↕</span></th>
-        <th class="right" data-sort="evasao_pct">Ausência <span class="sort-arrow">↕</span></th>
+        <th class="right" data-sort="evasao_acum_pct" title="Alunos que entraram e desistiram (inseridos − matrícula)">Evasão <span class="sort-arrow">↕</span></th>
+        <th class="right" data-sort="evasao_pct" title="Matriculados ausentes em média por dia">Faltas/dia <span class="sort-arrow">↕</span></th>
         <th class="right" data-sort="dem_total">Demanda <span class="sort-arrow">↕</span></th>
         <th data-sort="status">Status <span class="sort-arrow">↕</span></th>
       </tr>
@@ -215,6 +221,14 @@ footer{border-top:1px solid var(--border);padding:20px 48px;display:flex;justify
 </div>
 <div class="charts-grid" style="grid-template-columns:1fr">
   <div class="chart-box">
+    <div class="chart-box-title">Evasão × Frequência — diagnóstico por turma</div>
+    <div class="chart-box-sub">Cada ponto é uma turma · eixo X: taxa de frequência (freq/meta) · eixo Y: evasão acumulada. Canto superior esquerdo = turma que esvaziou e quem ficou falta muito.</div>
+    <canvas id="scatterChart" height="150"></canvas>
+  </div>
+</div>
+
+<div class="charts-grid" style="grid-template-columns:1fr">
+  <div class="chart-box">
     <div class="chart-box-title">Tendência de Frequência Semanal</div>
     <div class="chart-box-sub">Evolução da presença média semana a semana ao longo do semestre</div>
     <canvas id="trendChart" height="110"></canvas>
@@ -223,17 +237,36 @@ footer{border-top:1px solid var(--border);padding:20px 48px;display:flex;justify
 
 <div class="charts-grid" style="grid-template-columns:1fr">
   <div class="chart-box">
-    <div class="chart-box-title">Ausência por Curso — Top 20</div>
-    <div class="chart-box-sub">Cursos com maior taxa de faltas · matriculados que faltam em média</div>
+    <div class="chart-box-title">Evasão Acumulada por Curso — Top 20</div>
+    <div class="chart-box-sub">Alunos que entraram e desistiram desde o início do semestre (inseridos − matrícula)</div>
+    <canvas id="desistChart" height="160"></canvas>
+  </div>
+</div>
+
+<div class="charts-grid" style="grid-template-columns:1fr">
+  <div class="chart-box">
+    <div class="chart-box-title">Faltas por Dia — Top 20</div>
+    <div class="chart-box-sub">Cursos com maior ausência média diária · matriculados que faltam por dia</div>
     <canvas id="evasaoChart" height="160"></canvas>
   </div>
+</div>
+
+<div class="section-row"><div class="section-title">Acompanhamento Operacional</div><div class="section-rule"></div></div>
+
+<div id="pend-panel" style="display:none;background:var(--surface);border:1px solid var(--border);border-left:3px solid var(--orange);border-radius:8px;padding:18px 24px;margin-bottom:24px">
+  <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
+    <span style="font-size:13px">📋</span>
+    <span style="font-size:12px;font-weight:700;letter-spacing:.8px;text-transform:uppercase;color:var(--text-muted)">Turmas com lançamentos pendentes</span>
+  </div>
+  <div style="font-size:12px;color:var(--text-muted);margin-bottom:12px">Dias letivos sem chamada até {cutoff} — já descontados feriados e paradas. Pronto para a coordenação cobrar.</div>
+  <div id="pend-list"></div>
 </div>
 
 </main>
 
 <footer>
   <div class="footer-text">CEDESP Dom Bosco Itaquera · Dashboard gerado automaticamente</div>
-  <div class="footer-text">Atualizado em 05/06/2026 às 08:08</div>
+  <div class="footer-text">Atualizado em 05/06/2026 às 09:18</div>
 </footer>
 
 <script>
@@ -639,9 +672,17 @@ const RAW = [
     "last_date": "05/28",
     "last_date_display": "28/05",
     "evasao_pct": 13.9,
+    "desistentes": 16,
+    "evasao_acum_pct": 41.0,
     "centr": 16,
     "sentr": 58,
-    "dem_total": 74
+    "dem_total": 74,
+    "pendentes": 2,
+    "pendentes_datas": [
+      "24/02",
+      "27/03"
+    ],
+    "dias_sem_aula": 8
   },
   {
     "unit": "CEDESP 1",
@@ -1044,9 +1085,16 @@ const RAW = [
     "last_date": "05/28",
     "last_date_display": "28/05",
     "evasao_pct": -6.7,
+    "desistentes": 22,
+    "evasao_acum_pct": 55.0,
     "centr": 0,
     "sentr": 40,
-    "dem_total": 40
+    "dem_total": 40,
+    "pendentes": 1,
+    "pendentes_datas": [
+      "24/02"
+    ],
+    "dias_sem_aula": 8
   },
   {
     "unit": "CEDESP 1",
@@ -1454,9 +1502,16 @@ const RAW = [
     "last_date": "05/28",
     "last_date_display": "28/05",
     "evasao_pct": 10.9,
+    "desistentes": 12,
+    "evasao_acum_pct": 34.3,
     "centr": 0,
     "sentr": 19,
-    "dem_total": 19
+    "dem_total": 19,
+    "pendentes": 1,
+    "pendentes_datas": [
+      "14/05"
+    ],
+    "dias_sem_aula": 8
   },
   {
     "unit": "CEDESP 1",
@@ -1864,9 +1919,14 @@ const RAW = [
     "last_date": "05/28",
     "last_date_display": "28/05",
     "evasao_pct": 3.6,
+    "desistentes": 8,
+    "evasao_acum_pct": 26.7,
     "centr": 17,
     "sentr": 54,
-    "dem_total": 71
+    "dem_total": 71,
+    "pendentes": 0,
+    "pendentes_datas": [],
+    "dias_sem_aula": 8
   },
   {
     "unit": "CEDESP 1",
@@ -2264,9 +2324,17 @@ const RAW = [
     "last_date": "05/28",
     "last_date_display": "28/05",
     "evasao_pct": 10.0,
+    "desistentes": 9,
+    "evasao_acum_pct": 24.3,
     "centr": 42,
     "sentr": 4,
-    "dem_total": 46
+    "dem_total": 46,
+    "pendentes": 2,
+    "pendentes_datas": [
+      "16/04",
+      "24/04"
+    ],
+    "dias_sem_aula": 8
   },
   {
     "unit": "CEDESP 1",
@@ -2674,9 +2742,16 @@ const RAW = [
     "last_date": "05/28",
     "last_date_display": "28/05",
     "evasao_pct": 9.2,
+    "desistentes": 2,
+    "evasao_acum_pct": 7.1,
     "centr": 19,
     "sentr": 0,
-    "dem_total": 19
+    "dem_total": 19,
+    "pendentes": 1,
+    "pendentes_datas": [
+      "03/03"
+    ],
+    "dias_sem_aula": 8
   },
   {
     "unit": "CEDESP 1",
@@ -3084,9 +3159,16 @@ const RAW = [
     "last_date": "05/28",
     "last_date_display": "28/05",
     "evasao_pct": 12.3,
+    "desistentes": 3,
+    "evasao_acum_pct": 10.3,
     "centr": 5,
     "sentr": 0,
-    "dem_total": 5
+    "dem_total": 5,
+    "pendentes": 1,
+    "pendentes_datas": [
+      "28/04"
+    ],
+    "dias_sem_aula": 8
   },
   {
     "unit": "CEDESP 1",
@@ -3484,9 +3566,17 @@ const RAW = [
     "last_date": "05/28",
     "last_date_display": "28/05",
     "evasao_pct": 5.9,
+    "desistentes": 13,
+    "evasao_acum_pct": 37.1,
     "centr": 69,
     "sentr": 36,
-    "dem_total": 105
+    "dem_total": 105,
+    "pendentes": 2,
+    "pendentes_datas": [
+      "18/05",
+      "20/05"
+    ],
+    "dias_sem_aula": 8
   },
   {
     "unit": "CEDESP 1",
@@ -3869,9 +3959,20 @@ const RAW = [
     "last_date": "05/28",
     "last_date_display": "28/05",
     "evasao_pct": 4.0,
+    "desistentes": 18,
+    "evasao_acum_pct": 47.4,
     "centr": 29,
     "sentr": 30,
-    "dem_total": 59
+    "dem_total": 59,
+    "pendentes": 5,
+    "pendentes_datas": [
+      "15/04",
+      "16/04",
+      "30/04",
+      "20/05",
+      "21/05"
+    ],
+    "dias_sem_aula": 8
   },
   {
     "unit": "CEDESP 1",
@@ -4264,9 +4365,18 @@ const RAW = [
     "last_date": "05/28",
     "last_date_display": "28/05",
     "evasao_pct": -4.2,
+    "desistentes": 15,
+    "evasao_acum_pct": 44.1,
     "centr": 15,
     "sentr": 12,
-    "dem_total": 27
+    "dem_total": 27,
+    "pendentes": 3,
+    "pendentes_datas": [
+      "03/03",
+      "20/05",
+      "21/05"
+    ],
+    "dias_sem_aula": 8
   },
   {
     "unit": "CEDESP 1",
@@ -4684,9 +4794,14 @@ const RAW = [
     "last_date": "05/28",
     "last_date_display": "28/05",
     "evasao_pct": 11.2,
+    "desistentes": 7,
+    "evasao_acum_pct": 22.6,
     "centr": 9,
     "sentr": 5,
-    "dem_total": 14
+    "dem_total": 14,
+    "pendentes": 0,
+    "pendentes_datas": [],
+    "dias_sem_aula": 8
   },
   {
     "unit": "CEDESP 1",
@@ -5064,9 +5179,20 @@ const RAW = [
     "last_date": "05/27",
     "last_date_display": "27/05",
     "evasao_pct": 5.7,
+    "desistentes": 6,
+    "evasao_acum_pct": 20.7,
     "centr": 46,
     "sentr": 96,
-    "dem_total": 142
+    "dem_total": 142,
+    "pendentes": 5,
+    "pendentes_datas": [
+      "08/05",
+      "13/05",
+      "15/05",
+      "20/05",
+      "21/05"
+    ],
+    "dias_sem_aula": 8
   },
   {
     "unit": "CEDESP 2",
@@ -5469,9 +5595,16 @@ const RAW = [
     "last_date": "05/28",
     "last_date_display": "28/05",
     "evasao_pct": 6.5,
+    "desistentes": 8,
+    "evasao_acum_pct": 25.8,
     "centr": 26,
     "sentr": 40,
-    "dem_total": 66
+    "dem_total": 66,
+    "pendentes": 1,
+    "pendentes_datas": [
+      "27/05"
+    ],
+    "dias_sem_aula": 8
   },
   {
     "unit": "CEDESP 2",
@@ -5869,9 +6002,17 @@ const RAW = [
     "last_date": "05/28",
     "last_date_display": "28/05",
     "evasao_pct": 2.4,
+    "desistentes": 12,
+    "evasao_acum_pct": 41.4,
     "centr": 0,
     "sentr": 9,
-    "dem_total": 9
+    "dem_total": 9,
+    "pendentes": 2,
+    "pendentes_datas": [
+      "04/05",
+      "21/05"
+    ],
+    "dias_sem_aula": 8
   },
   {
     "unit": "CEDESP 2",
@@ -6279,9 +6420,14 @@ const RAW = [
     "last_date": "05/28",
     "last_date_display": "28/05",
     "evasao_pct": -2.7,
+    "desistentes": 15,
+    "evasao_acum_pct": 50.0,
     "centr": 2,
     "sentr": 6,
-    "dem_total": 8
+    "dem_total": 8,
+    "pendentes": 0,
+    "pendentes_datas": [],
+    "dias_sem_aula": 8
   },
   {
     "unit": "CEDESP 2",
@@ -6684,9 +6830,16 @@ const RAW = [
     "last_date": "05/28",
     "last_date_display": "28/05",
     "evasao_pct": 4.8,
+    "desistentes": 11,
+    "evasao_acum_pct": 32.4,
     "centr": 24,
     "sentr": 23,
-    "dem_total": 47
+    "dem_total": 47,
+    "pendentes": 1,
+    "pendentes_datas": [
+      "14/04"
+    ],
+    "dias_sem_aula": 8
   },
   {
     "unit": "CEDESP 2",
@@ -7089,9 +7242,16 @@ const RAW = [
     "last_date": "05/28",
     "last_date_display": "28/05",
     "evasao_pct": 14.7,
+    "desistentes": 8,
+    "evasao_acum_pct": 34.8,
     "centr": 3,
     "sentr": 4,
-    "dem_total": 7
+    "dem_total": 7,
+    "pendentes": 1,
+    "pendentes_datas": [
+      "14/04"
+    ],
+    "dias_sem_aula": 8
   },
   {
     "unit": "CEDESP 2",
@@ -7484,9 +7644,17 @@ const RAW = [
     "last_date": "05/28",
     "last_date_display": "28/05",
     "evasao_pct": 7.0,
+    "desistentes": 11,
+    "evasao_acum_pct": 52.4,
     "centr": 6,
     "sentr": 3,
-    "dem_total": 9
+    "dem_total": 9,
+    "pendentes": 2,
+    "pendentes_datas": [
+      "18/05",
+      "20/05"
+    ],
+    "dias_sem_aula": 8
   },
   {
     "unit": "CEDESP 2",
@@ -7879,9 +8047,18 @@ const RAW = [
     "last_date": "05/28",
     "last_date_display": "28/05",
     "evasao_pct": 6.7,
+    "desistentes": 9,
+    "evasao_acum_pct": 30.0,
     "centr": 3,
     "sentr": 6,
-    "dem_total": 9
+    "dem_total": 9,
+    "pendentes": 3,
+    "pendentes_datas": [
+      "04/05",
+      "15/05",
+      "27/05"
+    ],
+    "dias_sem_aula": 8
   },
   {
     "unit": "CEDESP 2",
@@ -8249,9 +8426,21 @@ const RAW = [
     "last_date": "05/27",
     "last_date_display": "27/05",
     "evasao_pct": 0.5,
+    "desistentes": 15,
+    "evasao_acum_pct": 40.5,
     "centr": 8,
     "sentr": 7,
-    "dem_total": 15
+    "dem_total": 15,
+    "pendentes": 6,
+    "pendentes_datas": [
+      "18/03",
+      "14/04",
+      "15/05",
+      "18/05",
+      "19/05",
+      "21/05"
+    ],
+    "dias_sem_aula": 8
   },
   {
     "unit": "CEDESP 2",
@@ -8639,9 +8828,18 @@ const RAW = [
     "last_date": "05/28",
     "last_date_display": "28/05",
     "evasao_pct": 10.4,
+    "desistentes": 10,
+    "evasao_acum_pct": 30.3,
     "centr": 58,
     "sentr": 71,
-    "dem_total": 129
+    "dem_total": 129,
+    "pendentes": 3,
+    "pendentes_datas": [
+      "14/04",
+      "18/05",
+      "20/05"
+    ],
+    "dias_sem_aula": 8
   },
   {
     "unit": "CEDESP 2",
@@ -9044,9 +9242,16 @@ const RAW = [
     "last_date": "05/28",
     "last_date_display": "28/05",
     "evasao_pct": 10.0,
+    "desistentes": 10,
+    "evasao_acum_pct": 34.5,
     "centr": 5,
     "sentr": 4,
-    "dem_total": 9
+    "dem_total": 9,
+    "pendentes": 1,
+    "pendentes_datas": [
+      "14/04"
+    ],
+    "dias_sem_aula": 8
   },
   {
     "unit": "CEDESP 2",
@@ -9414,9 +9619,22 @@ const RAW = [
     "last_date": "05/28",
     "last_date_display": "28/05",
     "evasao_pct": 8.3,
+    "desistentes": 22,
+    "evasao_acum_pct": 55.0,
     "centr": 0,
     "sentr": 0,
-    "dem_total": 0
+    "dem_total": 0,
+    "pendentes": 7,
+    "pendentes_datas": [
+      "09/03",
+      "10/03",
+      "16/03",
+      "17/03",
+      "24/03",
+      "07/04",
+      "14/04"
+    ],
+    "dias_sem_aula": 8
   },
   {
     "unit": "CEDESP 2",
@@ -9814,9 +10032,16 @@ const RAW = [
     "last_date": "05/28",
     "last_date_display": "28/05",
     "evasao_pct": 1.4,
+    "desistentes": 13,
+    "evasao_acum_pct": 38.2,
     "centr": 14,
     "sentr": 14,
-    "dem_total": 28
+    "dem_total": 28,
+    "pendentes": 1,
+    "pendentes_datas": [
+      "18/05"
+    ],
+    "dias_sem_aula": 8
   },
   {
     "unit": "CEDESP 2",
@@ -10209,9 +10434,17 @@ const RAW = [
     "last_date": "05/28",
     "last_date_display": "28/05",
     "evasao_pct": 16.8,
+    "desistentes": 7,
+    "evasao_acum_pct": 21.9,
     "centr": 32,
     "sentr": 9,
-    "dem_total": 41
+    "dem_total": 41,
+    "pendentes": 2,
+    "pendentes_datas": [
+      "09/03",
+      "20/05"
+    ],
+    "dias_sem_aula": 8
   },
   {
     "unit": "CEDESP 2",
@@ -10584,9 +10817,20 @@ const RAW = [
     "last_date": "05/28",
     "last_date_display": "28/05",
     "evasao_pct": 17.3,
+    "desistentes": 7,
+    "evasao_acum_pct": 24.1,
     "centr": 6,
     "sentr": 9,
-    "dem_total": 15
+    "dem_total": 15,
+    "pendentes": 5,
+    "pendentes_datas": [
+      "16/03",
+      "08/05",
+      "20/05",
+      "21/05",
+      "26/05"
+    ],
+    "dias_sem_aula": 8
   },
   {
     "unit": "CEDESP 3",
@@ -10959,9 +11203,21 @@ const RAW = [
     "last_date": "05/27",
     "last_date_display": "27/05",
     "evasao_pct": 9.0,
+    "desistentes": 16,
+    "evasao_acum_pct": 43.2,
     "centr": 3,
     "sentr": 28,
-    "dem_total": 31
+    "dem_total": 31,
+    "pendentes": 6,
+    "pendentes_datas": [
+      "24/02",
+      "06/04",
+      "19/05",
+      "20/05",
+      "25/05",
+      "26/05"
+    ],
+    "dias_sem_aula": 8
   },
   {
     "unit": "CEDESP 3",
@@ -11339,9 +11595,22 @@ const RAW = [
     "last_date": "05/28",
     "last_date_display": "28/05",
     "evasao_pct": -1.0,
+    "desistentes": 26,
+    "evasao_acum_pct": 72.2,
     "centr": 4,
     "sentr": 4,
-    "dem_total": 8
+    "dem_total": 8,
+    "pendentes": 7,
+    "pendentes_datas": [
+      "12/05",
+      "13/05",
+      "14/05",
+      "15/05",
+      "25/05",
+      "26/05",
+      "27/05"
+    ],
+    "dias_sem_aula": 8
   },
   {
     "unit": "CEDESP 3",
@@ -11739,9 +12008,16 @@ const RAW = [
     "last_date": "05/27",
     "last_date_display": "27/05",
     "evasao_pct": 38.6,
+    "desistentes": 0,
+    "evasao_acum_pct": 0.0,
     "centr": 10,
     "sentr": 4,
-    "dem_total": 14
+    "dem_total": 14,
+    "pendentes": 1,
+    "pendentes_datas": [
+      "15/05"
+    ],
+    "dias_sem_aula": 8
   },
   {
     "unit": "CEDESP 3",
@@ -12129,9 +12405,16 @@ const RAW = [
     "last_date": "05/27",
     "last_date_display": "27/05",
     "evasao_pct": 10.7,
+    "desistentes": 5,
+    "evasao_acum_pct": 26.3,
     "centr": 0,
     "sentr": 0,
-    "dem_total": 0
+    "dem_total": 0,
+    "pendentes": 1,
+    "pendentes_datas": [
+      "21/05"
+    ],
+    "dias_sem_aula": 8
   },
   {
     "unit": "CEDESP 3",
@@ -12539,9 +12822,14 @@ const RAW = [
     "last_date": "05/28",
     "last_date_display": "28/05",
     "evasao_pct": -7.5,
+    "desistentes": 11,
+    "evasao_acum_pct": 31.4,
     "centr": 19,
     "sentr": 6,
-    "dem_total": 25
+    "dem_total": 25,
+    "pendentes": 0,
+    "pendentes_datas": [],
+    "dias_sem_aula": 8
   },
   {
     "unit": "CEDESP 3",
@@ -12954,9 +13242,14 @@ const RAW = [
     "last_date": "05/28",
     "last_date_display": "28/05",
     "evasao_pct": 6.9,
+    "desistentes": 8,
+    "evasao_acum_pct": 38.1,
     "centr": 0,
     "sentr": 0,
-    "dem_total": 0
+    "dem_total": 0,
+    "pendentes": 0,
+    "pendentes_datas": [],
+    "dias_sem_aula": 8
   },
   {
     "unit": "CEDESP 3",
@@ -13349,9 +13642,18 @@ const RAW = [
     "last_date": "05/28",
     "last_date_display": "28/05",
     "evasao_pct": -1.9,
+    "desistentes": 13,
+    "evasao_acum_pct": 44.8,
     "centr": 0,
     "sentr": 0,
-    "dem_total": 0
+    "dem_total": 0,
+    "pendentes": 3,
+    "pendentes_datas": [
+      "21/05",
+      "25/05",
+      "27/05"
+    ],
+    "dias_sem_aula": 8
   },
   {
     "unit": "CEDESP 3",
@@ -13744,9 +14046,17 @@ const RAW = [
     "last_date": "05/28",
     "last_date_display": "28/05",
     "evasao_pct": 5.2,
+    "desistentes": 7,
+    "evasao_acum_pct": 25.0,
     "centr": 72,
     "sentr": 190,
-    "dem_total": 262
+    "dem_total": 262,
+    "pendentes": 2,
+    "pendentes_datas": [
+      "08/05",
+      "15/05"
+    ],
+    "dias_sem_aula": 8
   },
   {
     "unit": "CEDESP 3",
@@ -14144,9 +14454,17 @@ const RAW = [
     "last_date": "05/28",
     "last_date_display": "28/05",
     "evasao_pct": 9.5,
+    "desistentes": 11,
+    "evasao_acum_pct": 35.5,
     "centr": 0,
     "sentr": 0,
-    "dem_total": 0
+    "dem_total": 0,
+    "pendentes": 2,
+    "pendentes_datas": [
+      "21/05",
+      "26/05"
+    ],
+    "dias_sem_aula": 8
   },
   {
     "unit": "CEDESP 3",
@@ -14554,9 +14872,16 @@ const RAW = [
     "last_date": "05/28",
     "last_date_display": "28/05",
     "evasao_pct": 10.9,
+    "desistentes": 10,
+    "evasao_acum_pct": 30.3,
     "centr": 0,
     "sentr": 48,
-    "dem_total": 48
+    "dem_total": 48,
+    "pendentes": 1,
+    "pendentes_datas": [
+      "13/02"
+    ],
+    "dias_sem_aula": 8
   },
   {
     "unit": "CEDESP 3",
@@ -14954,9 +15279,16 @@ const RAW = [
     "last_date": "05/28",
     "last_date_display": "28/05",
     "evasao_pct": 14.0,
+    "desistentes": 18,
+    "evasao_acum_pct": 41.9,
     "centr": 6,
     "sentr": 95,
-    "dem_total": 101
+    "dem_total": 101,
+    "pendentes": 1,
+    "pendentes_datas": [
+      "21/05"
+    ],
+    "dias_sem_aula": 8
   },
   {
     "unit": "CEDESP 3",
@@ -15309,9 +15641,26 @@ const RAW = [
     "last_date": "05/28",
     "last_date_display": "28/05",
     "evasao_pct": 16.5,
+    "desistentes": 13,
+    "evasao_acum_pct": 33.3,
     "centr": 1,
     "sentr": 26,
-    "dem_total": 27
+    "dem_total": 27,
+    "pendentes": 11,
+    "pendentes_datas": [
+      "17/04",
+      "23/04",
+      "30/04",
+      "04/05",
+      "05/05",
+      "06/05",
+      "07/05",
+      "12/05",
+      "15/05",
+      "21/05",
+      "26/05"
+    ],
+    "dias_sem_aula": 8
   },
   {
     "unit": "CEDESP 4",
@@ -15719,9 +16068,14 @@ const RAW = [
     "last_date": "05/28",
     "last_date_display": "28/05",
     "evasao_pct": 14.1,
+    "desistentes": 12,
+    "evasao_acum_pct": 35.3,
     "centr": 3,
     "sentr": 63,
-    "dem_total": 66
+    "dem_total": 66,
+    "pendentes": 0,
+    "pendentes_datas": [],
+    "dias_sem_aula": 8
   },
   {
     "unit": "CEDESP 4",
@@ -16124,9 +16478,16 @@ const RAW = [
     "last_date": "05/28",
     "last_date_display": "28/05",
     "evasao_pct": -6.1,
+    "desistentes": 14,
+    "evasao_acum_pct": 43.8,
     "centr": 0,
     "sentr": 0,
-    "dem_total": 0
+    "dem_total": 0,
+    "pendentes": 1,
+    "pendentes_datas": [
+      "09/03"
+    ],
+    "dias_sem_aula": 8
   },
   {
     "unit": "CEDESP 4",
@@ -16509,9 +16870,19 @@ const RAW = [
     "last_date": "05/28",
     "last_date_display": "28/05",
     "evasao_pct": 9.5,
+    "desistentes": 15,
+    "evasao_acum_pct": 42.9,
     "centr": 4,
     "sentr": 29,
-    "dem_total": 33
+    "dem_total": 33,
+    "pendentes": 4,
+    "pendentes_datas": [
+      "13/05",
+      "14/05",
+      "15/05",
+      "19/05"
+    ],
+    "dias_sem_aula": 8
   },
   {
     "unit": "CEDESP 4",
@@ -16894,9 +17265,18 @@ const RAW = [
     "last_date": "05/27",
     "last_date_display": "27/05",
     "evasao_pct": 13.5,
+    "desistentes": 3,
+    "evasao_acum_pct": 11.5,
     "centr": 3,
     "sentr": 21,
-    "dem_total": 24
+    "dem_total": 24,
+    "pendentes": 3,
+    "pendentes_datas": [
+      "24/02",
+      "21/05",
+      "26/05"
+    ],
+    "dias_sem_aula": 8
   },
   {
     "unit": "CEDESP 4",
@@ -17294,9 +17674,17 @@ const RAW = [
     "last_date": "05/28",
     "last_date_display": "28/05",
     "evasao_pct": 1.8,
+    "desistentes": 14,
+    "evasao_acum_pct": 38.9,
     "centr": 61,
     "sentr": 34,
-    "dem_total": 95
+    "dem_total": 95,
+    "pendentes": 2,
+    "pendentes_datas": [
+      "20/05",
+      "25/05"
+    ],
+    "dias_sem_aula": 8
   },
   {
     "unit": "CEDESP 4",
@@ -17689,9 +18077,17 @@ const RAW = [
     "last_date": "05/27",
     "last_date_display": "27/05",
     "evasao_pct": 2.5,
+    "desistentes": 14,
+    "evasao_acum_pct": 36.8,
     "centr": 0,
     "sentr": 0,
-    "dem_total": 0
+    "dem_total": 0,
+    "pendentes": 2,
+    "pendentes_datas": [
+      "24/04",
+      "08/05"
+    ],
+    "dias_sem_aula": 8
   },
   {
     "unit": "CEDESP 4",
@@ -18024,9 +18420,30 @@ const RAW = [
     "last_date": "05/28",
     "last_date_display": "28/05",
     "evasao_pct": 8.8,
+    "desistentes": 9,
+    "evasao_acum_pct": 27.3,
     "centr": 26,
     "sentr": 16,
-    "dem_total": 42
+    "dem_total": 42,
+    "pendentes": 15,
+    "pendentes_datas": [
+      "11/03",
+      "24/03",
+      "25/03",
+      "27/03",
+      "07/04",
+      "08/04",
+      "15/04",
+      "17/04",
+      "28/04",
+      "06/05",
+      "12/05",
+      "13/05",
+      "15/05",
+      "19/05",
+      "21/05"
+    ],
+    "dias_sem_aula": 8
   },
   {
     "unit": "CEDESP 4",
@@ -18369,9 +18786,26 @@ const RAW = [
     "last_date": "05/26",
     "last_date_display": "26/05",
     "evasao_pct": 15.7,
+    "desistentes": 8,
+    "evasao_acum_pct": 25.8,
     "centr": 8,
     "sentr": 10,
-    "dem_total": 18
+    "dem_total": 18,
+    "pendentes": 11,
+    "pendentes_datas": [
+      "27/02",
+      "03/03",
+      "08/04",
+      "29/04",
+      "30/04",
+      "05/05",
+      "06/05",
+      "07/05",
+      "13/05",
+      "15/05",
+      "21/05"
+    ],
+    "dias_sem_aula": 8
   },
   {
     "unit": "CEDESP 4",
@@ -18769,9 +19203,17 @@ const RAW = [
     "last_date": "05/28",
     "last_date_display": "28/05",
     "evasao_pct": 5.7,
+    "desistentes": 10,
+    "evasao_acum_pct": 32.3,
     "centr": 51,
     "sentr": 28,
-    "dem_total": 79
+    "dem_total": 79,
+    "pendentes": 2,
+    "pendentes_datas": [
+      "30/04",
+      "20/05"
+    ],
+    "dias_sem_aula": 8
   },
   {
     "unit": "CEDESP 4",
@@ -19159,9 +19601,17 @@ const RAW = [
     "last_date": "05/26",
     "last_date_display": "26/05",
     "evasao_pct": 6.2,
+    "desistentes": 9,
+    "evasao_acum_pct": 25.7,
     "centr": 0,
     "sentr": 0,
-    "dem_total": 0
+    "dem_total": 0,
+    "pendentes": 2,
+    "pendentes_datas": [
+      "19/05",
+      "20/05"
+    ],
+    "dias_sem_aula": 8
   },
   {
     "unit": "CEDESP 4",
@@ -19549,9 +19999,19 @@ const RAW = [
     "last_date": "05/28",
     "last_date_display": "28/05",
     "evasao_pct": 0.5,
+    "desistentes": 16,
+    "evasao_acum_pct": 44.4,
     "centr": 43,
     "sentr": 18,
-    "dem_total": 61
+    "dem_total": 61,
+    "pendentes": 4,
+    "pendentes_datas": [
+      "01/04",
+      "02/04",
+      "15/05",
+      "20/05"
+    ],
+    "dias_sem_aula": 8
   },
   {
     "unit": "CEDESP 4",
@@ -19899,9 +20359,26 @@ const RAW = [
     "last_date": "05/27",
     "last_date_display": "27/05",
     "evasao_pct": -0.8,
+    "desistentes": 8,
+    "evasao_acum_pct": 25.0,
     "centr": 25,
     "sentr": 15,
-    "dem_total": 40
+    "dem_total": 40,
+    "pendentes": 11,
+    "pendentes_datas": [
+      "03/03",
+      "28/04",
+      "29/04",
+      "30/04",
+      "05/05",
+      "06/05",
+      "07/05",
+      "08/05",
+      "15/05",
+      "18/05",
+      "21/05"
+    ],
+    "dias_sem_aula": 8
   },
   {
     "unit": "CEDESP 5",
@@ -20294,9 +20771,18 @@ const RAW = [
     "last_date": "05/28",
     "last_date_display": "28/05",
     "evasao_pct": 15.5,
+    "desistentes": 9,
+    "evasao_acum_pct": 29.0,
     "centr": 0,
     "sentr": 0,
-    "dem_total": 0
+    "dem_total": 0,
+    "pendentes": 3,
+    "pendentes_datas": [
+      "30/04",
+      "18/05",
+      "21/05"
+    ],
+    "dias_sem_aula": 8
   },
   {
     "unit": "CEDESP 5",
@@ -20576,9 +21062,40 @@ const RAW = [
     "last_date": "05/28",
     "last_date_display": "28/05",
     "evasao_pct": 25.0,
+    "desistentes": 13,
+    "evasao_acum_pct": 44.8,
     "centr": 1,
     "sentr": 11,
-    "dem_total": 12
+    "dem_total": 12,
+    "pendentes": 25,
+    "pendentes_datas": [
+      "13/04",
+      "14/04",
+      "15/04",
+      "22/04",
+      "23/04",
+      "24/04",
+      "27/04",
+      "28/04",
+      "29/04",
+      "04/05",
+      "05/05",
+      "06/05",
+      "08/05",
+      "11/05",
+      "12/05",
+      "13/05",
+      "14/05",
+      "15/05",
+      "18/05",
+      "19/05",
+      "20/05",
+      "21/05",
+      "25/05",
+      "26/05",
+      "27/05"
+    ],
+    "dias_sem_aula": 8
   },
   {
     "unit": "CEDESP 5",
@@ -20981,9 +21498,16 @@ const RAW = [
     "last_date": "05/28",
     "last_date_display": "28/05",
     "evasao_pct": 1.0,
+    "desistentes": 11,
+    "evasao_acum_pct": 35.5,
     "centr": 1,
     "sentr": 26,
-    "dem_total": 27
+    "dem_total": 27,
+    "pendentes": 1,
+    "pendentes_datas": [
+      "27/02"
+    ],
+    "dias_sem_aula": 8
   },
   {
     "unit": "CEDESP 5",
@@ -21396,9 +21920,14 @@ const RAW = [
     "last_date": "05/28",
     "last_date_display": "28/05",
     "evasao_pct": 14.0,
+    "desistentes": 14,
+    "evasao_acum_pct": 41.2,
     "centr": 0,
     "sentr": 19,
-    "dem_total": 19
+    "dem_total": 19,
+    "pendentes": 0,
+    "pendentes_datas": [],
+    "dias_sem_aula": 8
   },
   {
     "unit": "CEDESP 5",
@@ -21796,9 +22325,16 @@ const RAW = [
     "last_date": "05/27",
     "last_date_display": "27/05",
     "evasao_pct": 10.0,
+    "desistentes": 14,
+    "evasao_acum_pct": 36.8,
     "centr": 9,
     "sentr": 0,
-    "dem_total": 9
+    "dem_total": 9,
+    "pendentes": 1,
+    "pendentes_datas": [
+      "21/05"
+    ],
+    "dias_sem_aula": 8
   },
   {
     "unit": "CEDESP 5",
@@ -22201,9 +22737,16 @@ const RAW = [
     "last_date": "05/28",
     "last_date_display": "28/05",
     "evasao_pct": 11.2,
+    "desistentes": 7,
+    "evasao_acum_pct": 21.2,
     "centr": 32,
     "sentr": 5,
-    "dem_total": 37
+    "dem_total": 37,
+    "pendentes": 1,
+    "pendentes_datas": [
+      "27/02"
+    ],
+    "dias_sem_aula": 8
   },
   {
     "unit": "CEDESP 5",
@@ -22606,9 +23149,16 @@ const RAW = [
     "last_date": "05/28",
     "last_date_display": "28/05",
     "evasao_pct": 13.1,
+    "desistentes": 6,
+    "evasao_acum_pct": 17.1,
     "centr": 13,
     "sentr": 0,
-    "dem_total": 13
+    "dem_total": 13,
+    "pendentes": 1,
+    "pendentes_datas": [
+      "30/04"
+    ],
+    "dias_sem_aula": 8
   },
   {
     "unit": "CEDESP 5",
@@ -23001,9 +23551,17 @@ const RAW = [
     "last_date": "05/28",
     "last_date_display": "28/05",
     "evasao_pct": 19.1,
+    "desistentes": 4,
+    "evasao_acum_pct": 26.7,
     "centr": 3,
     "sentr": 0,
-    "dem_total": 3
+    "dem_total": 3,
+    "pendentes": 2,
+    "pendentes_datas": [
+      "08/05",
+      "15/05"
+    ],
+    "dias_sem_aula": 8
   },
   {
     "unit": "CEDESP 5",
@@ -23396,9 +23954,17 @@ const RAW = [
     "last_date": "05/28",
     "last_date_display": "28/05",
     "evasao_pct": 23.2,
+    "desistentes": 6,
+    "evasao_acum_pct": 24.0,
     "centr": 1,
     "sentr": 9,
-    "dem_total": 10
+    "dem_total": 10,
+    "pendentes": 2,
+    "pendentes_datas": [
+      "15/05",
+      "20/05"
+    ],
+    "dias_sem_aula": 8
   },
   {
     "unit": "CEDESP 5",
@@ -23776,9 +24342,21 @@ const RAW = [
     "last_date": "05/28",
     "last_date_display": "28/05",
     "evasao_pct": 25.5,
+    "desistentes": 1,
+    "evasao_acum_pct": 3.3,
     "centr": 10,
     "sentr": 21,
-    "dem_total": 31
+    "dem_total": 31,
+    "pendentes": 6,
+    "pendentes_datas": [
+      "27/02",
+      "30/04",
+      "20/05",
+      "21/05",
+      "26/05",
+      "27/05"
+    ],
+    "dias_sem_aula": 8
   },
   {
     "unit": "CEDESP 5",
@@ -24146,9 +24724,23 @@ const RAW = [
     "last_date": "05/28",
     "last_date_display": "28/05",
     "evasao_pct": 8.1,
+    "desistentes": 7,
+    "evasao_acum_pct": 21.2,
     "centr": 17,
     "sentr": 56,
-    "dem_total": 73
+    "dem_total": 73,
+    "pendentes": 8,
+    "pendentes_datas": [
+      "23/02",
+      "24/02",
+      "27/03",
+      "13/04",
+      "14/04",
+      "15/04",
+      "17/04",
+      "15/05"
+    ],
+    "dias_sem_aula": 8
   },
   {
     "unit": "CEDESP 5",
@@ -24521,9 +25113,20 @@ const RAW = [
     "last_date": "05/27",
     "last_date_display": "27/05",
     "evasao_pct": -8.8,
+    "desistentes": 15,
+    "evasao_acum_pct": 46.9,
     "centr": 9,
     "sentr": 43,
-    "dem_total": 52
+    "dem_total": 52,
+    "pendentes": 5,
+    "pendentes_datas": [
+      "05/03",
+      "02/04",
+      "15/05",
+      "19/05",
+      "20/05"
+    ],
+    "dias_sem_aula": 8
   },
   {
     "unit": "CEDESP 5",
@@ -24880,9 +25483,21 @@ const RAW = [
     "last_date": "05/22",
     "last_date_display": "22/05",
     "evasao_pct": 15.6,
+    "desistentes": 10,
+    "evasao_acum_pct": 28.6,
     "centr": 2,
     "sentr": 28,
-    "dem_total": 30
+    "dem_total": 30,
+    "pendentes": 6,
+    "pendentes_datas": [
+      "04/05",
+      "05/05",
+      "07/05",
+      "08/05",
+      "12/05",
+      "14/05"
+    ],
+    "dias_sem_aula": 8
   },
   {
     "unit": "CEDESP 5",
@@ -25270,9 +25885,18 @@ const RAW = [
     "last_date": "05/27",
     "last_date_display": "27/05",
     "evasao_pct": 3.7,
+    "desistentes": 11,
+    "evasao_acum_pct": 36.7,
     "centr": 0,
     "sentr": 9,
-    "dem_total": 9
+    "dem_total": 9,
+    "pendentes": 3,
+    "pendentes_datas": [
+      "06/02",
+      "14/05",
+      "20/05"
+    ],
+    "dias_sem_aula": 8
   },
   {
     "unit": "CEDESP 6",
@@ -25563,9 +26187,34 @@ const RAW = [
     "last_date": "05/25",
     "last_date_display": "25/05",
     "evasao_pct": 17.1,
+    "desistentes": 12,
+    "evasao_acum_pct": 33.3,
     "centr": 42,
     "sentr": 35,
-    "dem_total": 77
+    "dem_total": 77,
+    "pendentes": 19,
+    "pendentes_datas": [
+      "24/02",
+      "27/02",
+      "14/04",
+      "17/04",
+      "22/04",
+      "23/04",
+      "24/04",
+      "28/04",
+      "30/04",
+      "07/05",
+      "08/05",
+      "12/05",
+      "13/05",
+      "14/05",
+      "15/05",
+      "18/05",
+      "19/05",
+      "20/05",
+      "21/05"
+    ],
+    "dias_sem_aula": 8
   },
   {
     "unit": "CEDESP 6",
@@ -25968,9 +26617,16 @@ const RAW = [
     "last_date": "05/28",
     "last_date_display": "28/05",
     "evasao_pct": 10.4,
+    "desistentes": 9,
+    "evasao_acum_pct": 28.1,
     "centr": 0,
     "sentr": 35,
-    "dem_total": 35
+    "dem_total": 35,
+    "pendentes": 1,
+    "pendentes_datas": [
+      "14/05"
+    ],
+    "dias_sem_aula": 8
   },
   {
     "unit": "CEDESP 6",
@@ -26373,9 +27029,16 @@ const RAW = [
     "last_date": "05/28",
     "last_date_display": "28/05",
     "evasao_pct": 9.6,
+    "desistentes": 12,
+    "evasao_acum_pct": 33.3,
     "centr": 0,
     "sentr": 0,
-    "dem_total": 0
+    "dem_total": 0,
+    "pendentes": 1,
+    "pendentes_datas": [
+      "21/05"
+    ],
+    "dias_sem_aula": 8
   },
   {
     "unit": "CEDESP 6",
@@ -26758,9 +27421,19 @@ const RAW = [
     "last_date": "05/28",
     "last_date_display": "28/05",
     "evasao_pct": 13.5,
+    "desistentes": 8,
+    "evasao_acum_pct": 25.8,
     "centr": 1,
     "sentr": 34,
-    "dem_total": 35
+    "dem_total": 35,
+    "pendentes": 4,
+    "pendentes_datas": [
+      "24/02",
+      "25/05",
+      "26/05",
+      "27/05"
+    ],
+    "dias_sem_aula": 8
   },
   {
     "unit": "CEDESP 6",
@@ -27015,9 +27688,32 @@ const RAW = [
     "last_date": "05/11",
     "last_date_display": "11/05",
     "evasao_pct": 19.7,
+    "desistentes": 7,
+    "evasao_acum_pct": 19.4,
     "centr": 32,
     "sentr": 17,
-    "dem_total": 49
+    "dem_total": 49,
+    "pendentes": 17,
+    "pendentes_datas": [
+      "18/03",
+      "07/04",
+      "08/04",
+      "14/04",
+      "15/04",
+      "16/04",
+      "17/04",
+      "22/04",
+      "23/04",
+      "24/04",
+      "28/04",
+      "29/04",
+      "30/04",
+      "05/05",
+      "06/05",
+      "07/05",
+      "08/05"
+    ],
+    "dias_sem_aula": 8
   },
   {
     "unit": "CEDESP 6",
@@ -27410,9 +28106,18 @@ const RAW = [
     "last_date": "05/28",
     "last_date_display": "28/05",
     "evasao_pct": 13.6,
+    "desistentes": 9,
+    "evasao_acum_pct": 29.0,
     "centr": 5,
     "sentr": 0,
-    "dem_total": 5
+    "dem_total": 5,
+    "pendentes": 3,
+    "pendentes_datas": [
+      "07/04",
+      "14/05",
+      "15/05"
+    ],
+    "dias_sem_aula": 8
   },
   {
     "unit": "CEDESP 6",
@@ -27795,9 +28500,19 @@ const RAW = [
     "last_date": "05/27",
     "last_date_display": "27/05",
     "evasao_pct": 12.9,
+    "desistentes": 5,
+    "evasao_acum_pct": 15.2,
     "centr": 57,
     "sentr": 145,
-    "dem_total": 202
+    "dem_total": 202,
+    "pendentes": 4,
+    "pendentes_datas": [
+      "18/05",
+      "20/05",
+      "21/05",
+      "26/05"
+    ],
+    "dias_sem_aula": 8
   },
   {
     "unit": "CEDESP 6",
@@ -28150,9 +28865,23 @@ const RAW = [
     "last_date": "05/28",
     "last_date_display": "28/05",
     "evasao_pct": 33.8,
+    "desistentes": 5,
+    "evasao_acum_pct": 17.2,
     "centr": 18,
     "sentr": 105,
-    "dem_total": 123
+    "dem_total": 123,
+    "pendentes": 8,
+    "pendentes_datas": [
+      "12/03",
+      "19/03",
+      "26/03",
+      "27/03",
+      "02/04",
+      "16/04",
+      "19/05",
+      "20/05"
+    ],
+    "dias_sem_aula": 8
   },
   {
     "unit": "CEDESP 6",
@@ -28560,9 +29289,14 @@ const RAW = [
     "last_date": "05/28",
     "last_date_display": "28/05",
     "evasao_pct": 12.4,
+    "desistentes": 6,
+    "evasao_acum_pct": 14.0,
     "centr": 0,
     "sentr": 0,
-    "dem_total": 0
+    "dem_total": 0,
+    "pendentes": 0,
+    "pendentes_datas": [],
+    "dias_sem_aula": 8
   },
   {
     "unit": "CEDESP 6",
@@ -28950,9 +29684,18 @@ const RAW = [
     "last_date": "05/28",
     "last_date_display": "28/05",
     "evasao_pct": 3.2,
+    "desistentes": 9,
+    "evasao_acum_pct": 29.0,
     "centr": 6,
     "sentr": 23,
-    "dem_total": 29
+    "dem_total": 29,
+    "pendentes": 3,
+    "pendentes_datas": [
+      "09/03",
+      "14/05",
+      "15/05"
+    ],
+    "dias_sem_aula": 8
   },
   {
     "unit": "CEDESP 7",
@@ -29355,9 +30098,16 @@ const RAW = [
     "last_date": "05/28",
     "last_date_display": "28/05",
     "evasao_pct": 15.6,
+    "desistentes": 4,
+    "evasao_acum_pct": 18.2,
     "centr": 2,
     "sentr": 4,
-    "dem_total": 6
+    "dem_total": 6,
+    "pendentes": 1,
+    "pendentes_datas": [
+      "15/05"
+    ],
+    "dias_sem_aula": 8
   },
   {
     "unit": "CEDESP 7",
@@ -29709,9 +30459,25 @@ const RAW = [
     "last_date": "05/27",
     "last_date_display": "27/05",
     "evasao_pct": 34.5,
+    "desistentes": 16,
+    "evasao_acum_pct": 42.1,
     "centr": 0,
     "sentr": 0,
-    "dem_total": 0
+    "dem_total": 0,
+    "pendentes": 10,
+    "pendentes_datas": [
+      "20/02",
+      "11/03",
+      "07/05",
+      "14/05",
+      "18/05",
+      "19/05",
+      "20/05",
+      "21/05",
+      "25/05",
+      "26/05"
+    ],
+    "dias_sem_aula": 8
   },
   {
     "unit": "CEDESP 7",
@@ -30119,9 +30885,14 @@ const RAW = [
     "last_date": "05/28",
     "last_date_display": "28/05",
     "evasao_pct": 14.2,
+    "desistentes": 10,
+    "evasao_acum_pct": 34.5,
     "centr": 0,
     "sentr": 0,
-    "dem_total": 0
+    "dem_total": 0,
+    "pendentes": 0,
+    "pendentes_datas": [],
+    "dias_sem_aula": 8
   },
   {
     "unit": "CEDESP 7",
@@ -30494,9 +31265,21 @@ const RAW = [
     "last_date": "05/28",
     "last_date_display": "28/05",
     "evasao_pct": 8.2,
+    "desistentes": 8,
+    "evasao_acum_pct": 42.1,
     "centr": 3,
     "sentr": 1,
-    "dem_total": 4
+    "dem_total": 4,
+    "pendentes": 6,
+    "pendentes_datas": [
+      "24/04",
+      "27/04",
+      "20/05",
+      "21/05",
+      "25/05",
+      "26/05"
+    ],
+    "dias_sem_aula": 8
   },
   {
     "unit": "CEDESP 7",
@@ -30874,9 +31657,19 @@ const RAW = [
     "last_date": "05/27",
     "last_date_display": "27/05",
     "evasao_pct": -8.2,
+    "desistentes": 14,
+    "evasao_acum_pct": 45.2,
     "centr": 4,
     "sentr": 61,
-    "dem_total": 65
+    "dem_total": 65,
+    "pendentes": 4,
+    "pendentes_datas": [
+      "19/03",
+      "24/04",
+      "20/05",
+      "21/05"
+    ],
+    "dias_sem_aula": 8
   },
   {
     "unit": "CEDESP 7",
@@ -31274,9 +32067,18 @@ const RAW = [
     "last_date": "05/28",
     "last_date_display": "28/05",
     "evasao_pct": 16.2,
+    "desistentes": 8,
+    "evasao_acum_pct": 27.6,
     "centr": 3,
     "sentr": 17,
-    "dem_total": 20
+    "dem_total": 20,
+    "pendentes": 3,
+    "pendentes_datas": [
+      "02/03",
+      "08/04",
+      "27/05"
+    ],
+    "dias_sem_aula": 8
   },
   {
     "unit": "CEDESP 7",
@@ -31654,9 +32456,20 @@ const RAW = [
     "last_date": "05/26",
     "last_date_display": "26/05",
     "evasao_pct": 12.9,
+    "desistentes": 5,
+    "evasao_acum_pct": 19.2,
     "centr": 0,
     "sentr": 0,
-    "dem_total": 0
+    "dem_total": 0,
+    "pendentes": 5,
+    "pendentes_datas": [
+      "02/03",
+      "11/05",
+      "14/05",
+      "15/05",
+      "20/05"
+    ],
+    "dias_sem_aula": 8
   },
   {
     "unit": "CEDESP 7",
@@ -32023,9 +32836,21 @@ const RAW = [
     "last_date": "05/26",
     "last_date_display": "26/05",
     "evasao_pct": -22.9,
+    "desistentes": 14,
+    "evasao_acum_pct": 50.0,
     "centr": 1,
     "sentr": 10,
-    "dem_total": 11
+    "dem_total": 11,
+    "pendentes": 6,
+    "pendentes_datas": [
+      "25/02",
+      "08/05",
+      "18/05",
+      "19/05",
+      "20/05",
+      "21/05"
+    ],
+    "dias_sem_aula": 8
   },
   {
     "unit": "CEDESP 7",
@@ -32408,9 +33233,18 @@ const RAW = [
     "last_date": "05/28",
     "last_date_display": "28/05",
     "evasao_pct": 10.0,
+    "desistentes": 6,
+    "evasao_acum_pct": 37.5,
     "centr": 1,
     "sentr": 1,
-    "dem_total": 2
+    "dem_total": 2,
+    "pendentes": 3,
+    "pendentes_datas": [
+      "23/04",
+      "27/04",
+      "21/05"
+    ],
+    "dias_sem_aula": 8
   },
   {
     "unit": "CEDESP 7",
@@ -32803,9 +33637,18 @@ const RAW = [
     "last_date": "05/27",
     "last_date_display": "27/05",
     "evasao_pct": 22.6,
+    "desistentes": 14,
+    "evasao_acum_pct": 42.4,
     "centr": 12,
     "sentr": 24,
-    "dem_total": 36
+    "dem_total": 36,
+    "pendentes": 3,
+    "pendentes_datas": [
+      "27/02",
+      "19/05",
+      "20/05"
+    ],
+    "dias_sem_aula": 8
   },
   {
     "unit": "CEDESP 7",
@@ -33198,9 +34041,17 @@ const RAW = [
     "last_date": "05/26",
     "last_date_display": "26/05",
     "evasao_pct": 5.3,
+    "desistentes": 14,
+    "evasao_acum_pct": 48.3,
     "centr": 0,
     "sentr": 0,
-    "dem_total": 0
+    "dem_total": 0,
+    "pendentes": 2,
+    "pendentes_datas": [
+      "18/05",
+      "21/05"
+    ],
+    "dias_sem_aula": 8
   },
   {
     "unit": "CEDESP 7",
@@ -33568,9 +34419,21 @@ const RAW = [
     "last_date": "05/26",
     "last_date_display": "26/05",
     "evasao_pct": 7.9,
+    "desistentes": 2,
+    "evasao_acum_pct": 12.5,
     "centr": 0,
     "sentr": 0,
-    "dem_total": 0
+    "dem_total": 0,
+    "pendentes": 6,
+    "pendentes_datas": [
+      "30/04",
+      "14/05",
+      "15/05",
+      "18/05",
+      "19/05",
+      "21/05"
+    ],
+    "dias_sem_aula": 8
   },
   {
     "unit": "CEDESP 8",
@@ -33926,9 +34789,16 @@ const RAW = [
     "last_date": "05/15",
     "last_date_display": "15/05",
     "evasao_pct": 50.0,
+    "desistentes": 6,
+    "evasao_acum_pct": 14.6,
     "centr": 5,
     "sentr": 13,
-    "dem_total": 18
+    "dem_total": 18,
+    "pendentes": 1,
+    "pendentes_datas": [
+      "08/05"
+    ],
+    "dias_sem_aula": 8
   },
   {
     "unit": "CEDESP 8",
@@ -34284,9 +35154,16 @@ const RAW = [
     "last_date": "05/15",
     "last_date_display": "15/05",
     "evasao_pct": 42.3,
+    "desistentes": 0,
+    "evasao_acum_pct": 0.0,
     "centr": 50,
     "sentr": 112,
-    "dem_total": 162
+    "dem_total": 162,
+    "pendentes": 1,
+    "pendentes_datas": [
+      "08/05"
+    ],
+    "dias_sem_aula": 8
   },
   {
     "unit": "CEDESP 8",
@@ -34642,9 +35519,16 @@ const RAW = [
     "last_date": "05/15",
     "last_date_display": "15/05",
     "evasao_pct": 44.4,
+    "desistentes": 0,
+    "evasao_acum_pct": 0.0,
     "centr": 38,
     "sentr": 9,
-    "dem_total": 47
+    "dem_total": 47,
+    "pendentes": 1,
+    "pendentes_datas": [
+      "08/05"
+    ],
+    "dias_sem_aula": 8
   },
   {
     "unit": "CEDESP 8",
@@ -35000,9 +35884,16 @@ const RAW = [
     "last_date": "05/15",
     "last_date_display": "15/05",
     "evasao_pct": 45.7,
+    "desistentes": 0,
+    "evasao_acum_pct": 0.0,
     "centr": 10,
     "sentr": 25,
-    "dem_total": 35
+    "dem_total": 35,
+    "pendentes": 1,
+    "pendentes_datas": [
+      "08/05"
+    ],
+    "dias_sem_aula": 8
   },
   {
     "unit": "CEDESP 8",
@@ -35353,9 +36244,16 @@ const RAW = [
     "last_date": "05/14",
     "last_date_display": "14/05",
     "evasao_pct": 39.7,
+    "desistentes": 1,
+    "evasao_acum_pct": 2.9,
     "centr": 3,
     "sentr": 7,
-    "dem_total": 10
+    "dem_total": 10,
+    "pendentes": 1,
+    "pendentes_datas": [
+      "08/05"
+    ],
+    "dias_sem_aula": 8
   },
   {
     "unit": "CEDESP 8",
@@ -35706,9 +36604,16 @@ const RAW = [
     "last_date": "05/14",
     "last_date_display": "14/05",
     "evasao_pct": 44.4,
+    "desistentes": 0,
+    "evasao_acum_pct": 0.0,
     "centr": 12,
     "sentr": 71,
-    "dem_total": 83
+    "dem_total": 83,
+    "pendentes": 1,
+    "pendentes_datas": [
+      "08/05"
+    ],
+    "dias_sem_aula": 8
   },
   {
     "unit": "CEDESP 8",
@@ -36059,9 +36964,16 @@ const RAW = [
     "last_date": "05/14",
     "last_date_display": "14/05",
     "evasao_pct": 47.6,
+    "desistentes": 0,
+    "evasao_acum_pct": 0.0,
     "centr": 13,
     "sentr": 9,
-    "dem_total": 22
+    "dem_total": 22,
+    "pendentes": 1,
+    "pendentes_datas": [
+      "08/05"
+    ],
+    "dias_sem_aula": 8
   },
   {
     "unit": "CEDESP 8",
@@ -36412,16 +37324,26 @@ const RAW = [
     "last_date": "05/14",
     "last_date_display": "14/05",
     "evasao_pct": 38.4,
+    "desistentes": 0,
+    "evasao_acum_pct": 0.0,
     "centr": 17,
     "sentr": 27,
-    "dem_total": 44
+    "dem_total": 44,
+    "pendentes": 1,
+    "pendentes_datas": [
+      "08/05"
+    ],
+    "dias_sem_aula": 8
   }
 ];
+const NO_CLASS = {"16/02": "Carnaval", "17/02": "Carnaval", "18/02": "Quarta-feira de Cinzas", "03/04": "Sexta-feira Santa", "21/04": "Tiradentes", "01/05": "Dia do Trabalho", "10/04": "Parada pedagógica", "20/04": "Sem aula (emenda/parada)"};   // {DD/MM: motivo} feriados/paradas de dia inteiro
+const RESUMO   = {"cutoff": "28/05", "total_pendentes": 331, "cursos_com_pendencia": 85, "dias_sem_aula": 8};     // {cutoff, total_pendentes, cursos_com_pendencia, dias_sem_aula}
+const CUTOFF   = "28/05";     // última data lançada (DD/MM)
 
 let filterUnit='all', filterPeriod='all', sortMode='attend_rate', sortDir=-1, searchQuery='';
 
-function getColor(r){ return r>=100?'#2d7a4f':r>=80?'#c97c1a':'#c84b31'; }
-function getStatus(r){ return r>=100?{cls:'high',label:'✓ Meta atingida'}:r>=80?{cls:'mid',label:'⚠ Atenção média'}:{cls:'low',label:'✗ Atenção imediata'}; }
+function getColor(r){ return r>90?'#2d7a4f':r>=80?'#c97c1a':'#c84b31'; }
+function getStatus(r){ return r>90?{cls:'high',label:'✓ Ótimo'}:r>=80?{cls:'mid',label:'⚠ Satisfatório'}:{cls:'low',label:'✗ Grave (&lt;80%)'}; }
 function periodColor(p){ return p==='Manhã'?'#c97c1a':p==='Tarde'?'#2b5f8a':'#4a3a7a'; }
 
 function getFiltered(){
@@ -36463,9 +37385,9 @@ function buildCharts(data){
   });
 
   const bands=[
-    {label:'≥ 100% (Meta atingida)',min:100,max:Infinity,color:'#2d7a4f'},
-    {label:'80–99.9% (Atenção média)',min:80,max:100,color:'#c97c1a'},
-    {label:'< 80% (Atenção imediata)',min:0,max:80,color:'#c84b31'},
+    {label:'> 90% (Ótimo)',min:90.0001,max:Infinity,color:'#2d7a4f'},
+    {label:'80–90% (Satisfatório)',min:80,max:90.0001,color:'#c97c1a'},
+    {label:'< 80% (Grave)',min:0,max:80,color:'#c84b31'},
   ];
   charts.dist=new Chart(document.getElementById('distChart'),{
     type:'doughnut',
@@ -36531,7 +37453,75 @@ function buildCharts(data){
   });
 }
 
-// ── EVASION CHART ──
+// ── EVASÃO ACUMULADA (desistências) ──
+let scatterChart;
+function buildScatter(data){
+  if(scatterChart)scatterChart.destroy();
+  const pts=data.filter(d=>d.evasao_acum_pct!=null && d.attend_rate>0);
+  const color=d=>{
+    const grave=d.attend_rate<80, evade=d.evasao_acum_pct>=35;
+    if(grave&&evade) return 'rgba(200,75,49,.9)';      // crítico: esvaziou e falta
+    if(grave||evade) return 'rgba(201,124,26,.85)';     // atenção
+    return 'rgba(45,122,79,.7)';                         // saudável
+  };
+  scatterChart=new Chart(document.getElementById('scatterChart'),{
+    type:'scatter',
+    data:{datasets:[{
+      label:'Turmas',
+      data:pts.map(d=>({x:d.attend_rate,y:d.evasao_acum_pct,c:d.course,u:d.unit,p:d.period,des:d.desistentes,ins:d.inseridos})),
+      backgroundColor:pts.map(color),
+      borderColor:pts.map(color),
+      pointRadius:5,pointHoverRadius:7
+    }]},
+    options:{
+      responsive:true,
+      plugins:{
+        legend:{display:false},
+        tooltip:{backgroundColor:'#1a1612',borderColor:'#d8d2c8',borderWidth:1,callbacks:{
+          label:ctx=>{const d=ctx.raw;return [` ${d.c} (${d.u.replace('CEDESP ','C')} · ${d.p})`,` Frequência: ${d.x.toFixed(0)}% · Evasão: ${d.y.toFixed(0)}% (${d.des}/${d.ins})`];}
+        }}
+      },
+      scales:{
+        x:{title:{display:true,text:'Taxa de frequência (freq/meta) %',font:{size:10}},grid:{color:'rgba(216,210,200,.4)'},ticks:{font:{size:10},callback:v=>v+'%'}},
+        y:{title:{display:true,text:'Evasão acumulada %',font:{size:10}},grid:{color:'rgba(216,210,200,.4)'},ticks:{font:{size:10},callback:v=>v+'%'},min:0}
+      }
+    }
+  });
+}
+
+// ── EVASÃO ACUMULADA (desistências) ──
+let desistChart;
+function buildDesistChart(data){
+  if(desistChart)desistChart.destroy();
+  const wd=data.filter(d=>d.desistentes!=null&&d.desistentes>0)
+               .sort((a,b)=>b.desistentes-a.desistentes).slice(0,20);
+  const labels=wd.map(d=>{const n=d.course.length>30?d.course.substring(0,28)+'…':d.course;return n+' ('+d.unit.replace('CEDESP ','C')+')';});
+  desistChart=new Chart(document.getElementById('desistChart'),{
+    type:'bar',
+    data:{labels,datasets:[{
+      label:'Desistências',
+      data:wd.map(d=>d.desistentes),
+      backgroundColor:wd.map(d=>d.evasao_acum_pct>=40?'rgba(200,75,49,.85)':d.evasao_acum_pct>=25?'rgba(201,124,26,.85)':'rgba(125,133,144,.6)'),
+      borderColor:wd.map(d=>d.evasao_acum_pct>=40?'#c84b31':d.evasao_acum_pct>=25?'#c97c1a':'#7d8590'),
+      borderWidth:1,borderRadius:0
+    }]},
+    options:{
+      indexAxis:'y',responsive:true,
+      plugins:{
+        legend:{display:false},
+        tooltip:{backgroundColor:'#1a1612',borderColor:'#d8d2c8',borderWidth:1,
+          callbacks:{label:ctx=>{const d=wd[ctx.dataIndex];return` ${d.desistentes} de ${d.inseridos} desistiram — ${d.evasao_acum_pct.toFixed(1)}% · ${d.period}`;}}
+        }
+      },
+      scales:{
+        x:{grid:{color:'rgba(216,210,200,.3)'},ticks:{font:{size:10}}},
+        y:{grid:{display:false},ticks:{font:{size:10}}}
+      }
+    }
+  });
+}
+
+// ── FALTAS POR DIA ──
 let evasaoChart;
 function buildEvasaoChart(data){
   if(evasaoChart)evasaoChart.destroy();
@@ -36583,7 +37573,8 @@ function buildTable(data){
       <td class="right mono">${d.freq_avg.toFixed(1)}</td>
       <td class="right mono">${d.n_classes}</td>
       <td class="rate-cell"><div class="rate-wrap"><div class="rate-bar"><div class="rate-fill" style="width:${cap}%;background:${fc}"></div></div><div class="rate-pct" style="color:${fc}">${d.attend_rate.toFixed(1)}%</div></div></td>
-      <td class="right mono">${d.evasao_pct!=null?'<span style="color:'+(d.evasao_pct>30?'#c84b31':d.evasao_pct>15?'#c97c1a':'#7d8590')+'">'+d.evasao_pct.toFixed(1)+'%</span>':'—'}</td>
+      <td class="right mono">${d.desistentes!=null?'<span title="'+d.desistentes+' de '+d.inseridos+' que entraram desistiram" style="color:'+(d.evasao_acum_pct>=40?'#c84b31':d.evasao_acum_pct>=25?'#c97c1a':'#7d8590')+'">'+d.desistentes+' <span style="opacity:.7">('+d.evasao_acum_pct.toFixed(0)+'%)</span></span>':'—'}</td>
+      <td class="right mono">${d.evasao_pct!=null?(d.evasao_pct<0?'<span title="Frequência média acima da matrícula registrada — matrícula provavelmente desatualizada" style="color:#7d8590">0%*</span>':'<span style="color:'+(d.evasao_pct>30?'#c84b31':d.evasao_pct>15?'#c97c1a':'#7d8590')+'">'+d.evasao_pct.toFixed(1)+'%</span>'):'—'}</td>
       <td class="right">${(()=>{
         const c=d.centr,s=d.sentr,t=d.dem_total;
         if(!t)return'<span style="color:var(--text-muted)">—</span>';
@@ -36607,37 +37598,66 @@ function updateKPIs(data){
   document.getElementById('kpi-rate').textContent=wr;
 
   document.getElementById('kpi-low').textContent=data.filter(d=>d.attend_rate<80).length;
-  // Ausência ponderada pela matrícula (mais correta para reportar média global)
-  const withEv=data.filter(d=>d.evasao_pct!=null && d.matr);
+  // Ausência ponderada pela matrícula. freq_avg pode exceder matr (matrícula
+  // desatualizada) → 'ausentes' nunca é negativo (clamp em 0) para não falsear a média.
+  const withEv=data.filter(d=>d.matr);
   const totalMatrEv=withEv.reduce((s,d)=>s+d.matr,0);
-  const totalAusentes=withEv.reduce((s,d)=>s+(d.matr-d.freq_avg),0);
+  const totalAusentes=withEv.reduce((s,d)=>s+Math.max(0,d.matr-d.freq_avg),0);
   const avgEv=totalMatrEv?(totalAusentes/totalMatrEv*100).toFixed(1):'—';
   document.getElementById('kpi-evasao').textContent=avgEv!=='—'?avgEv+'%':'—';
+  // Evasão acumulada (desistências desde o início) = Σdesistentes / Σinseridos
+  const withDes=data.filter(d=>d.desistentes!=null && d.inseridos);
+  const totDesist=withDes.reduce((s,d)=>s+d.desistentes,0);
+  const totIns=withDes.reduce((s,d)=>s+d.inseridos,0);
+  const desistPct=totIns?(totDesist/totIns*100).toFixed(1):'—';
+  document.getElementById('kpi-desist').textContent=desistPct!=='—'?desistPct+'%':'—';
+  document.getElementById('kpi-desist-n').textContent=totDesist;
   document.getElementById('hdr-cursos').textContent=data.length;
   document.getElementById('hdr-avg').textContent=wr;
   document.getElementById('hdr-matr').textContent=data.reduce((s,d)=>s+(d.matr||0),0);
   document.getElementById('hdr-ins').textContent=data.reduce((s,d)=>s+(d.inseridos||0),0);
-  // Snapshot do Dia
-  const maxAulas=data.reduce((m,d)=>Math.max(m,d.n_classes||0),0);
-  // Find the most recent date across all courses, sum only those on that date
-  // Per-unit last day: find latest date per unit, sum last_freq on that date
+
+  // ── Dados do Dia (ciente do calendário) ──
   const unitLatest={};
   data.forEach(d=>{if(d.last_date&&(!unitLatest[d.unit]||d.last_date>unitLatest[d.unit]))unitLatest[d.unit]=d.last_date;});
   const totalLastFreq=data.reduce((s,d)=>d.last_date&&d.last_date===unitLatest[d.unit]?s+(d.last_freq||0):s,0);
-  // For the date label, show the most recent date among all units
   const latestDate=Object.values(unitLatest).reduce((mx,d)=>d>mx?d:mx,'');
-  const atrasados=data.filter(d=>(d.n_classes||0)<maxAulas).length;
+  // Pendências reais (já descontados feriados/paradas, calculadas no Python)
+  const totPend=data.reduce((s,d)=>s+(d.pendentes||0),0);
+  const cursosPend=data.filter(d=>(d.pendentes||0)>0).length;
+  const diasSemAula=Object.keys(NO_CLASS||{}).length;
   const panel=document.getElementById('snapshot-panel');
-  if(maxAulas>0||totalLastFreq>0){
+  if(totalLastFreq>0||totPend>0||data.length){
     panel.style.display='block';
-    const fmtDate=d=>{if(!d)return'';const p=d.match(/(\d+)\/(\d+)/);if(p)return d;return d;};
-  const latestDisplay=data.find(d=>d.last_date===latestDate)?.last_date_display||'';
-  document.getElementById('snapshot-date').textContent=latestDisplay?'· '+latestDisplay:'';
-  document.getElementById('snap-last-freq').textContent=totalLastFreq||'—';
-    document.getElementById('snap-max-aulas').textContent=maxAulas||'—';
-    document.getElementById('snap-atrasados').textContent=atrasados;
+    const latestDisplay=data.find(d=>d.last_date===latestDate)?.last_date_display||CUTOFF||'';
+    document.getElementById('snapshot-date').textContent=latestDisplay?'· '+latestDisplay:'';
+    document.getElementById('snap-last-freq').textContent=totalLastFreq||'—';
+    document.getElementById('snap-pendentes').textContent=totPend;
+    document.getElementById('snap-pend-cursos').textContent=cursosPend;
+    document.getElementById('snap-semaula').textContent=diasSemAula;
   } else {
     panel.style.display='none';
+  }
+
+  // ── Lista de turmas com lançamentos pendentes (top 12) ──
+  const pendPanel=document.getElementById('pend-panel');
+  const pendList=document.getElementById('pend-list');
+  const comPend=data.filter(d=>(d.pendentes||0)>0)
+                    .sort((a,b)=>b.pendentes-a.pendentes).slice(0,12);
+  if(comPend.length){
+    pendPanel.style.display='block';
+    pendList.innerHTML=comPend.map(d=>{
+      const datas=(d.pendentes_datas||[]).join(' · ');
+      return `<div style="display:flex;align-items:flex-start;gap:10px;padding:7px 0;border-bottom:1px solid var(--surface2)">
+        <span style="flex-shrink:0;min-width:30px;text-align:center;font-family:'JetBrains Mono',monospace;font-weight:700;color:var(--orange)">${d.pendentes}</span>
+        <div style="flex:1">
+          <div style="font-size:13px;font-weight:600">${d.course} <span style="color:var(--text-muted);font-weight:400">· ${d.unit.replace('CEDESP ','C')} · ${d.period}</span></div>
+          <div style="font-size:11px;color:var(--text-muted);font-family:'JetBrains Mono',monospace;margin-top:2px">${datas}</div>
+        </div>
+      </div>`;
+    }).join('');
+  } else {
+    pendPanel.style.display='none';
   }
 }
 
@@ -36646,6 +37666,8 @@ function update(){
   updateKPIs(f);
   buildCharts(f);
   buildEvasaoChart(f);
+  buildDesistChart(f);
+  buildScatter(f);
   buildTable(f);
 }
 
@@ -36681,6 +37703,113 @@ document.querySelectorAll('#courseTable thead th[data-sort]').forEach(th=>{
   if(th){th.classList.add('sort-active');const arr=th.querySelector('.sort-arrow');if(arr)arr.textContent='↓';}
 })();
 document.getElementById('searchInput').addEventListener('input',e=>{searchQuery=e.target.value.toLowerCase().trim();update();});
+
+// ── Exportação PDF (mesmo sistema do dashboard de atendimento) ──────────────
+async function exportPDF(){
+  const btn=document.getElementById('pdfBtn');
+  btn.textContent='⏳ Gerando...'; btn.disabled=true;
+  async function loadScript(src){
+    return new Promise((res,rej)=>{
+      if(document.querySelector(`script[src="${src}"]`)){res();return;}
+      const s=document.createElement('script'); s.src=src; s.onload=res; s.onerror=rej;
+      document.head.appendChild(s);
+    });
+  }
+  try{
+    await loadScript('https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js');
+    await loadScript('https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js');
+  }catch(e){
+    alert('Erro ao carregar bibliotecas de PDF. Verifique sua conexão.');
+    btn.textContent='⬇ Exportar PDF'; btn.disabled=false; return;
+  }
+
+  const { jsPDF }=window.jspdf;
+  const pdf=new jsPDF({orientation:'portrait',unit:'mm',format:'a4'});
+  const PW=210, PH=297, MARGIN=12, CONTENT_W=PW-MARGIN*2;
+  let pageNum=1;
+
+  // Rótulo de escopo a partir dos filtros ativos (nome, não "FILTRO ATIVO")
+  let parts=[];
+  if(filterUnit!=='all')   parts.push(filterUnit);
+  if(filterPeriod!=='all') parts.push(filterPeriod);
+  if(searchQuery)          parts.push('busca: "'+searchQuery+'"');
+  const filterLabel=parts.join('   ·   ');
+  const headerHeight=filterLabel?26:16;
+
+  function addPageHeader(pageNum){
+    pdf.setFillColor(33,67,142);
+    pdf.rect(0,0,PW,14,'F');
+    const bars=[['#21438e',0],['#e63827',52.5],['#2bb19d',105],['#f37f1f',157.5]];
+    bars.forEach(([c,x])=>{
+      const rgb=c.match(/[\da-f]{2}/gi).map(h=>parseInt(h,16));
+      pdf.setFillColor(...rgb); pdf.rect(x,14,52.5,2,'F');
+    });
+    pdf.setFont('helvetica','bold'); pdf.setFontSize(10); pdf.setTextColor(255,255,255);
+    pdf.text('CEDESP DOM BOSCO — Frequência por Curso', MARGIN, 9);
+    pdf.setFont('helvetica','normal'); pdf.setFontSize(8); pdf.setTextColor(180,190,210);
+    pdf.text(`05/06/2026 às 09:18`, PW-MARGIN, 9, {align:'right'});
+    pdf.setFontSize(7); pdf.setTextColor(140,150,170);
+    pdf.text(`Página ${pageNum}`, PW-MARGIN, PH-4, {align:'right'});
+    if(filterLabel){
+      pdf.setFillColor(245,248,255); pdf.rect(0,16,PW,10,'F');
+      pdf.setDrawColor(33,67,142); pdf.setLineWidth(0.4); pdf.line(0,16,PW,16);
+      pdf.setFont('helvetica','bold'); pdf.setFontSize(9.5); pdf.setTextColor(33,67,142);
+      pdf.text(filterLabel, MARGIN, 23);
+      pdf.setFont('helvetica','normal'); pdf.setFontSize(7); pdf.setTextColor(120,130,155);
+      pdf.text('RELATÓRIO FILTRADO', PW-MARGIN, 23, {align:'right'});
+    }
+  }
+
+  // Coloca um canvas podendo fluir por várias páginas (tabela longa fica legível)
+  function placePaged(canvas, startY){
+    const imgW=CONTENT_W;
+    const pxPerMm=canvas.width/imgW;
+    let srcY=0, y=startY;
+    let remainingPx=canvas.height;
+    while(remainingPx>0){
+      let availMm=(PH-10)-y;
+      if(availMm<20){ pdf.addPage(); pageNum++; addPageHeader(pageNum); y=headerHeight+2; availMm=(PH-10)-y; }
+      const slicePx=Math.min(remainingPx, Math.floor(availMm*pxPerMm));
+      const sliceMm=slicePx/pxPerMm;
+      const c=document.createElement('canvas'); c.width=canvas.width; c.height=slicePx;
+      c.getContext('2d').drawImage(canvas,0,srcY,canvas.width,slicePx,0,0,canvas.width,slicePx);
+      pdf.addImage(c.toDataURL('image/png'),'PNG',MARGIN,y,imgW,sliceMm);
+      srcY+=slicePx; remainingPx-=slicePx; y+=sliceMm+5;
+      if(remainingPx>0){ pdf.addPage(); pageNum++; addPageHeader(pageNum); y=headerHeight+2; }
+    }
+    return y;
+  }
+
+  // Seções a capturar, na ordem da tela
+  const sections=[];
+  const kpis=document.querySelector('.kpi-row'); if(kpis) sections.push(kpis);
+  const snap=document.getElementById('snapshot-panel'); if(snap&&snap.style.display!=='none') sections.push(snap);
+  const tbl=document.querySelector('.course-table-wrap'); if(tbl) sections.push(tbl);
+  document.querySelectorAll('.chart-box').forEach(cb=>sections.push(cb));
+  const pend=document.getElementById('pend-panel'); if(pend&&pend.style.display!=='none') sections.push(pend);
+
+  let curY=headerHeight+2;
+  addPageHeader(pageNum);
+
+  for(const el of sections){
+    const canvas=await html2canvas(el,{scale:2,useCORS:true,backgroundColor:'#ffffff',logging:false,windowWidth:document.documentElement.scrollWidth});
+    const imgW=CONTENT_W;
+    const imgH=(canvas.height/canvas.width)*imgW;
+    const pageContentH=(PH-10)-(headerHeight+2);
+    if(imgH>pageContentH){
+      if(curY>headerHeight+4){ pdf.addPage(); pageNum++; addPageHeader(pageNum); curY=headerHeight+2; }
+      curY=placePaged(canvas, curY);
+    } else {
+      if(curY+imgH>PH-10){ pdf.addPage(); pageNum++; addPageHeader(pageNum); curY=headerHeight+2; }
+      pdf.addImage(canvas.toDataURL('image/png'),'PNG',MARGIN,curY,imgW,imgH);
+      curY+=imgH+5;
+    }
+  }
+
+  pdf.save(`dashboard_cursos_cedesp_${new Date().toISOString().slice(0,10)}.pdf`);
+  btn.textContent='✅ PDF gerado!';
+  setTimeout(()=>{btn.textContent='⬇ Exportar PDF'; btn.disabled=false;}, 3000);
+}
 
 update();
 </script>

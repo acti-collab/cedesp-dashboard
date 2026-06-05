@@ -104,7 +104,7 @@ footer{text-align:center;padding:32px;font-size:11px;color:var(--muted)}
   </div>
   <div style="display:flex;align-items:center;gap:10px">
     <button id="pdfBtn" onclick="exportPDF()" style="font-family:'Poppins',sans-serif;font-size:11px;font-weight:500;color:#fff;background:rgba(255,255,255,.14);border:1px solid rgba(255,255,255,.25);padding:6px 14px;border-radius:20px;cursor:pointer;transition:background .15s" onmouseover="this.style.background='rgba(255,255,255,.24)'" onmouseout="this.style.background='rgba(255,255,255,.14)'">⬇ Exportar PDF</button>
-    <div class="hd-badge">📅 05/06/2026 às 08:08</div>
+    <div class="hd-badge">📅 05/06/2026 às 09:19</div>
   </div>
 </header>
 <main>
@@ -124,6 +124,7 @@ footer{text-align:center;padding:32px;font-size:11px;color:var(--muted)}
     <span style="background:var(--surface);border:1px solid var(--border);border-left:3px solid var(--red);border-radius:6px;padding:6px 12px"><strong>125</strong> lacunas reais (≤ 28/05, sem registro)</span>
     <span style="background:var(--surface);border:1px solid var(--border);border-left:3px solid var(--indigo);border-radius:6px;padding:6px 12px">⏳ <strong>663</strong> aguardando lançamento (após 28/05)</span>
     <span style="background:var(--surface);border:1px solid var(--border);border-left:3px solid var(--blue);border-radius:6px;padding:6px 12px" title="Feriados, emendas, paradas pedagógicas e dias de educador ausente">🗓 <strong>207</strong> sem aula (feriado/parada, incl. 9 por educador ausente)</span>
+</div>
 </div>
 
 <!-- INSIGHTS AUTOMÁTICOS -->
@@ -1358,20 +1359,41 @@ async function exportPDF(){
   let curY=HEADER_H+3, pageNum=1;
   addPageHeader(pageNum);
 
+  function novaPagina(){ pdf.addPage(); pageNum++; addPageHeader(pageNum); curY=HEADER_H+3; }
+
   for(const sel of sections){
     const el=document.querySelector(sel);
     if(!el) continue;
     const canvas=await html2canvas(el,{scale:2,useCORS:true,backgroundColor:'#ffffff',logging:false,windowWidth:document.documentElement.scrollWidth});
     const imgW=CONTENT_W;
     const imgH=(canvas.height/canvas.width)*imgW;
-    if(curY+imgH>PH-10){
-      pdf.addPage(); pageNum++; addPageHeader(pageNum); curY=HEADER_H+3;
+    const avail=PH-HEADER_H-14;                 // altura útil por página (mm)
+
+    if(imgH<=avail){
+      // cabe inteira: nova página se não couber no que resta
+      if(curY+imgH>PH-10) novaPagina();
+      pdf.addImage(canvas.toDataURL('image/png'),'PNG',MARGIN,curY,imgW,imgH);
+      curY+=imgH+6;
+    } else {
+      // mais alta que uma página: fatiar em pedaços, sempre na largura cheia
+      if(curY>HEADER_H+3) novaPagina();
+      const pxPerMm=canvas.width/imgW;
+      const slicePx=Math.floor(avail*pxPerMm);
+      let sy=0;
+      while(sy<canvas.height){
+        const hPx=Math.min(slicePx, canvas.height-sy);
+        const tmp=document.createElement('canvas');
+        tmp.width=canvas.width; tmp.height=hPx;
+        const ctx=tmp.getContext('2d');
+        ctx.fillStyle='#ffffff'; ctx.fillRect(0,0,tmp.width,tmp.height);
+        ctx.drawImage(canvas,0,sy,canvas.width,hPx,0,0,canvas.width,hPx);
+        const sliceH=(hPx/canvas.width)*imgW;
+        if(curY+sliceH>PH-10 && curY>HEADER_H+3) novaPagina();
+        pdf.addImage(tmp.toDataURL('image/png'),'PNG',MARGIN,curY,imgW,sliceH);
+        curY+=sliceH+(hPx<slicePx?6:0);
+        sy+=hPx;
+      }
     }
-    const finalH=Math.min(imgH, PH-HEADER_H-12);
-    const finalW=(finalH/imgH)*imgW;
-    const xOff=MARGIN+(CONTENT_W-finalW)/2;
-    pdf.addImage(canvas.toDataURL('image/png'),'PNG',xOff,curY,finalW,finalH);
-    curY+=finalH+5;
   }
 
   pdf.save('grade_complementar_'+new Date().toISOString().slice(0,10)+'.pdf');
