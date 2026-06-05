@@ -1,16 +1,17 @@
 #!/usr/bin/env python3
 """
-gerar_dashboard.py
-==================
-Script semanal de atualização do Dashboard CEDESP Dom Bosco Itaquera.
+gerar_dashboard_frequencia.py
+=============================
+Gera APENAS o Dashboard de FREQUÊNCIA POR CURSO do CEDESP Dom Bosco Itaquera.
+O resumo institucional por unidade é gerado pelo script separado:
+    python gerar_dashboard_resumo.py planilha.xlsx
 
 Uso:
-    python gerar_dashboard.py                          # usa planilha padrão
-    python gerar_dashboard.py "caminho/planilha.xlsx"  # especifica arquivo
+    python gerar_dashboard_frequencia.py                          # planilha padrão
+    python gerar_dashboard_frequencia.py "caminho/planilha.xlsx"  # arquivo específico
 
 Saída:
     dashboard_cursos_frequencia.html   (pronto para publicar no Google Sites)
-    dashboard_resumo.html              (visão geral por unidade)
 """
 
 import sys
@@ -22,7 +23,6 @@ import pandas as pd
 # ── CONFIGURAÇÃO ──────────────────────────────────────────────────────────────
 PLANILHA_PADRAO = "1º_Sem__-__2026.xlsx"   # altere se o nome mudar
 SAIDA_CURSOS    = "dashboard_cursos_frequencia.html"
-SAIDA_RESUMO    = "dashboard_resumo.html"
 # ─────────────────────────────────────────────────────────────────────────────
 
 # ── CALENDÁRIO DE DIAS SEM AULA ───────────────────────────────────────────────
@@ -1312,6 +1312,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
 
