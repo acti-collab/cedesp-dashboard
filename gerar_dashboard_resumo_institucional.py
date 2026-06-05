@@ -24,7 +24,26 @@ import pandas as pd
 PLANILHA_PADRAO = "1º_Sem__-__2026.xlsx"
 SAIDA           = "dashboard_cedesp_2026.html"
 SKIP_DATES      = {"30/01", "30/1"}   # dia opcional — ignorado no cálculo
+COMPLETUDE_MIN  = 0.80   # um dia só serve de retrato se a presença total for >= 80%
+                         # do pico da unidade/período — descarta dias de lançamento
+                         # incompleto (ex.: o último dia ainda sendo preenchido)
 # ─────────────────────────────────────────────────────────────────────────────
+
+
+def _dia_completo(candidates, vidx):
+    """Escolhe o dia de referência: o MAIS RECENTE cujo valor seja >= COMPLETUDE_MIN
+    do pico. Assim, se o último dia estiver com lançamento incompleto (valor bem
+    abaixo do pico), ele é ignorado e o retrato cai num dia completo.
+
+    `candidates`: lista de tuplas com a data em [0] e o valor em [vidx].
+    Retorna (data, valor); (None, 0) se a lista estiver vazia."""
+    if not candidates:
+        return (None, 0)
+    ordenados = sorted(candidates, key=lambda x: x[0])
+    pico = max(c[vidx] for c in ordenados) or 0
+    completos = [c for c in ordenados if c[vidx] >= COMPLETUDE_MIN * pico]
+    escolhido = completos[-1] if completos else ordenados[-1]
+    return (escolhido[0], escolhido[vidx])
 
 
 def carregar_planilha(caminho):
@@ -56,13 +75,14 @@ def extrair_unidades(sheets):
         print(f"  📊  Processando {sheet_name}...", end=" ")
 
         # ── meta e matr da linha TOTAL GERAL ──────────────────────────────
-        meta = matr = 0
+        meta = matr = inseridos = 0
         for idx in range(len(df)):
             row = df.iloc[idx]
             for c in range(len(row)):
                 if str(row.iloc[c]).strip().upper() == "TOTAL GERAL:":
                     meta = float(row.iloc[5]) if pd.notna(row.iloc[5]) else 0
                     matr = float(row.iloc[8]) if pd.notna(row.iloc[8]) else 0
+                    inseridos = float(row.iloc[7]) if pd.notna(row.iloc[7]) else 0
                     break
 
         # ── colunas FREQ (excluindo 30/01) ────────────────────────────────
@@ -133,19 +153,37 @@ def extrair_unidades(sheets):
             if vals:
                 candidates.append((date, fc, sum(vals)))
 
+        # freq do dia = último dia computado (mesmo que incompleto)
+        # freq_media   = média de presença ao longo do semestre
+        freq = freq_media = 0
+        dia_ref = None
         if candidates:
             candidates.sort(key=lambda x: x[0])
-            freq = candidates[-1][2]
+            freq    = candidates[-1][2]
+            dia_ref = candidates[-1][0]
+            freq_media = round(sum(c[2] for c in candidates) / len(candidates), 1)
 
         saldo = round(freq - meta, 1)
-        print(f"meta={int(meta)} matr={int(matr)} freq={freq} saldo={saldo}")
+        desistentes = int(round(inseridos - matr)) if inseridos and matr and inseridos >= matr else 0
+        evasao_pct  = round(desistentes / inseridos * 100, 1) if inseridos else 0
+        dia_ref_str = f"{dia_ref[1]:02d}/{dia_ref[0]:02d}" if dia_ref else "—"
+        print(f"meta={int(meta)} matr={int(matr)} ins={int(inseridos)} freq={freq} "
+              f"média={freq_media} evasão={desistentes} ({evasao_pct}%) dia={dia_ref_str}")
 
         results.append({
             "unit":  sheet_name,
             "meta":  int(meta),
             "matr":  int(matr),
+            "inseridos": int(inseridos),
             "freq":  freq,
+            "freq_media": freq_media,
             "saldo": saldo,
+            "dia_ref": dia_ref_str,
+            "desistentes": desistentes,
+            "evasao_pct":  evasao_pct,
+            # Item 4: metas separadas (matrícula vs presença)
+            "atingiu_matr":     bool(matr >= meta),
+            "atingiu_presenca": bool(freq_media >= meta),
         })
 
     return results
@@ -245,7 +283,7 @@ def gerar_html(units, horarios, freq_por_periodo, data_atualizacao):
     total_meta  = sum(u["meta"]  for u in units)
     total_matr  = sum(u["matr"]  for u in units)
     total_freq  = sum(u["freq"]  for u in units)
-    superaram   = sum(1 for u in units if u["freq"] >= u["meta"])
+    superaram   = sum(1 for u in units if u["freq_media"] >= u["meta"])
 
     # Monta blocos de horário
     def horario_block(periodo, emoji, badge_class, color_var, data, freq_val=0):
@@ -528,6 +566,10 @@ def gerar_html(units, horarios, freq_por_periodo, data_atualizacao):
     .kpi-grid {{ grid-template-columns: 1fr 1fr; }}
     .horario-grid {{ grid-template-columns: 1fr; }}
   }}
+  .pdf-btn {{ display:inline-flex; align-items:center; gap:5px; padding:8px 16px; border-radius:6px; border:1px solid #21438e; background:#21438e; color:#fff; font-family:'Poppins',sans-serif; font-size:12px; font-weight:600; cursor:pointer; transition:all .15s; }}
+  .pdf-btn:hover {{ background:#1a3573; }}
+  .pdf-btn:disabled {{ opacity:.6; cursor:default; }}
+  @media print {{ .pdf-btn {{ display:none; }} }}
 </style>
 </head>
 <body>
@@ -555,6 +597,9 @@ def gerar_html(units, horarios, freq_por_periodo, data_atualizacao):
         📅 Última atualização<br>
         <span style="color:#21438e;font-size:13px;font-weight:600">{data_atualizacao}</span>
       </div>
+    </div>
+    <div class="hm-item">
+      <button class="pdf-btn" id="pdfBtn" onclick="exportPDF()">⬇ Exportar PDF</button>
     </div>
   </div>
 </header>
@@ -605,11 +650,13 @@ def gerar_html(units, horarios, freq_por_periodo, data_atualizacao):
         <tr>
           <th>Unidade</th>
           <th class="right">Meta</th>
+          <th class="right">Inseridos</th>
           <th class="right">Matrículas</th>
-          <th class="right">Frequência</th>
+          <th class="right" title="Desistências acumuladas = inseridos − matrícula">Evasão</th>
+          <th class="right" title="Frequentes no último dia computado">Freq. dia</th>
+          <th class="right" title="Frequência média ao longo do semestre">Média sem.</th>
           <th>Atingimento da Meta</th>
-          <th class="right">Saldo</th>
-          <th class="right">Status</th>
+          <th title="Meta de matrícula (captação) vs meta de presença">Metas</th>
         </tr>
       </thead>
       <tbody id="mainTable"></tbody>
@@ -678,8 +725,8 @@ def gerar_html(units, horarios, freq_por_periodo, data_atualizacao):
       <canvas id="evolMatrChart" height="240"></canvas>
     </div>
     <div class="chart-card">
-      <div class="chart-title">Taxa de Frequência por Semestre</div>
-      <div class="chart-sub">Linha verde = referência 85% — pontos coloridos por desempenho</div>
+      <div class="chart-title">Taxa de Frequência por Semestre (presença ÷ matrícula)</div>
+      <div class="chart-sub">Base = matrículas (não a meta) · linha verde = referência 85% · pontos coloridos por desempenho</div>
       <canvas id="evolFreqChart" height="240"></canvas>
     </div>
   </div>
@@ -702,30 +749,32 @@ def gerar_html(units, horarios, freq_por_periodo, data_atualizacao):
   // ── TABLE ──
   const tbody = document.getElementById('mainTable');
   units.forEach((u, i) => {{
-    const pct = ((u.freq / u.meta) * 100).toFixed(1);
+    // Atingimento baseado na MÉDIA semestral (presença estável) vs meta
+    const pct = ((u.freq_media / u.meta) * 100).toFixed(1);
     const pctNum = parseFloat(pct);
-    const fillColor = pctNum >= 100 ? '#1a7a3e' : pctNum >= 85 ? '#c97c1a' : '#e63827';
+    const fillColor = pctNum > 90 ? '#1a7a3e' : pctNum >= 80 ? '#c97c1a' : '#e63827';
     const fillW = Math.min(pctNum, 100);
-    const saldoClass = u.saldo >= 0 ? 'pos' : 'neg';
-    const saldoSign = u.saldo >= 0 ? '+' : '';
-    const status = u.freq >= u.meta ? '✓ Atingiu' : '✗ Abaixo';
-    const statusColor = u.freq >= u.meta ? '#1a7a3e' : '#e63827';
+    const badge = (ok,txt)=>`<span style="display:inline-block;font-size:10px;font-weight:700;padding:2px 7px;border-radius:3px;margin:1px;background:${{ok?'rgba(26,122,62,.12)':'rgba(230,56,39,.12)'}};color:${{ok?'#1a7a3e':'#e63827'}}">${{ok?'✓':'✗'}} ${{txt}}</span>`;
+    const evPct = u.evasao_pct||0;
+    const evColor = evPct>=40?'#e63827':evPct>=25?'#c97c1a':'#5c6b8a';
     tbody.innerHTML += `
       <tr>
         <td><div class="unit-name"><div class="unit-dot" style="background:${{COLORS[i]}}"></div>${{u.unit}}</div></td>
         <td class="right mono">${{u.meta}}</td>
+        <td class="right mono">${{u.inseridos}}</td>
         <td class="right mono">${{u.matr}}</td>
-        <td class="right mono">${{u.freq}}</td>
+        <td class="right mono" title="${{u.desistentes}} de ${{u.inseridos}} que entraram desistiram"><span style="color:${{evColor}};font-weight:600">${{u.desistentes}} <span style="opacity:.7;font-size:11px">(${{evPct.toFixed(0)}}%)</span></span></td>
+        <td class="right mono" title="Último dia computado${{u.dia_ref?' — '+u.dia_ref:''}}">${{u.freq}}${{u.dia_ref?' <span style="font-size:9px;color:var(--text-muted)">'+u.dia_ref+'</span>':''}}</td>
+        <td class="right mono" style="font-weight:600">${{u.freq_media}}</td>
         <td>
           <div class="prog-wrap">
-            <div class="prog-bar" style="max-width:160px">
+            <div class="prog-bar" style="max-width:140px">
               <div class="prog-fill" style="width:${{fillW}}%;background:${{fillColor}}"></div>
             </div>
             <div class="prog-pct" style="color:${{fillColor}}">${{pct}}%</div>
           </div>
         </td>
-        <td class="right"><span class="saldo-pill ${{saldoClass}}">${{saldoSign}}${{u.saldo}}</span></td>
-        <td class="right" style="font-size:12px;color:${{statusColor}};font-weight:600">${{status}}</td>
+        <td>${{badge(u.atingiu_matr,'Matríc.')}}${{badge(u.atingiu_presenca,'Presença')}}</td>
       </tr>`;
   }});
 
@@ -874,6 +923,54 @@ def gerar_html(units, horarios, freq_por_periodo, data_atualizacao):
       options:{{responsive:true,plugins:{{legend:{{position:'top',labels:{{boxWidth:12,padding:12,font:{{size:11}}}}}},tooltip:{{backgroundColor:'#1a2340',borderColor:'#d0d8ea',borderWidth:1,titleColor:'#fff',bodyColor:'#d0d8ea',callbacks:{{label:function(ctx){{return' '+ctx.dataset.label+': '+ctx.raw+'%';}}}}}}}},scales:{{x:{{grid:{{display:false}}}},y:{{min:60,max:100,grid:{{color:'rgba(208,216,234,.3)'}},ticks:{{callback:function(v){{return v+'%';}}}}}}}}}}
     }});
   }})();
+
+  async function exportPDF(){{
+    const btn=document.getElementById('pdfBtn');
+    btn.textContent='⏳ Gerando...'; btn.disabled=true;
+    const load=src=>new Promise((res,rej)=>{{if(document.querySelector(`script[src="${{src}}"]`)){{res();return;}}const s=document.createElement('script');s.src=src;s.onload=res;s.onerror=rej;document.head.appendChild(s);}});
+    try{{
+      await load('https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js');
+      await load('https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js');
+    }}catch(e){{alert('Erro ao carregar bibliotecas de PDF. Verifique a conexão.');btn.textContent='⬇ Exportar PDF';btn.disabled=false;return;}}
+    const {{ jsPDF }}=window.jspdf;
+    const pdf=new jsPDF({{orientation:'portrait',unit:'mm',format:'a4'}});
+    const PW=210,PH=297,MARGIN=12,CONTENT_W=PW-MARGIN*2,HEADER_H=18;
+    let pageNum=1;
+    function header(){{
+      pdf.setFillColor(33,67,142); pdf.rect(0,0,PW,14,'F');
+      [['#21438e',0],['#e63827',52.5],['#2bb19d',105],['#f37f1f',157.5]].forEach(([c,x])=>{{
+        const rgb=c.match(/[\\da-f]{{2}}/gi).map(h=>parseInt(h,16)); pdf.setFillColor(...rgb); pdf.rect(x,14,52.5,2,'F');
+      }});
+      pdf.setFont('helvetica','bold'); pdf.setFontSize(10); pdf.setTextColor(255,255,255);
+      pdf.text('CEDESP DOM BOSCO — Resumo Institucional', MARGIN, 9);
+      pdf.setFont('helvetica','normal'); pdf.setFontSize(8); pdf.setTextColor(180,190,210);
+      pdf.text(`{data_atualizacao}`, PW-MARGIN, 9, {{align:'right'}});
+      pdf.setFontSize(7); pdf.setTextColor(140,150,170); pdf.text(`Página ${{pageNum}}`, PW-MARGIN, PH-4, {{align:'right'}});
+    }}
+    function placePaged(canvas,startY){{
+      const pxPerMm=canvas.width/CONTENT_W; let srcY=0,y=startY,rem=canvas.height;
+      while(rem>0){{
+        let avail=(PH-10)-y; if(avail<20){{pdf.addPage();pageNum++;header();y=HEADER_H+2;avail=(PH-10)-y;}}
+        const sp=Math.min(rem,Math.floor(avail*pxPerMm)); const sm=sp/pxPerMm;
+        const c=document.createElement('canvas');c.width=canvas.width;c.height=sp;
+        c.getContext('2d').drawImage(canvas,0,srcY,canvas.width,sp,0,0,canvas.width,sp);
+        pdf.addImage(c.toDataURL('image/png'),'PNG',MARGIN,y,CONTENT_W,sm);
+        srcY+=sp;rem-=sp;y+=sm+5; if(rem>0){{pdf.addPage();pageNum++;header();y=HEADER_H+2;}}
+      }}
+      return y;
+    }}
+    const sections=[...document.querySelectorAll('.kpi-grid, .table-card, .chart-card, .horario-grid')];
+    let curY=HEADER_H+2; header();
+    for(const el of sections){{
+      const canvas=await html2canvas(el,{{scale:2,useCORS:true,backgroundColor:'#ffffff',logging:false,windowWidth:document.documentElement.scrollWidth}});
+      const imgH=(canvas.height/canvas.width)*CONTENT_W;
+      const pageH=(PH-10)-(HEADER_H+2);
+      if(imgH>pageH){{ if(curY>HEADER_H+4){{pdf.addPage();pageNum++;header();curY=HEADER_H+2;}} curY=placePaged(canvas,curY); }}
+      else {{ if(curY+imgH>PH-10){{pdf.addPage();pageNum++;header();curY=HEADER_H+2;}} pdf.addImage(canvas.toDataURL('image/png'),'PNG',MARGIN,curY,CONTENT_W,imgH); curY+=imgH+5; }}
+    }}
+    pdf.save(`resumo_cedesp_${{new Date().toISOString().slice(0,10)}}.pdf`);
+    btn.textContent='✅ PDF gerado!'; setTimeout(()=>{{btn.textContent='⬇ Exportar PDF';btn.disabled=false;}},3000);
+  }}
 
 </script>
 </body>
