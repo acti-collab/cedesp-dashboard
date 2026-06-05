@@ -556,12 +556,15 @@ footer{{text-align:center;padding:32px;font-size:11px;color:var(--muted)}}
     <div><div class="hd-title">Grade de Aulas Complementares</div>
     <div class="hd-sub">CEDESP Dom Bosco · 1º Semestre 2026 · Cruzamento com Frequência</div></div>
   </div>
-  <div class="hd-badge">📅 {data_at}</div>
+  <div style="display:flex;align-items:center;gap:10px">
+    <button id="pdfBtn" onclick="exportPDF()" style="font-family:'Poppins',sans-serif;font-size:11px;font-weight:500;color:#fff;background:rgba(255,255,255,.14);border:1px solid rgba(255,255,255,.25);padding:6px 14px;border-radius:20px;cursor:pointer;transition:background .15s" onmouseover="this.style.background='rgba(255,255,255,.24)'" onmouseout="this.style.background='rgba(255,255,255,.14)'">⬇ Exportar PDF</button>
+    <div class="hd-badge">📅 {data_at}</div>
+  </div>
 </header>
 <main>
 
 <!-- KPIs -->
-<div style="margin-bottom:28px">
+<div style="margin-bottom:28px" id="sec-kpis">
   <div class="section-row"><div class="section-bar"></div><div class="section-title">Visão Geral</div><div class="section-line"></div></div>
   <div class="kpi-row">
     <div class="kpi-card blue"><div class="kpi-lbl">Cursos</div><div class="kpi-val" style="color:var(--blue)">{n_cursos}</div><div class="kpi-sub">nos 3 turnos</div></div>
@@ -578,7 +581,7 @@ footer{{text-align:center;padding:32px;font-size:11px;color:var(--muted)}}
 </div>
 
 <!-- INSIGHTS AUTOMÁTICOS -->
-<div class="card" style="margin-bottom:28px;border-left:4px solid var(--indigo)">
+<div class="card" style="margin-bottom:28px;border-left:4px solid var(--indigo)" id="sec-insights">
   <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px">
     <span style="font-size:18px">💡</span>
     <span style="font-size:13px;font-weight:600;letter-spacing:.3px;color:var(--text)">Insights automáticos</span>
@@ -596,7 +599,7 @@ footer{{text-align:center;padding:32px;font-size:11px;color:var(--muted)}}
 </div>
 
 <!-- GRÁFICOS -->
-<div class="grid-2">
+<div class="grid-2" id="sec-graficos">
   <div class="card">
     <div class="card-title">Evasão Média por Matéria Complementar</div>
     <div class="card-sub">Queda de presença no dia da complementar vs. dias de FIC do mesmo curso — maior = mais evasão</div>
@@ -609,7 +612,7 @@ footer{{text-align:center;padding:32px;font-size:11px;color:var(--muted)}}
   </div>
 </div>
 
-<div class="card" style="margin-bottom:28px">
+<div class="card" style="margin-bottom:28px" id="sec-ranking">
   <div class="card-title">Evasão por Curso nos Dias de Complementar — Ranking</div>
   <div class="card-sub">Queda de presença no dia da complementar vs. média do curso nos dias de FIC. Cor = turno. Conformidade com a meta no tooltip (indicador separado).</div>
   <div style="display:flex;gap:6px;flex-wrap:wrap;margin:6px 0 14px" id="evasao-curso-turno">
@@ -621,7 +624,7 @@ footer{{text-align:center;padding:32px;font-size:11px;color:var(--muted)}}
   <canvas id="evasaoCursoChart" height="340"></canvas>
 </div>
 
-<div class="card" style="margin-bottom:28px">
+<div class="card" style="margin-bottom:28px" id="sec-lacunas">
   <div class="card-title">Cursos com Lançamentos Pendentes</div>
   <div class="card-sub">Top 5 cursos com mais aulas-dia sem registro até {cutoff_fmt} — não são feriado/parada nem futuro. Para cobrança de lançamento junto aos educadores.</div>
   <div id="lacunasTable" style="margin-top:10px"></div>
@@ -736,7 +739,7 @@ footer{{text-align:center;padding:32px;font-size:11px;color:var(--muted)}}
 </div>
 
 <!-- PROGRESSO POR CURSO -->
-<div>
+<div id="sec-progresso">
   <div class="section-row"><div class="section-bar"></div><div class="section-title">Progresso por Curso</div><div class="section-line"></div></div>
   <div id="progContainer"></div>
 </div>
@@ -1763,6 +1766,73 @@ function renderLacunas(){{
   el.innerHTML=html;
 }}
 
+// EXPORTAÇÃO PDF (html2canvas + jsPDF, carregados sob demanda)
+async function exportPDF(){{
+  const btn=document.getElementById('pdfBtn');
+  const txtOrig=btn.textContent;
+  btn.textContent='⏳ Gerando...'; btn.disabled=true;
+  function loadScript(src){{
+    return new Promise((res,rej)=>{{
+      if(document.querySelector(`script[src="${{src}}"]`)){{res();return;}}
+      const s=document.createElement('script'); s.src=src; s.onload=res; s.onerror=rej;
+      document.head.appendChild(s);
+    }});
+  }}
+  try{{
+    await loadScript('https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js');
+    await loadScript('https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js');
+  }}catch(e){{
+    alert('Erro ao carregar bibliotecas de PDF. Verifique sua conexão.');
+    btn.textContent=txtOrig; btn.disabled=false; return;
+  }}
+  const {{ jsPDF }}=window.jspdf;
+  const pdf=new jsPDF({{orientation:'portrait',unit:'mm',format:'a4'}});
+  const PW=210, PH=297, MARGIN=12, CONTENT_W=PW-MARGIN*2;
+  const HEADER_H=18;
+
+  function addPageHeader(pageNum){{
+    pdf.setFillColor(33,67,142);                 // azul OSDB
+    pdf.rect(0,0,PW,14,'F');
+    const bars=[['#21438e',0],['#e63827',52.5],['#2bb19d',105],['#f37f1f',157.5]];
+    bars.forEach(([c,x])=>{{
+      const rgb=c.match(/[0-9a-f]{{2}}/gi).map(h=>parseInt(h,16));
+      pdf.setFillColor(rgb[0],rgb[1],rgb[2]); pdf.rect(x,14,52.5,2,'F');
+    }});
+    pdf.setFont('helvetica','bold'); pdf.setFontSize(10); pdf.setTextColor(255,255,255);
+    pdf.text('Obra Social Dom Bosco Itaquera — Grade de Aulas Complementares', MARGIN, 9);
+    pdf.setFont('helvetica','normal'); pdf.setFontSize(8); pdf.setTextColor(180,190,210);
+    pdf.text('CEDESP · 1º Sem 2026 · '+new Date().toLocaleDateString('pt-BR'), PW-MARGIN, 9, {{align:'right'}});
+    pdf.setFontSize(7); pdf.setTextColor(140,150,170);
+    pdf.text('Página '+pageNum, PW-MARGIN, PH-4, {{align:'right'}});
+    pdf.setTextColor(140,150,170);
+    pdf.text('salesianossp.org.br/ositaquera/', MARGIN, PH-4);
+  }}
+
+  const sections=['#sec-kpis','#sec-insights','#sec-graficos','#sec-ranking','#sec-lacunas','#sec-progresso'];
+  let curY=HEADER_H+3, pageNum=1;
+  addPageHeader(pageNum);
+
+  for(const sel of sections){{
+    const el=document.querySelector(sel);
+    if(!el) continue;
+    const canvas=await html2canvas(el,{{scale:2,useCORS:true,backgroundColor:'#ffffff',logging:false,windowWidth:document.documentElement.scrollWidth}});
+    const imgW=CONTENT_W;
+    const imgH=(canvas.height/canvas.width)*imgW;
+    if(curY+imgH>PH-10){{
+      pdf.addPage(); pageNum++; addPageHeader(pageNum); curY=HEADER_H+3;
+    }}
+    const finalH=Math.min(imgH, PH-HEADER_H-12);
+    const finalW=(finalH/imgH)*imgW;
+    const xOff=MARGIN+(CONTENT_W-finalW)/2;
+    pdf.addImage(canvas.toDataURL('image/png'),'PNG',xOff,curY,finalW,finalH);
+    curY+=finalH+5;
+  }}
+
+  pdf.save('grade_complementar_'+new Date().toISOString().slice(0,10)+'.pdf');
+  btn.textContent='✅ PDF gerado!';
+  setTimeout(()=>{{ btn.textContent=txtOrig; btn.disabled=false; }},3000);
+}}
+
 // INIT
 renderHoje(); renderInsights(); renderTable(); renderProg(); renderCharts(); renderEvasaoCurso(); renderLacunas();
 </script>
@@ -1770,7 +1840,7 @@ renderHoje(); renderInsights(); renderTable(); renderProg(); renderCharts(); ren
 
 if __name__ == '__main__':
     print("\n" + "="*55)
-    print("  Dashboard Grade Complementar — Gerador v3.3 (feriados móveis + pendências + paradas)")
+    print("  Dashboard Grade Complementar — Gerador v3.4 (+ exportação PDF institucional)")
     print("="*55)
 
     base = sys.argv[1] if len(sys.argv) > 1 else '.'
