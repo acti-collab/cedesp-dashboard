@@ -244,6 +244,10 @@
     .kpi-grid { grid-template-columns: 1fr 1fr; }
     .horario-grid { grid-template-columns: 1fr; }
   }
+  .pdf-btn { display:inline-flex; align-items:center; gap:5px; padding:8px 16px; border-radius:6px; border:1px solid #21438e; background:#21438e; color:#fff; font-family:'Poppins',sans-serif; font-size:12px; font-weight:600; cursor:pointer; transition:all .15s; }
+  .pdf-btn:hover { background:#1a3573; }
+  .pdf-btn:disabled { opacity:.6; cursor:default; }
+  @media print { .pdf-btn { display:none; } }
 </style>
 </head>
 <body>
@@ -262,15 +266,18 @@
       <div class="hm-label">Matrículas</div>
     </div>
     <div class="hm-item">
-      <div class="hm-val" style="color:#4ade80">0/8</div>
+      <div class="hm-val" style="color:#4ade80">2/8</div>
       <div class="hm-label">Superaram a Meta</div>
     </div>
     <div style="width:1px;height:36px;background:var(--border);margin:0 4px"></div>
     <div class="hm-item">
       <div style="font-family:'DM Mono',monospace;font-size:12px;color:var(--text-muted);background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:6px 14px;text-align:center;line-height:1.5">
         📅 Última atualização<br>
-        <span style="color:#21438e;font-size:13px;font-weight:600">05/06/2026 às 10:15</span>
+        <span style="color:#21438e;font-size:13px;font-weight:600">06/06/2026 às 10:15</span>
       </div>
+    </div>
+    <div class="hm-item">
+      <button class="pdf-btn" id="pdfBtn" onclick="exportPDF()">⬇ Exportar PDF</button>
     </div>
   </div>
 </header>
@@ -296,7 +303,7 @@
     </div>
     <div class="kpi-card green">
       <div class="kpi-label">Unidades Acima da Meta de Freq.</div>
-      <div class="kpi-value" style="color:var(--green)">0</div>
+      <div class="kpi-value" style="color:var(--green)">2</div>
       <div class="kpi-sub">de 8 unidades ativas</div>
     </div>
     <div class="kpi-card purple">
@@ -321,11 +328,13 @@
         <tr>
           <th>Unidade</th>
           <th class="right">Meta</th>
+          <th class="right">Inseridos</th>
           <th class="right">Matrículas</th>
-          <th class="right">Frequência</th>
+          <th class="right" title="Desistências acumuladas = inseridos − matrícula">Evasão</th>
+          <th class="right" title="Frequentes no último dia computado">Freq. dia</th>
+          <th class="right" title="Frequência média ao longo do semestre">Média sem.</th>
           <th>Atingimento da Meta</th>
-          <th class="right">Saldo</th>
-          <th class="right">Status</th>
+          <th title="Meta de matrícula (captação) vs meta de presença">Metas</th>
         </tr>
       </thead>
       <tbody id="mainTable"></tbody>
@@ -451,8 +460,8 @@
       <canvas id="evolMatrChart" height="240"></canvas>
     </div>
     <div class="chart-card">
-      <div class="chart-title">Taxa de Frequência por Semestre</div>
-      <div class="chart-sub">Linha verde = referência 85% — pontos coloridos por desempenho</div>
+      <div class="chart-title">Taxa de Frequência por Semestre (presença ÷ matrícula)</div>
+      <div class="chart-sub">Base = matrículas (não a meta) · linha verde = referência 85% · pontos coloridos por desempenho</div>
       <canvas id="evolFreqChart" height="240"></canvas>
     </div>
   </div>
@@ -461,11 +470,11 @@
 
 <footer>
   <div class="footer-text">CEDESP Dom Bosco Itaquera · 1º Semestre 2026 · Dashboard de Acompanhamento</div>
-  <div class="footer-text">Atualizado em 05/06/2026 às 10:15 · Frequência excluindo 30/01 (dia opcional)</div>
+  <div class="footer-text">Atualizado em 06/06/2026 às 10:15 · Frequência excluindo 30/01 (dia opcional)</div>
 </footer>
 
 <script>
-  const units = [{"unit": "CEDESP 1", "meta": 240, "matr": 274, "freq": 228.0, "saldo": -12.0}, {"unit": "CEDESP 2", "meta": 280, "matr": 274, "freq": 186.0, "saldo": -94.0}, {"unit": "CEDESP 3", "meta": 240, "matr": 234, "freq": 149.0, "saldo": -91.0}, {"unit": "CEDESP 4", "meta": 240, "matr": 267, "freq": 118.0, "saldo": -122.0}, {"unit": "CEDESP 5", "meta": 280, "matr": 303, "freq": 157.0, "saldo": -123.0}, {"unit": "CEDESP 6", "meta": 200, "matr": 256, "freq": 141.0, "saldo": -59.0}, {"unit": "CEDESP 7", "meta": 240, "matr": 201, "freq": 74.0, "saldo": -166.0}, {"unit": "CEDESP 8", "meta": 160, "matr": 316, "freq": 76.0, "saldo": -84.0}];
+  const units = [{"unit": "CEDESP 1", "meta": 240, "matr": 274, "inseridos": 405, "freq": 228.0, "freq_media": 243.3, "saldo": -12.0, "dia_ref": "28/05", "desistentes": 131, "evasao_pct": 32.3, "atingiu_matr": true, "atingiu_presenca": true}, {"unit": "CEDESP 2", "meta": 280, "matr": 274, "inseridos": 432, "freq": 186.0, "freq_media": 237.3, "saldo": -94.0, "dia_ref": "28/05", "desistentes": 158, "evasao_pct": 36.6, "atingiu_matr": false, "atingiu_presenca": false}, {"unit": "CEDESP 3", "meta": 240, "matr": 234, "inseridos": 372, "freq": 149.0, "freq_media": 198.4, "saldo": -91.0, "dia_ref": "28/05", "desistentes": 138, "evasao_pct": 37.1, "atingiu_matr": false, "atingiu_presenca": false}, {"unit": "CEDESP 4", "meta": 240, "matr": 267, "inseridos": 399, "freq": 118.0, "freq_media": 227.1, "saldo": -122.0, "dia_ref": "28/05", "desistentes": 132, "evasao_pct": 33.1, "atingiu_matr": true, "atingiu_presenca": false}, {"unit": "CEDESP 5", "meta": 280, "matr": 303, "inseridos": 431, "freq": 157.0, "freq_media": 240.8, "saldo": -123.0, "dia_ref": "28/05", "desistentes": 128, "evasao_pct": 29.7, "atingiu_matr": true, "atingiu_presenca": false}, {"unit": "CEDESP 6", "meta": 200, "matr": 256, "inseridos": 338, "freq": 141.0, "freq_media": 189.9, "saldo": -59.0, "dia_ref": "28/05", "desistentes": 82, "evasao_pct": 24.3, "atingiu_matr": true, "atingiu_presenca": false}, {"unit": "CEDESP 7", "meta": 240, "matr": 201, "inseridos": 316, "freq": 74.0, "freq_media": 161.2, "saldo": -166.0, "dia_ref": "28/05", "desistentes": 115, "evasao_pct": 36.4, "atingiu_matr": false, "atingiu_presenca": false}, {"unit": "CEDESP 8", "meta": 160, "matr": 316, "inseridos": 323, "freq": 76.0, "freq_media": 175.6, "saldo": -84.0, "dia_ref": "15/05", "desistentes": 7, "evasao_pct": 2.2, "atingiu_matr": true, "atingiu_presenca": true}];
 
   const COLORS = [
     '#21438e','#3a6bc4','#5a89d4','#e63827',
@@ -475,30 +484,32 @@
   // ── TABLE ──
   const tbody = document.getElementById('mainTable');
   units.forEach((u, i) => {
-    const pct = ((u.freq / u.meta) * 100).toFixed(1);
+    // Atingimento baseado na MÉDIA semestral (presença estável) vs meta
+    const pct = ((u.freq_media / u.meta) * 100).toFixed(1);
     const pctNum = parseFloat(pct);
-    const fillColor = pctNum >= 100 ? '#1a7a3e' : pctNum >= 85 ? '#c97c1a' : '#e63827';
+    const fillColor = pctNum > 90 ? '#1a7a3e' : pctNum >= 80 ? '#c97c1a' : '#e63827';
     const fillW = Math.min(pctNum, 100);
-    const saldoClass = u.saldo >= 0 ? 'pos' : 'neg';
-    const saldoSign = u.saldo >= 0 ? '+' : '';
-    const status = u.freq >= u.meta ? '✓ Atingiu' : '✗ Abaixo';
-    const statusColor = u.freq >= u.meta ? '#1a7a3e' : '#e63827';
+    const badge = (ok,txt)=>`<span style="display:inline-block;font-size:10px;font-weight:700;padding:2px 7px;border-radius:3px;margin:1px;background:${ok?'rgba(26,122,62,.12)':'rgba(230,56,39,.12)'};color:${ok?'#1a7a3e':'#e63827'}">${ok?'✓':'✗'} ${txt}</span>`;
+    const evPct = u.evasao_pct||0;
+    const evColor = evPct>=40?'#e63827':evPct>=25?'#c97c1a':'#5c6b8a';
     tbody.innerHTML += `
       <tr>
         <td><div class="unit-name"><div class="unit-dot" style="background:${COLORS[i]}"></div>${u.unit}</div></td>
         <td class="right mono">${u.meta}</td>
+        <td class="right mono">${u.inseridos}</td>
         <td class="right mono">${u.matr}</td>
-        <td class="right mono">${u.freq}</td>
+        <td class="right mono" title="${u.desistentes} de ${u.inseridos} que entraram desistiram"><span style="color:${evColor};font-weight:600">${u.desistentes} <span style="opacity:.7;font-size:11px">(${evPct.toFixed(0)}%)</span></span></td>
+        <td class="right mono" title="Último dia computado${u.dia_ref?' — '+u.dia_ref:''}">${u.freq}${u.dia_ref?' <span style="font-size:9px;color:var(--text-muted)">'+u.dia_ref+'</span>':''}</td>
+        <td class="right mono" style="font-weight:600">${u.freq_media}</td>
         <td>
           <div class="prog-wrap">
-            <div class="prog-bar" style="max-width:160px">
+            <div class="prog-bar" style="max-width:140px">
               <div class="prog-fill" style="width:${fillW}%;background:${fillColor}"></div>
             </div>
             <div class="prog-pct" style="color:${fillColor}">${pct}%</div>
           </div>
         </td>
-        <td class="right"><span class="saldo-pill ${saldoClass}">${saldoSign}${u.saldo}</span></td>
-        <td class="right" style="font-size:12px;color:${statusColor};font-weight:600">${status}</td>
+        <td>${badge(u.atingiu_matr,'Matríc.')}${badge(u.atingiu_presenca,'Presença')}</td>
       </tr>`;
   });
 
@@ -647,6 +658,54 @@
       options:{responsive:true,plugins:{legend:{position:'top',labels:{boxWidth:12,padding:12,font:{size:11}}},tooltip:{backgroundColor:'#1a2340',borderColor:'#d0d8ea',borderWidth:1,titleColor:'#fff',bodyColor:'#d0d8ea',callbacks:{label:function(ctx){return' '+ctx.dataset.label+': '+ctx.raw+'%';}}}},scales:{x:{grid:{display:false}},y:{min:60,max:100,grid:{color:'rgba(208,216,234,.3)'},ticks:{callback:function(v){return v+'%';}}}}}
     });
   })();
+
+  async function exportPDF(){
+    const btn=document.getElementById('pdfBtn');
+    btn.textContent='⏳ Gerando...'; btn.disabled=true;
+    const load=src=>new Promise((res,rej)=>{if(document.querySelector(`script[src="${src}"]`)){res();return;}const s=document.createElement('script');s.src=src;s.onload=res;s.onerror=rej;document.head.appendChild(s);});
+    try{
+      await load('https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js');
+      await load('https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js');
+    }catch(e){alert('Erro ao carregar bibliotecas de PDF. Verifique a conexão.');btn.textContent='⬇ Exportar PDF';btn.disabled=false;return;}
+    const { jsPDF }=window.jspdf;
+    const pdf=new jsPDF({orientation:'portrait',unit:'mm',format:'a4'});
+    const PW=210,PH=297,MARGIN=12,CONTENT_W=PW-MARGIN*2,HEADER_H=18;
+    let pageNum=1;
+    function header(){
+      pdf.setFillColor(33,67,142); pdf.rect(0,0,PW,14,'F');
+      [['#21438e',0],['#e63827',52.5],['#2bb19d',105],['#f37f1f',157.5]].forEach(([c,x])=>{
+        const rgb=c.match(/[\da-f]{2}/gi).map(h=>parseInt(h,16)); pdf.setFillColor(...rgb); pdf.rect(x,14,52.5,2,'F');
+      });
+      pdf.setFont('helvetica','bold'); pdf.setFontSize(10); pdf.setTextColor(255,255,255);
+      pdf.text('CEDESP DOM BOSCO — Resumo Institucional', MARGIN, 9);
+      pdf.setFont('helvetica','normal'); pdf.setFontSize(8); pdf.setTextColor(180,190,210);
+      pdf.text(`06/06/2026 às 10:15`, PW-MARGIN, 9, {align:'right'});
+      pdf.setFontSize(7); pdf.setTextColor(140,150,170); pdf.text(`Página ${pageNum}`, PW-MARGIN, PH-4, {align:'right'});
+    }
+    function placePaged(canvas,startY){
+      const pxPerMm=canvas.width/CONTENT_W; let srcY=0,y=startY,rem=canvas.height;
+      while(rem>0){
+        let avail=(PH-10)-y; if(avail<20){pdf.addPage();pageNum++;header();y=HEADER_H+2;avail=(PH-10)-y;}
+        const sp=Math.min(rem,Math.floor(avail*pxPerMm)); const sm=sp/pxPerMm;
+        const c=document.createElement('canvas');c.width=canvas.width;c.height=sp;
+        c.getContext('2d').drawImage(canvas,0,srcY,canvas.width,sp,0,0,canvas.width,sp);
+        pdf.addImage(c.toDataURL('image/png'),'PNG',MARGIN,y,CONTENT_W,sm);
+        srcY+=sp;rem-=sp;y+=sm+5; if(rem>0){pdf.addPage();pageNum++;header();y=HEADER_H+2;}
+      }
+      return y;
+    }
+    const sections=[...document.querySelectorAll('.kpi-grid, .table-card, .chart-card, .horario-grid')];
+    let curY=HEADER_H+2; header();
+    for(const el of sections){
+      const canvas=await html2canvas(el,{scale:2,useCORS:true,backgroundColor:'#ffffff',logging:false,windowWidth:document.documentElement.scrollWidth});
+      const imgH=(canvas.height/canvas.width)*CONTENT_W;
+      const pageH=(PH-10)-(HEADER_H+2);
+      if(imgH>pageH){ if(curY>HEADER_H+4){pdf.addPage();pageNum++;header();curY=HEADER_H+2;} curY=placePaged(canvas,curY); }
+      else { if(curY+imgH>PH-10){pdf.addPage();pageNum++;header();curY=HEADER_H+2;} pdf.addImage(canvas.toDataURL('image/png'),'PNG',MARGIN,curY,CONTENT_W,imgH); curY+=imgH+5; }
+    }
+    pdf.save(`resumo_cedesp_${new Date().toISOString().slice(0,10)}.pdf`);
+    btn.textContent='✅ PDF gerado!'; setTimeout(()=>{btn.textContent='⬇ Exportar PDF';btn.disabled=false;},3000);
+  }
 
 </script>
 </body>
