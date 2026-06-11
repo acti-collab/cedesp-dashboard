@@ -40,13 +40,13 @@ jobs:
       # 4. Gera os dashboards
       - name: Gerar dashboard — Cursos e Frequência
         run: python gerar_dashboardv1.py "1º_Sem__-__2026.xlsx"
-        
-      - name: Gerar dashboard Demanda —  (CEDESP)
-        run: python gerar_dashboard_demanda.py 
 
       - name: Gerar dashboard — Resumo Institucional (CEDESP)
         run: python gerar_dashboard_resumo_institucional.py "1º_Sem__-__2026.xlsx"
 
+      - name: Gerar dashboard Demanda —  (CEDESP)
+        run: python gerar_dashboard_demanda.py 
+        
       - name: Gerar dashboard — Grade Complementar
         run: python gerar_dashboard_complementar.py .
 
