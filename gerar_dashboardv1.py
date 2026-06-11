@@ -1,1321 +1,739 @@
 #!/usr/bin/env python3
+# -*- coding: utf-8 -*-
 """
-gerar_dashboard_frequencia.py
-=============================
-Gera APENAS o Dashboard de FREQUÊNCIA POR CURSO do CEDESP Dom Bosco Itaquera.
-O resumo institucional por unidade é gerado pelo script separado:
-    python gerar_dashboard_resumo.py planilha.xlsx
+Dashboard de PLANEJAMENTO DE DEMANDA — CEDESP / Obra Social Dom Bosco Itaquera
+================================================================================
+Analisa os dados de DEMANDA INICIAL (colunas A=C/ENTR, B=S/ENTR, C=TOTAL, sob o
+cabeçalho "DEMANDA / SOCIAL") da planilha do semestre, cruzando-os com a META do
+convênio (col F = 20) e com a EVASÃO observada no semestre corrente, para planejar
+o preenchimento das turmas do PRÓXIMO semestre.
 
-Uso:
-    python gerar_dashboard_frequencia.py                          # planilha padrão
-    python gerar_dashboard_frequencia.py "caminho/planilha.xlsx"  # arquivo específico
+Pergunta central: a demanda captada para cada turma é suficiente para fechar a
+meta do convênio MESMO depois da evasão histórica daquele curso?
 
-Saída:
-    dashboard_cursos_frequencia.html   (pronto para publicar no Google Sites)
+Necessidade ajustada = ceil( meta / (1 - evasão) )
+  ex.: meta 20 com evasão de 30%  ->  20 / 0,70  ≈  29 candidatos.
+
+Classificação por turma (4 estados):
+  ⚪ SEM DEMANDA   — demanda = 0 (provável lançamento na turma-irmã do mesmo curso);
+                     excluída do denominador de cobertura (honestidade de cobertura).
+  🔴 ABAIXO DA META — 0 < demanda < meta.
+  🟡 RISCO DE EVASÃO — meta ≤ demanda < necessidade ajustada (fecha hoje, esvazia depois).
+  🟢 COBERTO        — demanda ≥ necessidade ajustada (margem segura).
+
+ARQUIVO AUTOSSUFICIENTE: o motor de extração está embutido neste próprio script
+(função extrair_demanda) — não depende de nenhum outro .py na pasta. Basta ter a
+planilha .xlsx no mesmo diretório e rodar; o HTML é gerado ao lado do script.
 """
-
-import sys
-import json
-import os
-from datetime import datetime, timezone, timedelta
+import os, sys, glob, json, math
+from datetime import datetime
 import pandas as pd
 
-# ── CONFIGURAÇÃO ──────────────────────────────────────────────────────────────
-PLANILHA_PADRAO = "1º_Sem__-__2026.xlsx"   # altere se o nome mudar
-SAIDA_CURSOS    = "dashboard_cursos_frequencia.html"
-# ─────────────────────────────────────────────────────────────────────────────
+# ---------------------------------------------------------------- constantes
+META_PADRAO    = 20      # meta do convênio (fallback se a célula vier vazia)
+EVA_CAP        = 0.95    # teto técnico de evasão só para não dividir por zero
+TETO_INSERIDOS = 30      # teto realista de inseridos no início do semestre (editável na UI)
+NET_EVA        = 32.4    # evasão média da rede (piso opcional)
+SAIDA_HTML     = "dashboard_demanda.html"
 
-# ── CALENDÁRIO DE DIAS SEM AULA ───────────────────────────────────────────────
-# Feriados móveis são CALCULADOS a partir da Páscoa (ajustam-se sozinhos a cada
-# ano). Paradas institucionais NÃO dá para calcular — ficam nestas listas, fáceis
-# de editar conforme o semestre avança.
-#
-# IMPORTANTE (diferença em relação ao dashboard complementar): nos cursos FIC
-# principais, 09/04 e 22/05 tiveram presença normal em dezenas de turmas — então
-# AQUI eles entram como PARADA PARCIAL (educador ausente em parte das turmas), e
-# não como parada de dia inteiro. Confirme com a coordenação e ajuste se preciso.
-
-# Paradas de DIA INTEIRO (nenhuma turma teve aula → data não conta como pendência)
-PARADAS_FULL = {
-    "2026-04-10": "Parada pedagógica",
-    "2026-05-29": "Parada pedagógica",
+# Normalização de rótulos de eixo (corrige typo de origem; não altera a planilha)
+EIXO_FIX = {
+    "CONTROLE E PROCESSOS INDUSTRAIIS": "CONTROLE E PROCESSOS INDUSTRIAIS",
 }
 
-# Paradas PARCIAIS: parte dos educadores ausente. Nesses dias, a turma SEM registro
-# = não houve aula para ela (não é pendência); a turma COM registro teve aula normal.
-PARADAS_PARCIAIS = {
-    "2026-03-06", "2026-03-13", "2026-03-20", "2026-03-23", "2026-03-30",
-    "2026-04-09", "2026-05-22",
-}
-
-# Datas anômalas pendentes de classificação (nenhuma no momento — todas confirmadas).
-PARADAS_A_CONFIRMAR = {}
+# Palavras que NÃO são nomes de curso (linhas de total, planejamento etc.)
+SKIP_WORDS = ["TOTAL", "SALDO", "PLANEJAMENTO", "NÃO FEZ", "ANTES DA", "ELETROTÉCNICA",
+              "GUIA PRONATEC", "PARADA PEDAGÓGICA", "CURSOS ABAIXO"]
 
 
-def feriados_do_ano(ano):
-    """Retorna {YYYY-MM-DD: nome} dos feriados que afetam o calendário letivo de SP.
-    Os móveis (Carnaval, Cinzas, Sexta Santa, Corpus Christi) derivam da Páscoa."""
-    from datetime import date, timedelta
-    # Páscoa (algoritmo de Gauss/Anonymous Gregorian)
-    a = ano % 19
-    b = ano // 100
-    c = ano % 100
-    d = b // 4
-    e = b % 4
-    f = (b + 8) // 25
-    g = (b - f + 1) // 3
-    h = (19 * a + b - d - g + 15) % 30
-    i = c // 4
-    k = c % 4
-    l = (32 + 2 * e + 2 * i - h - k) % 7
-    m = (a + 11 * h + 22 * l) // 451
-    mes = (h + l - 7 * m + 114) // 31
-    dia = ((h + l - 7 * m + 114) % 31) + 1
-    pascoa = date(ano, mes, dia)
-    fer = {
-        (pascoa - timedelta(days=48)).isoformat(): "Carnaval",
-        (pascoa - timedelta(days=47)).isoformat(): "Carnaval",
-        (pascoa - timedelta(days=46)).isoformat(): "Quarta-feira de Cinzas",
-        (pascoa - timedelta(days=2)).isoformat():  "Sexta-feira Santa",
-        (pascoa + timedelta(days=60)).isoformat(): "Corpus Christi",
-        f"{ano}-01-25": "Aniversário de São Paulo",
-        f"{ano}-04-21": "Tiradentes",
-        f"{ano}-05-01": "Dia do Trabalho",
-        f"{ano}-07-09": "Revolução Constitucionalista (SP)",
-        f"{ano}-09-07": "Independência",
-        f"{ano}-10-12": "Nossa Senhora Aparecida",
-        f"{ano}-11-02": "Finados",
-        f"{ano}-11-15": "Proclamação da República",
-        f"{ano}-11-20": "Consciência Negra",
-        f"{ano}-12-25": "Natal",
-    }
-    return fer
-
-
-def _sortdate_to_iso(sort_date, ano):
-    """'MM/DD' -> 'YYYY-MM-DD'."""
-    mm, dd = sort_date.split("/")
-    return f"{ano}-{int(mm):02d}-{int(dd):02d}"
-
-
-def calcular_pendencias(cursos, period_dates):
-    """Calcula, de forma honesta e ciente do calendário, as pendências de lançamento.
-
-    Para cada turma:
-      esperado   = datas-coluna do período ATÉ o cutoff, exceto feriados/paradas full
-      registrado = datas com valor numérico
-      pendência  = esperado − registrado − (paradas parciais sem registro)
-
-    Retorna (cutoff_display, no_class_map, resumo_global) e injeta em cada curso:
-      'pendentes' (int), 'pendentes_datas' (list[str DD/MM]), 'dias_sem_aula' (int).
-    """
-    # ano de referência = ano dominante (datas vêm como MM/DD, sem ano → assume 2026)
-    ano = 2026
-    feriados = feriados_do_ano(ano)
-
-    # cutoff = última data com QUALQUER lançamento (global)
-    todas = sorted({sd for c in cursos for (sd, dd, fr) in c["daily"]})
-    cutoff_sort = todas[-1] if todas else None
-    cutoff_disp = None
-    if cutoff_sort:
-        mm, dd = cutoff_sort.split("/")
-        cutoff_disp = f"{int(dd):02d}/{int(mm):02d}"
-
-    # mapa de dias sem aula {DD/MM: motivo} — feriados/paradas full que caem em dia
-    # ÚTIL dentro da janela do semestre (independe de haver coluna na planilha)
-    from datetime import date as _date
-    no_class = {}
-    if todas:
-        ini_iso = _sortdate_to_iso(todas[0], ano)
-        fim_iso = _sortdate_to_iso(todas[-1], ano)
-        for iso, nome in {**feriados, **PARADAS_FULL}.items():
-            if ini_iso <= iso <= fim_iso:
-                y, m, dd = map(int, iso.split("-"))
-                if _date(y, m, dd).weekday() < 5:        # seg–sex
-                    no_class[f"{dd:02d}/{m:02d}"] = nome
-
-    paradas_full_sort  = {_iso_to_sort(i) for i in PARADAS_FULL}
-    paradas_parc_sort  = {_iso_to_sort(i) for i in PARADAS_PARCIAIS}
-    feriados_sort      = {_iso_to_sort(i) for i in feriados}
-
-    # DIAS SEM AULA DETECTADOS POR DADOS: qualquer data-coluna em que NENHUMA turma
-    # da rede lançou frequência é, na prática, dia sem aula (emenda/parada não
-    # mapeada). Pega automaticamente casos como a véspera de feriado (emenda).
-    from collections import Counter as _C
-    cnt = _C(sd for c in cursos for (sd, dd, fr) in c["daily"])
-    todas_colunas = set()
-    for pds in period_dates.values():
-        for (sd, dd) in pds:
-            todas_colunas.add((sd, dd))
-    zero_dates = {sd for (sd, dd) in todas_colunas
-                  if cnt.get(sd, 0) == 0 and (not cutoff_sort or sd <= cutoff_sort)}
-    for (sd, dd) in todas_colunas:
-        if sd in zero_dates:
-            nome = feriados.get(_sortdate_to_iso(sd, ano)) \
-                   or PARADAS_FULL.get(_sortdate_to_iso(sd, ano)) \
-                   or "Sem aula (emenda/parada)"
-            no_class[dd] = nome
-    no_aula_sort = feriados_sort | paradas_full_sort | zero_dates
-
-    total_pend = 0
-    for c in cursos:
-        pdates = period_dates.get((c["unit"], c["period"]), [])
-        registrado = {sd for (sd, dd, fr) in c["daily"]}
-        if not registrado:
-            c["pendentes"] = 0; c["pendentes_datas"] = []; c["dias_sem_aula"] = 0
-            continue
-        first_rec = min(registrado)
-        last_rec  = max(registrado)
-        pend = []
-        for (sd, dd) in sorted(pdates):
-            # LACUNA INTERNA: só entre a 1ª e a última chamada da turma
-            # (evita falso-positivo de turma que começou tarde ou terminou cedo)
-            if not (first_rec < sd < last_rec):
-                continue
-            if sd in no_aula_sort:
-                continue            # feriado/parada/emenda → não há aula
-            if sd in registrado:
-                continue            # já lançado
-            if sd in paradas_parc_sort:
-                continue            # parada parcial s/ registro → sem aula p/ a turma
-            pend.append(dd)         # pendência real (lacuna no meio do curso)
-        c["pendentes"] = len(pend)
-        c["pendentes_datas"] = pend
-        c["dias_sem_aula"] = sum(
-            1 for (sd, dd) in pdates
-            if (first_rec <= sd <= last_rec) and sd in no_aula_sort
-        )
-        total_pend += len(pend)
-
-    resumo = {
-        "cutoff": cutoff_disp,
-        "total_pendentes": total_pend,
-        "cursos_com_pendencia": sum(1 for c in cursos if c["pendentes"] > 0),
-        "dias_sem_aula": len(no_class),
-    }
-    return cutoff_disp, no_class, resumo
-
-
-def _iso_to_sort(iso):
-    """'YYYY-MM-DD' -> 'MM/DD'."""
-    _, mm, dd = iso.split("-")
-    return f"{int(mm):02d}/{int(dd):02d}"
-
-
+# ================================================================ MOTOR DE EXTRAÇÃO (EMBUTIDO)
 def carregar_planilha(caminho):
-    print(f"📂  Lendo planilha: {caminho}")
+    """Lê todas as abas da planilha sem cabeçalho fixo."""
+    print(f"  📄  Planilha: {os.path.basename(caminho)}")
     if not os.path.exists(caminho):
-        print(f"❌  Arquivo não encontrado: {caminho}")
-        sys.exit(1)
+        print(f"  ❌  Arquivo não encontrado: {caminho}"); sys.exit(1)
     return pd.read_excel(caminho, sheet_name=None, header=None)
 
 
-def extrair_totais(sheets):
-    """Extrai resumo por unidade da aba TOTAIS."""
-    df = sheets.get("TOTAIS")
-    if df is None:
-        return []
+def extrair_demanda(sheets):
+    """Extrator embutido e autossuficiente.
 
-    unidades = []
-    for idx in range(len(df)):
-        row = df.iloc[idx]
-        val0 = str(row.iloc[0]).strip() if pd.notna(row.iloc[0]) else ""
-        if "CEDESP" in val0 and "TOTAL" not in val0.upper():
-            try:
-                meta  = float(row.iloc[1]) if pd.notna(row.iloc[1]) else 0
-                matr  = float(row.iloc[2]) if pd.notna(row.iloc[2]) else 0
-                freq  = float(row.iloc[3]) if pd.notna(row.iloc[3]) else 0
-                saldo = float(row.iloc[4]) if pd.notna(row.iloc[4]) else 0
-                unidades.append({
-                    "unit": val0.strip(),
-                    "meta": meta,
-                    "matr": matr,
-                    "freq": freq,
-                    "saldo": saldo,
-                })
-            except (ValueError, TypeError):
-                continue
-    return unidades
-
-
-def extrair_cursos(sheets):
-    """Extrai dados de frequência por curso de cada aba CEDESP.
-
-    Retorna (all_courses, period_dates) onde period_dates[(unit,period)] é a lista
-    de (sort_date, display_date) de TODAS as colunas FREQ daquele período — ou seja,
-    os dias letivos previstos (usado para calcular pendências honestas).
+    Para cada turma das abas CEDESP 1..8 lê, detectando as colunas pelo cabeçalho
+    (mesma lógica do gerador de frequência):
+      • demanda  — col A (C/ENTR), col B (S/ENTR), total = A + B
+      • eixo tecnológico, meta (META CONVÊNIO), inseridos, matrícula
+      • evasão acumulada = (inseridos − matrícula) ÷ inseridos, quando inseridos ≥ matrícula
+    Retorna a lista de dicionários já pronta para o dashboard.
     """
-    all_courses = []
-    period_dates = {}
-
+    dados = []
     for i in range(1, 9):
-        sheet_name = f"CEDESP {i}"
-        df = sheets.get(sheet_name)
+        sn = f"CEDESP {i}"
+        df = sheets.get(sn)
         if df is None:
-            print(f"  ⚠️  Aba '{sheet_name}' não encontrada, pulando.")
-            continue
+            print(f"  ⚠️  Aba '{sn}' não encontrada, pulando."); continue
 
-        print(f"  📊  Processando {sheet_name}...", end=" ")
-
-        # Identifica linhas de cabeçalho de período
-        # Exige a célula contenha "CURSO" + identificador do período
-        # (mais robusto que aceitar qualquer "MANHÃ"/"TARDE"/"NOITE" isolado)
+        # 1) linhas de cabeçalho de período: célula com "CURSO" + identificador do turno
         period_rows = {}
         for idx in range(len(df)):
             row = df.iloc[idx]
-            for col_idx in range(len(row)):
-                val = row.iloc[col_idx]
-                if pd.notna(val) and isinstance(val, str):
-                    v = val.strip().upper()
-                    if "CURSO" not in v:
-                        continue
-                    if "MANHÃ" in v or "MANHA" in v:
-                        period_rows[idx] = "Manhã"; break
-                    elif "TARDE" in v:
-                        period_rows[idx] = "Tarde"; break
-                    elif "NOITE" in v:
-                        period_rows[idx] = "Noite"; break
-
-        # Para cada período, extrai layout de colunas
-        period_col_layouts = {}
-        for pidx, period in period_rows.items():
-            row = df.iloc[pidx]
-            layout = {}
             for c in range(len(row)):
-                val = row.iloc[c]
-                if pd.notna(val) and isinstance(val, str):
-                    v = val.strip().upper()
-                    if "CURSO" in v and any(p in v for p in ["MANHÃ","TARDE","NOITE","MANHA"]):
-                        layout["name_col"] = c
-                    elif "EIXO" in v:
-                        layout["eixo_col"] = c
-                    elif "META" in v and "CONV" in v:
-                        layout["meta_col"] = c
-                    elif "INSERIDO" in v:
-                        layout["ins_col"] = c
-                    elif "MATR" in v:
-                        layout["matr_col"] = c
-                    elif "VAGA" in v:
-                        layout["vagas_col"] = c
-            period_col_layouts[pidx] = (period, layout)
+                v = row.iloc[c]
+                if pd.notna(v) and isinstance(v, str):
+                    u = v.strip().upper()
+                    if "CURSO" not in u:
+                        continue
+                    if "MANHÃ" in u or "MANHA" in u: period_rows[idx] = "Manhã"; break
+                    elif "TARDE" in u:               period_rows[idx] = "Tarde"; break
+                    elif "NOITE" in u:               period_rows[idx] = "Noite"; break
 
-        # Identifica colunas FREQ por período
-        # Todas as colunas com cabeçalho FREQ, excluindo 30/01 (dia opcional)
-        SKIP_DATES = {"30/01", "30/1"}
-        
-        def parse_date_br(val):
-            """Converte data para (mês, dia) no formato BR DD/MM.
-            
-            ATENÇÃO: O Excel auto-converte certas strings DD/MM (ex: '06/02', '09/02') em
-            datetime objects interpretando-as como MM/DD (americano). Exemplo:
-              '06/02' (6 de fev) → datetime(2025, 6, 2) onde .month=6, .day=2
-            Para recuperar a data correta, INVERTEMOS .day↔.month nos datetime objects.
-            """
-            import re as _re
-            if val is None or (isinstance(val, float) and pd.isna(val)):
-                return None
-            # Datetime do Excel: inverte day↔month para recuperar o original BR
-            if hasattr(val, "month"):
-                real_month = val.day
-                real_day   = val.month
-                if not (1 <= real_month <= 12 and 1 <= real_day <= 31):
-                    return None
-                return (real_month, real_day)
-            s = str(val).strip()
-            m = _re.match(r"^(\d{1,2})[/\-](\d{1,2})$", s)
-            if m:
-                return (int(m.group(2)), int(m.group(1)))  # (mês, dia)
-            return None
-        
-        freq_cols_by_period = {}
-        for pidx in period_col_layouts:
-            header   = df.iloc[pidx]
-            date_row = df.iloc[pidx + 1] if pidx + 1 < len(df) else None
-            cols = []
-            for c in range(len(header)):
-                if pd.notna(header.iloc[c]) and str(header.iloc[c]).strip().upper() == "FREQ":
-                    raw = date_row.iloc[c] if date_row is not None and pd.notna(date_row.iloc[c]) else None
-                    date_str = str(raw).strip() if raw is not None else ""
-                    if date_str in SKIP_DATES:
-                        continue  # ignora dia opcional 30/01
-                    parsed = parse_date_br(raw)
-                    if parsed is None:
-                        continue  # data inválida, pula
-                    month, day = parsed
-                    sort_date    = f"{month:02d}/{day:02d}"   # MM/DD para ordenação
-                    display_date = f"{day:02d}/{month:02d}"   # DD/MM para exibição BR
-                    cols.append((c, sort_date, display_date))
-            freq_cols_by_period[pidx] = cols
+        # 2) layout de colunas por período (detecção por palavra-chave do cabeçalho)
+        layouts = {}
+        for pidx, per in period_rows.items():
+            row = df.iloc[pidx]; lay = {}
+            for c in range(len(row)):
+                v = row.iloc[c]
+                if pd.notna(v) and isinstance(v, str):
+                    u = v.strip().upper()
+                    if "CURSO" in u and any(p in u for p in ["MANHÃ", "MANHA", "TARDE", "NOITE"]):
+                        lay["name"] = c
+                    elif "EIXO" in u:                  lay["eixo"] = c
+                    elif "META" in u and "CONV" in u:  lay["meta"] = c
+                    elif "INSERIDO" in u:              lay["ins"]  = c
+                    elif "MATR" in u:                  lay["matr"] = c
+            layouts[pidx] = (per, lay)
 
-        # Extrai linhas de curso
-        period_list = sorted(period_col_layouts.keys())
-        cursos_encontrados = 0
+        # 3) extrai linhas de curso de cada bloco de período
+        plist = sorted(layouts.keys()); achados = 0
+        for pi, pidx in enumerate(plist):
+            per, lay = layouts[pidx]
+            nxt = plist[pi + 1] if pi + 1 < len(plist) else len(df)
+            nc = lay.get("name", 3); ec = lay.get("eixo", 4)
+            mc = lay.get("meta", 5); ic = lay.get("ins", 7); tc = lay.get("matr", 8)
 
-        for p_i, pidx in enumerate(period_list):
-            period, layout = period_col_layouts[pidx]
-            freq_cols = freq_cols_by_period[pidx]
-            # Dias letivos previstos do período (todas as colunas FREQ com data)
-            pd_key = (sheet_name, period)
-            seen = period_dates.setdefault(pd_key, [])
-            seen_set = {sd for sd, _ in seen}
-            for (_c, sd, dd) in freq_cols:
-                if sd not in seen_set:
-                    seen.append((sd, dd)); seen_set.add(sd)
-            next_pidx = period_list[p_i + 1] if p_i + 1 < len(period_list) else len(df)
-
-            name_col = layout.get("name_col", 3)
-            ins_col  = layout.get("ins_col",  7)
-            matr_col = layout.get("matr_col", 8)
-            meta_col = layout.get("meta_col", 5)
-
-            for ridx in range(pidx + 2, next_pidx):
+            for ridx in range(pidx + 2, nxt):
                 row = df.iloc[ridx]
-
-                # Nome do curso
-                course_name = None
-                val = row.iloc[name_col] if name_col < len(row) else None
-                if pd.notna(val) and isinstance(val, str):
-                    v = val.strip()
-                    skip_words = ["TOTAL","SALDO","PLANEJAMENTO","NÃO FEZ","ANTES DA","ELETROTÉCNICA",
-                                  "GUIA PRONATEC","PARADA PEDAGÓGICA","CURSOS ABAIXO"]
-                    if v and not any(s in v.upper() for s in skip_words) and len(v) > 2:
-                        course_name = v
-
-                if course_name is None:
+                val = row.iloc[nc] if nc < len(row) else None
+                if not (pd.notna(val) and isinstance(val, str)):
+                    continue
+                nome = val.strip()
+                if not nome or len(nome) <= 2 or any(s in nome.upper() for s in SKIP_WORDS):
                     continue
 
-                # Métricas numéricas
-                def safe_float(c):
+                def num(c):
                     if c >= len(row): return None
                     v = row.iloc[c]
                     return float(v) if pd.notna(v) and isinstance(v, (int, float)) else None
 
-                meta      = safe_float(meta_col)
-                matr      = safe_float(matr_col)
-                inseridos = safe_float(ins_col)
+                meta = num(mc); matr = num(tc); ins = num(ic)
+                centr = int(row.iloc[0]) if len(row) > 0 and pd.notna(row.iloc[0]) and isinstance(row.iloc[0], (int, float)) else 0
+                sentr = int(row.iloc[1]) if len(row) > 1 and pd.notna(row.iloc[1]) and isinstance(row.iloc[1], (int, float)) else 0
+                eva = round((ins - matr) / ins * 100, 1) if (ins and matr and ins >= matr) else None
+                eixo = row.iloc[ec] if ec < len(row) and pd.notna(row.iloc[ec]) else ""
+                eixo = EIXO_FIX.get(str(eixo).strip().upper(), str(eixo).strip().upper())
 
-                # Frequências diárias — toda coluna FREQ com valor numérico = 1 aula
-                day_freqs = []
-                last_date = None
-                last_date_display = None
-                daily = []  # list of (sort_date, display_date, freq)
-                for col_idx, sort_date, display_date in freq_cols:
-                    if col_idx < len(row):
-                        v = row.iloc[col_idx]
-                        if pd.notna(v) and isinstance(v, (int, float)):
-                            day_freqs.append(float(v))
-                            daily.append((sort_date, display_date, float(v)))
-                            last_date = sort_date
-                            last_date_display = display_date
-
-                freq_avg    = round(sum(day_freqs) / len(day_freqs), 1) if day_freqs else 0
-                n_classes   = len(day_freqs)
-                last_freq   = int(day_freqs[-1]) if day_freqs else None
-
-                # Weekly aggregates (for trend chart) — compact format
-                from datetime import datetime, timedelta
-                week_agg = {}
-                for (sd, dd, fr) in daily:
-                    try:
-                        parts = sd.split('/')
-                        month, day_n = int(parts[0]), int(parts[1])
-                        dt = datetime(2026, month, day_n)
-                        dow = dt.weekday()
-                        week_start = dt - timedelta(days=dow)
-                        wk = week_start.strftime('%d/%m')
-                        if wk not in week_agg:
-                            week_agg[wk] = [0, 0]
-                        week_agg[wk][0] += fr
-                        week_agg[wk][1] += 1
-                    except Exception:
-                        pass
-                week_avgs = {wk: round(v[0]/v[1], 1) for wk, v in week_agg.items()}
-                attend_rate = round(freq_avg / meta * 100, 1) if meta and meta > 0 and freq_avg > 0 else 0
-                evasao      = round(matr - freq_avg, 1) if matr else None      # ausência/dia
-                evasao_pct  = round(evasao / matr * 100, 1) if matr and evasao is not None else None
-
-                # EVASÃO ACUMULADA: alunos que entraram (inseridos) e não seguem
-                # matriculados → desistências desde o início do semestre.
-                if inseridos and matr and inseridos >= matr:
-                    desistentes     = int(round(inseridos - matr))
-                    evasao_acum_pct = round(desistentes / inseridos * 100, 1) if inseridos else None
-                else:
-                    desistentes     = None
-                    evasao_acum_pct = None
-
-                centr     = int(row.iloc[0]) if pd.notna(row.iloc[0]) and isinstance(row.iloc[0], (int, float)) else 0
-                sentr     = int(row.iloc[1]) if pd.notna(row.iloc[1]) and isinstance(row.iloc[1], (int, float)) else 0
-                dem_total = centr + sentr
-
-                all_courses.append({
-                    "unit":         sheet_name,
-                    "period":       period,
-                    "course":       course_name,
-                    "meta":         meta,
-                    "matr":         matr,
-                    "inseridos":    inseridos,
-                    "freq_avg":     freq_avg,
-                    "n_classes":    n_classes,
-                    "attend_rate":  attend_rate,
-                    "evasao":       evasao,
-                    "daily":        [[sd, dd, int(fr)] for sd, dd, fr in daily],
-                    "last_freq":    last_freq,
-                    "week_avgs":    week_avgs,
-                    "last_date":    last_date,
-                    "last_date_display": last_date_display,
-                    "evasao_pct":   evasao_pct,
-                    "desistentes":  desistentes,
-                    "evasao_acum_pct": evasao_acum_pct,
-                    "centr":        centr,
-                    "sentr":        sentr,
-                    "dem_total":    dem_total,
+                dados.append({
+                    "unit": sn, "period": per, "course": nome, "eixo": eixo,
+                    "centr": centr, "sentr": sentr, "dem_total": centr + sentr,
+                    "meta": int(meta) if meta else META_PADRAO,
+                    "inseridos": int(ins) if ins else None,
+                    "matr": int(matr) if matr else None,
+                    "eva": eva,
                 })
-                cursos_encontrados += 1
-
-        print(f"{cursos_encontrados} turmas")
-
-    return all_courses, period_dates
+                achados += 1
+        print(f"  📊  {sn}: {achados} turmas")
+    return dados
 
 
-def gerar_html_cursos(cursos, data_atualizacao, cutoff=None, no_class=None, resumo=None):
-    """Gera o HTML do dashboard de frequência por curso."""
+def achar_planilha():
+    """Procura o .xlsx mais recente na pasta do script e na pasta atual."""
+    aqui = os.path.dirname(os.path.abspath(__file__))
+    vistos = []
+    for pasta in (aqui, os.getcwd()):
+        for f in glob.glob(os.path.join(pasta, "*.xlsx")):
+            if not os.path.basename(f).startswith("~$") and f not in vistos:
+                vistos.append(f)
+    if not vistos:
+        raise FileNotFoundError("Nenhum arquivo .xlsx encontrado na pasta do script ou na pasta atual.")
+    vistos.sort(key=os.path.getmtime, reverse=True)
+    return vistos[0]
 
-    dados_js = json.dumps(cursos, ensure_ascii=False, indent=2)
-    no_class_js = json.dumps(no_class or {}, ensure_ascii=False)
-    resumo_js   = json.dumps(resumo or {}, ensure_ascii=False)
-    cutoff_js   = json.dumps(cutoff)
-
+# ---------------------------------------------------------------- HTML
+def gerar_html(dados, data_atualizacao):
+    dados_js = json.dumps(dados, ensure_ascii=False)
     html = f"""<!DOCTYPE html>
 <html lang="pt-BR">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Frequência por Curso — CEDESP Dom Bosco Itaquera</title>
+<title>Planejamento de Demanda — CEDESP Dom Bosco Itaquera</title>
 <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js"></script>
 <style>
 :root {{
   --bg:#f5f2ee;--surface:#fff;--surface2:#ede9e3;--border:#d8d2c8;
-  --text:#1a1612;--text-muted:#8a8279;--accent:#c84b31;--accent2:#2b5f8a;
-  --green:#2d7a4f;--orange:#c97c1a;--yellow:#e8c547;--ink:#21438e;
+  --text:#1a1612;--text-muted:#8a8279;--ink:#21438e;--ink2:#1a3475;
+  --red:#e63827;--orange:#f37f1f;--teal:#2bb19d;--green:#2d7a4f;
+  --yellow:#e8c547;--amber:#c97c1a;
 }}
 *{{box-sizing:border-box;margin:0;padding:0}}
 body{{background:var(--bg);color:var(--text);font-family:'Poppins',sans-serif;min-height:100vh}}
 header{{background:var(--ink);color:#f5f2ee;padding:0 48px;display:flex;align-items:stretch;justify-content:space-between;height:80px;position:sticky;top:0;z-index:100}}
 .header-left{{display:flex;align-items:center;gap:20px}}
-.header-accent{{width:4px;height:40px;background:var(--accent);border-radius:2px}}
-.header-title{{font-family:'Poppins',sans-serif;font-weight:800;font-size:17px;letter-spacing:-0.3px;line-height:1.25}}
+.header-accent{{width:4px;height:40px;background:var(--red);border-radius:2px}}
+.header-title{{font-weight:800;font-size:17px;letter-spacing:-0.3px;line-height:1.25}}
 .header-sub{{font-family:'JetBrains Mono',monospace;font-size:10px;color:rgba(245,242,238,.45);margin-top:3px;letter-spacing:.5px}}
 .header-right{{display:flex;align-items:center;gap:32px}}
 .header-stat{{text-align:right}}
-.hs-val{{font-family:'Poppins',sans-serif;font-size:22px;font-weight:700;letter-spacing:-.5px;color:var(--yellow)}}
+.hs-val{{font-size:22px;font-weight:700;letter-spacing:-.5px;color:var(--yellow)}}
 .hs-label{{font-family:'JetBrains Mono',monospace;font-size:10px;color:rgba(245,242,238,.45);letter-spacing:.5px}}
-.controls{{background:var(--surface);border-bottom:1px solid var(--border);padding:14px 48px;display:flex;align-items:center;gap:12px;flex-wrap:wrap;position:sticky;top:80px;z-index:99}}
+.brandbar{{height:5px;display:flex}}
+.brandbar i{{flex:1}}
+.brandbar i:nth-child(1){{background:var(--ink)}}.brandbar i:nth-child(2){{background:var(--red)}}
+.brandbar i:nth-child(3){{background:var(--orange)}}.brandbar i:nth-child(4){{background:var(--teal)}}
+.controls{{background:var(--surface);border-bottom:1px solid var(--border);padding:12px 48px;display:flex;align-items:center;gap:10px;flex-wrap:wrap;position:sticky;top:80px;z-index:99}}
 .filter-label{{font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--text-muted);letter-spacing:.5px;text-transform:uppercase}}
-.filter-btn{{display:inline-flex;align-items:center;padding:5px 14px;border-radius:2px;border:1px solid var(--border);background:transparent;color:var(--text-muted);font-family:'Poppins',sans-serif;font-size:12px;cursor:pointer;transition:all .15s}}
+.filter-btn{{display:inline-flex;align-items:center;padding:5px 13px;border-radius:2px;border:1px solid var(--border);background:transparent;color:var(--text-muted);font-size:12px;cursor:pointer;transition:all .15s}}
 .filter-btn:hover{{border-color:var(--ink);color:var(--ink)}}
 .filter-btn.active{{background:var(--ink);color:var(--bg);border-color:var(--ink)}}
-.filter-btn.manha.active{{background:var(--orange);border-color:var(--orange);color:#fff}}
-.filter-btn.tarde.active{{background:var(--accent2);border-color:var(--accent2);color:#fff}}
-.filter-btn.noite.active{{background:#4a3a7a;border-color:#4a3a7a;color:#fff}}
-.sort-select{{padding:5px 28px 5px 12px;border:1px solid var(--border);background:transparent;font-family:'Poppins',sans-serif;font-size:12px;color:var(--text);border-radius:2px;cursor:pointer;appearance:none;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath d='M1 1l4 4 4-4' stroke='%238a8279' stroke-width='1.5' fill='none'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 8px center}}
+.seg{{display:inline-flex;border:1px solid var(--border);border-radius:2px;overflow:hidden}}
+.seg button{{padding:5px 13px;border:0;background:transparent;color:var(--text-muted);font-family:'Poppins',sans-serif;font-size:12px;cursor:pointer}}
+.seg button.active{{background:var(--ink);color:#fff}}
+.chk{{display:inline-flex;align-items:center;gap:6px;font-size:12px;color:var(--text-muted);cursor:pointer;user-select:none}}
+.chk input{{accent-color:var(--ink);width:14px;height:14px}}
 .controls-spacer{{flex:1}}
 .search-wrap{{position:relative}}
-.search-input{{padding:6px 12px 6px 32px;border:1px solid var(--border);background:var(--bg);font-family:'Poppins',sans-serif;font-size:12px;color:var(--text);border-radius:2px;width:220px;outline:none}}
+.search-input{{padding:6px 12px 6px 30px;border:1px solid var(--border);background:var(--bg);font-size:12px;color:var(--text);border-radius:2px;width:200px;outline:none}}
 .search-input:focus{{border-color:var(--ink)}}
 .search-icon{{position:absolute;left:10px;top:50%;transform:translateY(-50%);color:var(--text-muted);font-size:12px}}
-main{{padding:32px 48px 60px;max-width:1440px;margin:0 auto}}
+.btn-pdf{{padding:6px 14px;border:1px solid var(--ink);background:var(--ink);color:#fff;font-size:12px;border-radius:2px;cursor:pointer;font-family:'Poppins',sans-serif}}
+.btn-pdf:hover{{background:var(--ink2)}}
+main{{padding:30px 48px 70px;max-width:1480px;margin:0 auto}}
 .kpi-row{{display:grid;grid-template-columns:repeat(5,1fr);gap:1px;background:var(--border);border:1px solid var(--border);margin-bottom:32px}}
-.kpi-cell{{background:var(--surface);padding:24px 28px}}
-.kpi-label{{font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--text-muted);letter-spacing:.8px;text-transform:uppercase;margin-bottom:10px}}
-.kpi-val{{font-family:'Poppins',sans-serif;font-size:40px;font-weight:800;letter-spacing:-2px;line-height:1;margin-bottom:4px}}
-.kpi-desc{{font-size:12px;color:var(--text-muted)}}
-.section-row{{display:flex;align-items:baseline;gap:12px;margin-bottom:20px;margin-top:40px}}
-.section-row:first-child{{margin-top:0}}
-.section-title{{font-family:'Poppins',sans-serif;font-size:13px;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:var(--text-muted)}}
+.kpi-cell{{background:var(--surface);padding:22px 26px}}
+.kpi-label{{font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--text-muted);letter-spacing:.8px;text-transform:uppercase;margin-bottom:9px}}
+.kpi-val{{font-size:38px;font-weight:800;letter-spacing:-2px;line-height:1;margin-bottom:4px}}
+.kpi-desc{{font-size:11.5px;color:var(--text-muted)}}
+.section-row{{display:flex;align-items:baseline;gap:12px;margin:40px 0 18px}}
+.section-title{{font-size:13px;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:var(--text-muted)}}
 .section-rule{{flex:1;height:1px;background:var(--border)}}
 .section-count{{font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--text-muted)}}
-.charts-grid{{display:grid;grid-template-columns:1.6fr 1fr;gap:20px;margin-bottom:20px}}
-.chart-box{{background:var(--surface);border:1px solid var(--border);padding:24px}}
-.chart-box-title{{font-family:'Poppins',sans-serif;font-size:13px;font-weight:700;letter-spacing:-.2px;margin-bottom:3px}}
-.chart-box-sub{{font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--text-muted);margin-bottom:20px}}
-.course-table-wrap{{background:var(--surface);border:1px solid var(--border);overflow:hidden}}
-table{{width:100%;border-collapse:collapse}}
-thead th{{padding:10px 16px;text-align:left;font-family:'JetBrains Mono',monospace;font-size:10px;letter-spacing:.8px;text-transform:uppercase;color:var(--text-muted);background:var(--surface2);border-bottom:1px solid var(--border);white-space:nowrap;cursor:pointer;user-select:none;transition:color .15s}}
-thead th:hover{{color:var(--text)}}
-thead th.sort-active{{color:var(--accent2)}}
-thead th.right{{text-align:right}}
-thead th .sort-arrow{{margin-left:4px;opacity:.5;font-size:10px}}
-thead th.sort-active .sort-arrow{{opacity:1;color:var(--accent2)}}
-tbody tr{{border-bottom:1px solid var(--border);transition:background .1s}}
-tbody tr:last-child{{border-bottom:none}}
+.charts-grid{{display:grid;grid-template-columns:1fr 1.3fr;gap:20px;margin-bottom:20px}}
+.chart-box{{background:var(--surface);border:1px solid var(--border);padding:22px}}
+.chart-box-title{{font-size:13px;font-weight:700;letter-spacing:-.2px;margin-bottom:3px}}
+.chart-box-sub{{font-size:11px;color:var(--text-muted);margin-bottom:16px;line-height:1.4}}
+table{{width:100%;border-collapse:collapse;background:var(--surface);border:1px solid var(--border);font-size:12.5px}}
+th,td{{padding:9px 10px;text-align:left;border-bottom:1px solid var(--border);white-space:nowrap}}
+th{{background:var(--ink);color:#fff;font-size:10px;letter-spacing:.5px;text-transform:uppercase;font-weight:600;cursor:pointer;position:sticky;top:0}}
+th.right,td.right{{text-align:right}}
+td.mono,th.right{{font-family:'JetBrains Mono',monospace}}
 tbody tr:hover{{background:var(--surface2)}}
-td{{padding:11px 16px;font-size:12.5px}}
-td.mono{{font-family:'JetBrains Mono',monospace;font-size:11.5px}}
-td.right{{text-align:right}}
-.course-name-cell{{max-width:240px;font-weight:600;font-size:12px;line-height:1.3}}
-.unit-chip{{display:inline-block;padding:2px 8px;border-radius:2px;font-family:'JetBrains Mono',monospace;font-size:10px;font-weight:500;background:var(--surface2);color:var(--text-muted);white-space:nowrap}}
-.period-dot{{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:6px}}
-.period-dot.manhã{{background:var(--orange)}}.period-dot.tarde{{background:var(--accent2)}}.period-dot.noite{{background:#4a3a7a}}
-.rate-cell{{min-width:140px}}
-.rate-wrap{{display:flex;align-items:center;gap:8px}}
-.rate-bar{{flex:1;height:5px;background:var(--surface2);overflow:hidden;min-width:60px}}
-.rate-fill{{height:100%}}
-.rate-pct{{font-family:'JetBrains Mono',monospace;font-size:11px;min-width:40px;text-align:right;font-weight:500}}
-.status-flag{{display:inline-flex;align-items:center;gap:5px;font-size:11px;font-family:'JetBrains Mono',monospace;padding:2px 8px;border:1px solid;border-radius:2px}}
-.status-flag.high{{border-color:#2d7a4f;color:#2d7a4f;background:rgba(45,122,79,.06)}}
-.status-flag.mid{{border-color:#c97c1a;color:#c97c1a;background:rgba(201,124,26,.06)}}
-.status-flag.low{{border-color:var(--accent);color:var(--accent);background:rgba(200,75,49,.06)}}
-.empty-state{{text-align:center;padding:48px;color:var(--text-muted);font-size:13px}}
-.update-badge{{font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--text-muted);background:var(--surface2);border:1px solid var(--border);padding:3px 10px;border-radius:2px}}
-.pdf-btn{{display:inline-flex;align-items:center;gap:5px;padding:6px 14px;border-radius:2px;border:1px solid var(--ink);background:var(--ink);color:#fff;font-family:'Poppins',sans-serif;font-size:12px;font-weight:600;cursor:pointer;transition:all .15s}}
-.pdf-btn:hover{{background:#1a3573;border-color:#1a3573}}
-.pdf-btn:disabled{{opacity:.6;cursor:default}}
-@media print{{.controls,.pdf-btn{{display:none}}}}
-footer{{border-top:1px solid var(--border);padding:20px 48px;display:flex;justify-content:space-between;align-items:center;margin-top:48px}}
-.footer-text{{font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--text-muted)}}
-@media(max-width:900px){{header,.controls,main{{padding-left:20px;padding-right:20px}}.charts-grid{{grid-template-columns:1fr}}.kpi-row{{grid-template-columns:1fr 1fr}}}}
+.sort-arrow{{opacity:.5;font-size:9px;margin-left:3px}}
+.badge{{display:inline-block;padding:2px 9px;border-radius:10px;font-size:10.5px;font-weight:600;font-family:'JetBrains Mono',monospace}}
+.b-sem{{background:#eceae6;color:#8a8279}}
+.b-abaixo{{background:#fde2df;color:#c0291a}}
+.b-meta{{background:#fdf0d8;color:#9a6a12}}
+.b-coberto{{background:#dcefe3;color:#1f6b41}}
+.dot{{display:inline-block;width:9px;height:9px;border-radius:50%;margin-right:6px;vertical-align:middle}}
+.note{{font-size:11.5px;color:var(--text-muted);line-height:1.6;margin-top:14px}}
+.note b{{color:var(--text)}}
+.acao-grid{{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:8px}}
+.acao-card{{background:var(--surface);border:1px solid var(--border);border-top:3px solid var(--ink);padding:18px 20px;cursor:pointer;transition:all .15s}}
+.acao-card:hover{{box-shadow:0 2px 14px rgba(0,0,0,.07)}}
+.acao-card.sel{{background:var(--surface2);box-shadow:inset 0 0 0 2px var(--ink)}}
+.acao-who{{font-family:'JetBrains Mono',monospace;font-size:10px;letter-spacing:.6px;text-transform:uppercase;color:var(--text-muted)}}
+.acao-n{{font-size:34px;font-weight:800;letter-spacing:-1.5px;line-height:1.1;margin:6px 0 2px}}
+.acao-lbl{{font-size:13px;font-weight:600}}
+.acao-extra{{font-size:11px;color:var(--text-muted);margin-top:3px;line-height:1.35}}
+.acao-hint{{font-size:11px;color:var(--text-muted);margin:-2px 0 6px}}
+@media(max-width:980px){{.acao-grid{{grid-template-columns:1fr 1fr}}header,.controls,main{{padding-left:18px;padding-right:18px}}.charts-grid{{grid-template-columns:1fr}}.kpi-row{{grid-template-columns:1fr 1fr}}}}
 </style>
 </head>
 <body>
-
-<header>
+<header id="hdr">
   <div class="header-left">
     <div class="header-accent"></div>
-    <img src="data:image/webp;base64,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" style="height:44px;width:auto;display:block;border-radius:8px" alt="Obra Social Dom Bosco Itaquera">
     <div>
-      <div class="header-title">Frequência por Curso</div>
-      <div class="header-sub">CEDESP DOM BOSCO ITAQUERA · 1º SEMESTRE 2026</div>
+      <div class="header-title">Planejamento de Demanda · Próximo Semestre</div>
+      <div class="header-sub">CEDESP · OBRA SOCIAL DOM BOSCO ITAQUERA · 1º SEM 2026</div>
     </div>
   </div>
   <div class="header-right">
-    <div class="header-stat"><div class="hs-val" id="hdr-cursos">—</div><div class="hs-label">CURSOS</div></div>
-    <div class="header-stat"><div class="hs-val" id="hdr-avg">—</div><div class="hs-label">FREQ. MÉDIA</div></div>
-    <div class="header-stat"><div class="hs-val" id="hdr-ins">—</div><div class="hs-label">INSERIDOS</div></div>
-    <div class="header-stat"><div class="hs-val" id="hdr-matr">—</div><div class="hs-label">MATRÍCULAS</div></div>
+    <div class="header-stat"><div class="hs-val" id="hs-cob">—</div><div class="hs-label">COBREM A EVASÃO</div></div>
+    <div class="header-stat"><div class="hs-val" id="hs-def">—</div><div class="hs-label">CANDIDATOS FALTANTES</div></div>
   </div>
 </header>
+<div class="brandbar"><i></i><i></i><i></i><i></i></div>
 
 <div class="controls">
-  <div style="display:flex;align-items:center;gap:6px">
-    <span class="filter-label">Unidade:</span>
-    <button class="filter-btn active" data-filter="unit" data-value="all">Todas</button>
-    {"".join(f'<button class="filter-btn" data-filter="unit" data-value="CEDESP {n}">C{n}</button>' for n in range(1,9))}
-  </div>
-  <div style="display:flex;align-items:center;gap:6px">
-    <span class="filter-label">Horário:</span>
-    <button class="filter-btn active" data-filter="period" data-value="all">Todos</button>
-    <button class="filter-btn manha" data-filter="period" data-value="Manhã">☀ Manhã</button>
-    <button class="filter-btn tarde" data-filter="period" data-value="Tarde">🌤 Tarde</button>
-    <button class="filter-btn noite" data-filter="period" data-value="Noite">🌙 Noite</button>
-  </div>
+  <span class="filter-label">Unidade</span>
+  <div id="unit-filters" style="display:flex;gap:6px;flex-wrap:wrap"></div>
+  <span class="filter-label" style="margin-left:8px">Status</span>
+  <div id="status-filters" style="display:flex;gap:6px;flex-wrap:wrap"></div>
   <div class="controls-spacer"></div>
-  <span class="update-badge">📅 Atualizado em: {data_atualizacao}</span>
-  <div style="display:flex;align-items:center;gap:6px">
-    <button class="pdf-btn" id="pdfBtn" onclick="exportPDF()">⬇ Exportar PDF</button>
+  <span class="filter-label">Base</span>
+  <div class="seg" id="basis-seg">
+    <button data-basis="total" class="active">Demanda total</button>
+    <button data-basis="entrev">Só entrevistados</button>
   </div>
-  <div class="search-wrap">
-    <span class="search-icon">⌕</span>
-    <input type="text" class="search-input" id="searchInput" placeholder="Buscar curso...">
-  </div>
+  <label class="chk"><input type="checkbox" id="floor-chk"> Piso de evasão da rede ({NET_EVA:.0f}%)</label>
+  <span class="filter-label">Teto inseridos</span>
+  <input type="number" id="teto-input" value="{TETO_INSERIDOS}" min="20" max="80" step="1"
+    style="width:56px;padding:5px 8px;border:1px solid var(--border);background:var(--bg);font-family:'JetBrains Mono',monospace;font-size:12px;color:var(--text);border-radius:2px;outline:none" title="Teto realista de inseridos no início do semestre">
+  <div class="search-wrap"><span class="search-icon">⌕</span><input class="search-input" id="search" placeholder="Buscar curso…"></div>
+  <button class="btn-pdf" onclick="exportPDF()">⬇ Exportar PDF</button>
 </div>
 
 <main>
-
-<div class="kpi-row">
-  <div class="kpi-cell"><div class="kpi-label">Cursos ativos</div><div class="kpi-val" id="kpi-cursos">—</div><div class="kpi-desc">turmas com frequência registrada</div></div>
-  <div class="kpi-cell"><div class="kpi-label">Taxa de frequência média</div><div class="kpi-val" id="kpi-rate" style="color:var(--accent2)">—</div><div class="kpi-desc">freq. média ÷ meta do curso</div></div>
-
-  <div class="kpi-cell"><div class="kpi-label">Cursos graves (&lt;80%)</div><div class="kpi-val" id="kpi-low" style="color:var(--accent)">—</div><div class="kpi-desc">abaixo da faixa satisfatória — ação imediata</div></div>
-  <div class="kpi-cell"><div class="kpi-label">Faltas por dia (média)</div><div class="kpi-val" id="kpi-evasao" style="color:#c97c1a">—</div><div class="kpi-desc">matriculados ausentes em média/dia</div></div>
-  <div class="kpi-cell"><div class="kpi-label">Evasão acumulada</div><div class="kpi-val" id="kpi-desist" style="color:#c84b31">—</div><div class="kpi-desc"><span id="kpi-desist-n">—</span> desistências desde o início</div></div>
-</div>
-
-<div id="snapshot-panel" style="display:none;background:linear-gradient(135deg,#1a2340 0%,#21438e 100%);border-radius:10px;padding:20px 28px;margin-bottom:24px;color:#fff;position:relative;overflow:hidden">
-  <div style="position:absolute;top:-30px;right:-30px;width:140px;height:140px;background:rgba(255,255,255,.04);border-radius:50%"></div>
-  <div style="position:absolute;bottom:-40px;right:60px;width:90px;height:90px;background:rgba(255,255,255,.03);border-radius:50%"></div>
-  <div style="display:flex;align-items:center;gap:8px;margin-bottom:16px">
-    <span style="font-size:14px">📅</span>
-    <span style="font-size:11px;font-weight:700;letter-spacing:1.2px;text-transform:uppercase;color:rgba(255,255,255,.6)">Dados do Dia</span>
-    <span id="snapshot-date" style="font-size:11px;color:rgba(255,255,255,.4);margin-left:4px"></span>
+  <div id="kpis-section" class="kpi-row">
+    <div class="kpi-cell"><div class="kpi-label">Turmas analisáveis</div><div class="kpi-val" id="kpi-turmas" style="color:var(--ink)">—</div><div class="kpi-desc" id="kpi-turmas-d">com demanda registrada</div></div>
+    <div class="kpi-cell"><div class="kpi-label">Cobrem a meta (20)</div><div class="kpi-val" id="kpi-meta" style="color:var(--teal)">—</div><div class="kpi-desc">demanda ≥ meta do convênio</div></div>
+    <div class="kpi-cell"><div class="kpi-label">Cobrem a evasão</div><div class="kpi-val" id="kpi-cob" style="color:var(--green)">—</div><div class="kpi-desc">demanda ≥ necessidade ajustada</div></div>
+    <div class="kpi-cell"><div class="kpi-label">Déficit de candidatos</div><div class="kpi-val" id="kpi-def" style="color:var(--red)">—</div><div class="kpi-desc">faltam p/ cobrir meta + evasão</div></div>
+    <div class="kpi-cell"><div class="kpi-label">Demanda registrada</div><div class="kpi-val" id="kpi-dem" style="color:var(--orange)">—</div><div class="kpi-desc" id="kpi-dem-d">candidatos no pool</div></div>
   </div>
-  <div style="display:flex;gap:40px;flex-wrap:wrap;align-items:flex-end">
-    <div>
-      <div style="font-family:'JetBrains Mono',monospace;font-size:48px;font-weight:800;line-height:1;letter-spacing:-2px" id="snap-last-freq">—</div>
-      <div style="font-size:12px;color:rgba(255,255,255,.65);margin-top:6px">alunos presentes na última aula registrada</div>
+
+  <div class="section-row"><span class="section-title">Plano de ação por área</span><span class="section-rule"></span></div>
+  <div class="acao-hint">Clique num cartão para filtrar a tabela. A recomendação cruza a demanda total com a demanda já entrevistada (C/ENTR).</div>
+  <div id="acoes-section" class="acao-grid"></div>
+
+  <div class="section-row"><span class="section-title">Panorama de cobertura</span><span class="section-rule"></span></div>
+  <div class="charts-grid">
+    <div class="chart-box" id="donut-section">
+      <div class="chart-box-title">Distribuição das turmas</div>
+      <div class="chart-box-sub">Cada turma classificada pela demanda captada frente à meta e à necessidade ajustada pela evasão.</div>
+      <canvas id="donutChart" height="220"></canvas>
     </div>
-    <div style="width:1px;height:60px;background:rgba(255,255,255,.15);align-self:center"></div>
-    <div>
-      <div style="display:flex;align-items:baseline;gap:6px">
-        <span style="font-family:'JetBrains Mono',monospace;font-size:48px;font-weight:800;line-height:1;letter-spacing:-2px;color:#f59e0b" id="snap-pendentes">—</span>
-        <span style="font-size:14px;color:rgba(255,255,255,.5)">chamadas</span>
-      </div>
-      <div style="font-size:12px;color:rgba(255,255,255,.65);margin-top:6px">pendentes de lançamento até {{cutoff}} <span style="color:#f59e0b;font-weight:600">(em <span id="snap-pend-cursos">—</span> turmas)</span></div>
-    </div>
-    <div style="width:1px;height:60px;background:rgba(255,255,255,.15);align-self:center"></div>
-    <div>
-      <div style="display:flex;align-items:baseline;gap:6px">
-        <span style="font-family:'JetBrains Mono',monospace;font-size:48px;font-weight:800;line-height:1;letter-spacing:-2px;color:#9bc4ff" id="snap-semaula">—</span>
-        <span style="font-size:14px;color:rgba(255,255,255,.5)">dias</span>
-      </div>
-      <div style="font-size:12px;color:rgba(255,255,255,.65);margin-top:6px">sem aula no calendário <span style="color:#9bc4ff;font-weight:600">(feriado / parada)</span></div>
+    <div class="chart-box" id="scatter-section">
+      <div class="chart-box-title">Demanda × Evasão — quadrante crítico</div>
+      <div class="chart-box-sub">Eixo X: evasão observada · Eixo Y: demanda total captada. Linhas tracejadas marcam a evasão média da rede e o teto de inseridos. O quadrante inferior direito (sombreado) reúne turmas com alta evasão e demanda abaixo do teto — prioridade de captação. ▲ = demanda fora da escala (muito alta).</div>
+      <canvas id="scatterChart" height="220"></canvas>
     </div>
   </div>
-</div>
 
-<div class="section-row">
-  <div class="section-title">Tabela Completa</div>
-  <div class="section-rule"></div>
-  <span class="section-count" id="resultCount">—</span>
-</div>
+  <div class="charts-grid" style="grid-template-columns:1fr" id="prontidao-section">
+    <div class="chart-box">
+      <div class="chart-box-title">Prontidão por unidade</div>
+      <div class="chart-box-sub">Quantas turmas de cada CEDESP estão prontas para matrícula, esperando entrevista ou precisando de captação — leitura rápida para a gerência.</div>
+      <canvas id="prontidaoChart" height="150"></canvas>
+    </div>
+  </div>
 
-<div class="course-table-wrap">
-  <table id="courseTable">
-    <thead>
-      <tr>
-        <th data-sort="course">Curso <span class="sort-arrow">↕</span></th>
+  <div class="charts-grid" style="grid-template-columns:1fr" id="deficit-section">
+    <div class="chart-box">
+      <div class="chart-box-title">Maiores déficits de candidatos</div>
+      <div class="chart-box-sub">Quantos candidatos faltam em cada turma para cobrir a meta já descontada a evasão · top 22.</div>
+      <canvas id="deficitChart" height="150"></canvas>
+    </div>
+  </div>
+
+  <div class="charts-grid" style="grid-template-columns:1fr" id="eixo-section">
+    <div class="chart-box">
+      <div class="chart-box-title">Demanda × necessidade por eixo tecnológico</div>
+      <div class="chart-box-sub">Soma da demanda captada versus soma da necessidade ajustada por eixo — mostra onde sobra e onde falta candidato.</div>
+      <canvas id="eixoChart" height="150"></canvas>
+    </div>
+  </div>
+
+  <div class="section-row"><span class="section-title">Análise curso a curso</span><span class="section-rule"></span><span class="section-count" id="tbl-count"></span></div>
+  <div id="tbl-section" style="overflow-x:auto">
+    <table id="tbl">
+      <thead><tr>
         <th data-sort="unit">Unidade <span class="sort-arrow">↕</span></th>
-        <th data-sort="period">Período <span class="sort-arrow">↕</span></th>
-        <th class="right" data-sort="inseridos" title="Total de alunos que entraram no curso desde o início">Entraram <span class="sort-arrow">↕</span></th>
-        <th class="right" data-sort="matr">Matr. <span class="sort-arrow">↕</span></th>
-        <th class="right" data-sort="freq_avg">Freq. Média/dia <span class="sort-arrow">↕</span></th>
-        <th class="right" data-sort="n_classes">Aulas <span class="sort-arrow">↕</span></th>
-        <th data-sort="attend_rate">Taxa s/ Meta <span class="sort-arrow">↕</span></th>
-        <th class="right" data-sort="evasao_acum_pct" title="Alunos que entraram e desistiram (inseridos − matrícula)">Evasão <span class="sort-arrow">↕</span></th>
-        <th class="right" data-sort="evasao_pct" title="Matriculados ausentes em média por dia">Faltas/dia <span class="sort-arrow">↕</span></th>
-        <th class="right" data-sort="dem_total">Demanda <span class="sort-arrow">↕</span></th>
+        <th data-sort="period">Turno <span class="sort-arrow">↕</span></th>
+        <th data-sort="course">Curso <span class="sort-arrow">↕</span></th>
+        <th data-sort="eixo">Eixo <span class="sort-arrow">↕</span></th>
+        <th class="right" data-sort="centr" title="Demanda com entrevista">C/Entr <span class="sort-arrow">↕</span></th>
+        <th class="right" data-sort="sentr" title="Demanda sem entrevista">S/Entr <span class="sort-arrow">↕</span></th>
+        <th class="right" data-sort="dem" title="Demanda usada na classificação">Demanda <span class="sort-arrow">↕</span></th>
+        <th class="right" data-sort="meta">Meta <span class="sort-arrow">↕</span></th>
+        <th class="right" data-sort="eva" title="Evasão acumulada observada neste semestre">Evasão <span class="sort-arrow">↕</span></th>
+        <th class="right" data-sort="need" title="Candidatos necessários = meta ÷ (1 − evasão)">Necessário <span class="sort-arrow">↕</span></th>
+        <th class="right" data-sort="saldo" title="Demanda − necessário (negativo = déficit)">Saldo <span class="sort-arrow">↕</span></th>
         <th data-sort="status">Status <span class="sort-arrow">↕</span></th>
-      </tr>
-    </thead>
-    <tbody id="courseTableBody"></tbody>
-  </table>
-  <div class="empty-state" id="emptyState" style="display:none">Nenhum curso encontrado.</div>
-</div>
-
-<div class="section-row"><div class="section-title">Visão Gráfica</div><div class="section-rule"></div></div>
-
-<div class="charts-grid">
-  <div class="chart-box">
-    <div class="chart-box-title">Taxa de Frequência por Curso</div>
-    <div class="chart-box-sub">Frequência diária média ÷ meta do curso — top 20 cursos</div>
-    <canvas id="courseBarChart" height="320"></canvas>
+        <th data-sort="acao" title="Ação recomendada cruzando demanda total e entrevistados">Ação <span class="sort-arrow">↕</span></th>
+      </tr></thead>
+      <tbody id="tbl-body"></tbody>
+    </table>
   </div>
-  <div class="chart-box">
-    <div class="chart-box-title">Distribuição de Taxas</div>
-    <div class="chart-box-sub">Agrupamento por faixa de frequência</div>
-    <canvas id="distChart" height="320"></canvas>
-  </div>
-</div>
-<div class="charts-grid" style="grid-template-columns:1fr">
-  <div class="chart-box">
-    <div class="chart-box-title">Evasão × Frequência — diagnóstico por turma</div>
-    <div class="chart-box-sub">Cada ponto é uma turma · eixo X: taxa de frequência (freq/meta) · eixo Y: evasão acumulada. Canto superior esquerdo = turma que esvaziou e quem ficou falta muito.</div>
-    <canvas id="scatterChart" height="150"></canvas>
-  </div>
-</div>
 
-<div class="charts-grid" style="grid-template-columns:1fr">
-  <div class="chart-box">
-    <div class="chart-box-title">Tendência de Frequência Semanal</div>
-    <div class="chart-box-sub">Evolução da presença média semana a semana ao longo do semestre</div>
-    <canvas id="trendChart" height="110"></canvas>
+  <div class="note" id="metodo">
+    <b>Metodologia.</b> A demanda inicial vem das colunas A (C/ENTR — com entrevista), B (S/ENTR — sem entrevista)
+    e C (TOTAL), sob o cabeçalho <b>DEMANDA / SOCIAL</b>. A <b>necessidade</b> de cada turma é
+    <b>meta ÷ (1 − evasão)</b> usando a evasão acumulada observada no semestre corrente
+    (inseridos − matrícula ÷ inseridos), <b>limitada ao teto de {TETO_INSERIDOS} inseridos no início do semestre</b>
+    (editável na barra). O teto evita pedir números irreais: um curso com evasão de 70% "precisaria" de ~67
+    candidatos, o que é inviável para o social — na prática a turma começa com no máximo ~30 e a alta evasão
+    permanece como sinal de alerta, não como meta de captação. Turmas com demanda zero (provável lançamento
+    na turma-irmã do mesmo curso) entram como <b>Sem demanda</b> e ficam fora do denominador de cobertura.
+    Onde a evasão observada é 0 (matrícula = inseridos), o piso opcional de {NET_EVA:.0f}% (média da rede) pode
+    ser aplicado. O símbolo <b>⊤</b> marca turmas cuja necessidade matemática foi limitada pelo teto.
+    A <b>Ação recomendada</b> cruza as duas bases de demanda: se os entrevistados (C/ENTR) já cobrem a turma,
+    é caso de <b>matrícula</b> (Secretaria); se a demanda total cobre mas os entrevistados ainda não, é caso de
+    <b>entrevistar a fila</b> de S/ENTR (Social); se nem o total cobre, falta procura e o caso é de
+    <b>captação/divulgação</b> (Social/Gerência).
+    Dados de origem não são corrigidos — anomalias apenas sinalizadas.
   </div>
-</div>
-
-<div class="charts-grid" style="grid-template-columns:1fr">
-  <div class="chart-box">
-    <div class="chart-box-title">Evasão Acumulada por Curso — Top 20</div>
-    <div class="chart-box-sub">Alunos que entraram e desistiram desde o início do semestre (inseridos − matrícula)</div>
-    <canvas id="desistChart" height="160"></canvas>
-  </div>
-</div>
-
-<div class="charts-grid" style="grid-template-columns:1fr">
-  <div class="chart-box">
-    <div class="chart-box-title">Faltas por Dia — Top 20</div>
-    <div class="chart-box-sub">Cursos com maior ausência média diária · matriculados que faltam por dia</div>
-    <canvas id="evasaoChart" height="160"></canvas>
-  </div>
-</div>
-
-<div class="section-row"><div class="section-title">Acompanhamento Operacional</div><div class="section-rule"></div></div>
-
-<div id="pend-panel" style="display:none;background:var(--surface);border:1px solid var(--border);border-left:3px solid var(--orange);border-radius:8px;padding:18px 24px;margin-bottom:24px">
-  <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
-    <span style="font-size:13px">📋</span>
-    <span style="font-size:12px;font-weight:700;letter-spacing:.8px;text-transform:uppercase;color:var(--text-muted)">Turmas com lançamentos pendentes</span>
-  </div>
-  <div style="font-size:12px;color:var(--text-muted);margin-bottom:12px">Dias letivos sem chamada até {{cutoff}} — já descontados feriados e paradas. Pronto para a coordenação cobrar.</div>
-  <div id="pend-list"></div>
-</div>
-
 </main>
 
-<footer>
-  <div class="footer-text">CEDESP Dom Bosco Itaquera · Dashboard gerado automaticamente</div>
-  <div class="footer-text">Atualizado em {data_atualizacao}</div>
-</footer>
-
 <script>
-const RAW = {dados_js};
-const NO_CLASS = {no_class_js};   // {{DD/MM: motivo}} feriados/paradas de dia inteiro
-const RESUMO   = {resumo_js};     // {{cutoff, total_pendentes, cursos_com_pendencia, dias_sem_aula}}
-const CUTOFF   = {cutoff_js};     // última data lançada (DD/MM)
+const DADOS = {dados_js};
+const NET_EVA = {NET_EVA};
+const EVA_CAP = {EVA_CAP};
+const TETO_DEFAULT = {TETO_INSERIDOS};
+const DATA_ATUALIZACAO = "{data_atualizacao}";
 
-let filterUnit='all', filterPeriod='all', sortMode='attend_rate', sortDir=-1, searchQuery='';
+const UNITS = [...new Set(DADOS.map(d=>d.unit))].sort();
+const STATUS_DEF = [
+  {{k:'abaixo',  label:'Abaixo da meta', color:'#e63827'}},
+  {{k:'meta',    label:'Risco de evasão',color:'#c97c1a'}},
+  {{k:'coberto', label:'Coberto',        color:'#2d7a4f'}},
+  {{k:'sem',     label:'Sem demanda',    color:'#8a8279'}},
+];
 
-function getColor(r){{ return r>90?'#2d7a4f':r>=80?'#c97c1a':'#c84b31'; }}
-function getStatus(r){{ return r>90?{{cls:'high',label:'✓ Ótimo'}}:r>=80?{{cls:'mid',label:'⚠ Satisfatório'}}:{{cls:'low',label:'✗ Grave (&lt;80%)'}}; }}
-function periodColor(p){{ return p==='Manhã'?'#c97c1a':p==='Tarde'?'#2b5f8a':'#4a3a7a'; }}
+let state = {{ unit:'all', status:'all', acao:'all', basis:'total', floor:false, teto:TETO_DEFAULT, search:'', sortKey:'saldo', sortDir:1 }};
 
-function getFiltered(){{
-  return RAW.filter(d=>{{
-    if(filterUnit!=='all'&&d.unit!==filterUnit)return false;
-    if(filterPeriod!=='all'&&d.period!==filterPeriod)return false;
-    if(searchQuery&&!d.course.toLowerCase().includes(searchQuery)&&!d.unit.toLowerCase().includes(searchQuery))return false;
-    return true;
+const ACAO_DEF = [
+  {{k:'matricula', who:'Secretaria',         label:'Pronto p/ matrícula', color:'#2d7a4f'}},
+  {{k:'entrevista',who:'Social · entrevistas',label:'Entrevistar a fila',  color:'#f37f1f'}},
+  {{k:'captacao',  who:'Social / Gerência',   label:'Captar demanda',      color:'#e63827'}},
+  {{k:'sem',       who:'Verificar',           label:'Sem demanda lançada', color:'#8a8279'}},
+];
+
+function classifyDem(dem, meta, need){{
+  if(dem<=0) return 'sem';
+  if(dem<meta) return 'abaixo';
+  if(dem<need) return 'meta';
+  return 'coberto';
+}}
+
+function classify(d){{
+  const meta = d.meta || {META_PADRAO};
+  let eva = (d.eva==null) ? 0 : d.eva;
+  if(state.floor && eva<=0) eva = NET_EVA;
+  const e = Math.min(Math.max(eva,0)/100, EVA_CAP);
+  let need = meta>0 ? Math.ceil(meta/(1-e)) : 0;
+  const need_bruto = need;                 // necessidade matemática sem teto
+  need = Math.min(need, state.teto);       // teto realista de inseridos no início
+  const capped = need_bruto > need;        // turma que precisaria de mais que o teto
+
+  const dem = state.basis==='entrev' ? d.centr : d.dem_total;   // base exibida
+  const status   = classifyDem(dem, meta, need);
+  const st_total = classifyDem(d.dem_total, meta, need);        // demanda total
+  const st_entr  = classifyDem(d.centr,     meta, need);        // só entrevistados
+
+  // Ação recomendada — cruza as duas bases (independe do toggle):
+  //   entrevistados já cobrem            -> Secretaria pode matricular
+  //   total cobre mas entrevistados não  -> Social entrevista a fila (S/ENTR)
+  //   nem o total cobre                  -> falta procura, captar/divulgar
+  let acao;
+  if(d.dem_total<=0)            acao='sem';
+  else if(st_entr==='coberto')  acao='matricula';
+  else if(st_total==='coberto') acao='entrevista';
+  else                          acao='captacao';
+
+  return {{dem, eva, need, need_bruto, capped, saldo:dem-need,
+           status, st_total, st_entr, acao, meta, backlog:(d.sentr||0)}};
+}}
+
+function rows(){{
+  return DADOS.map(d=>({{...d, ...classify(d)}}));
+}}
+
+function filtered(){{
+  let r = rows();
+  if(state.unit!=='all') r = r.filter(d=>d.unit===state.unit);
+  if(state.status!=='all') r = r.filter(d=>d.status===state.status);
+  if(state.acao!=='all') r = r.filter(d=>d.acao===state.acao);
+  if(state.search){{ const q=state.search.toLowerCase(); r=r.filter(d=>d.course.toLowerCase().includes(q)||d.eixo.toLowerCase().includes(q)); }}
+  return r;
+}}
+
+// ---------------- Plano de ação (cards por área)
+function renderAcoes(){{
+  const all = state.unit==='all' ? rows() : rows().filter(d=>d.unit===state.unit);
+  const grid = document.getElementById('acoes-section'); grid.innerHTML='';
+  ACAO_DEF.forEach(a=>{{
+    const list = all.filter(d=>d.acao===a.k);
+    let extra='';
+    if(a.k==='matricula')      extra='demanda confirmada cobre a turma';
+    else if(a.k==='entrevista'){{const fila=list.reduce((s,d)=>s+(d.backlog||0),0);extra=`${{fila}} candidatos na fila de entrevista`;}}
+    else if(a.k==='captacao')  {{const def=list.reduce((s,d)=>s+Math.max(0,d.need-d.dem_total),0);extra=`faltam ~${{def}} candidatos · divulgar`;}}
+    else                       extra='demanda zero (provável turma-irmã)';
+    const card=document.createElement('div');
+    card.className='acao-card'+(state.acao===a.k?' sel':'');
+    card.style.borderTopColor=a.color;
+    card.innerHTML=`<div class="acao-who">${{a.who}}</div><div class="acao-n" style="color:${{a.color}}">${{list.length}}</div><div class="acao-lbl">${{a.label}}</div><div class="acao-extra">${{extra}}</div>`;
+    card.onclick=()=>{{ state.acao = (state.acao===a.k?'all':a.k); renderAll(); document.getElementById('tbl-section').scrollIntoView({{behavior:'smooth',block:'start'}}); }};
+    grid.appendChild(card);
   }});
 }}
 
-function getSorted(data){{
-  return [...data].sort((a,b)=>{{
-    const statusOrder={{high:0,mid:1,low:2}};
-    let av=a[sortMode], bv=b[sortMode];
-    if(sortMode==='status'){{av=statusOrder[getStatus(a.attend_rate).cls]??3;bv=statusOrder[getStatus(b.attend_rate).cls]??3;}}
-    if(typeof av==='string')return av.localeCompare(bv)*sortDir;
-    av=av??-Infinity; bv=bv??-Infinity;
-    return(av-bv)*sortDir;
-  }});
+// ---------------- KPIs
+function renderKPIs(){{
+  const all = state.unit==='all' ? rows() : rows().filter(d=>d.unit===state.unit);
+  const cls = all.filter(d=>d.status!=='sem');
+  const meta_ok = cls.filter(d=>d.dem>=d.meta).length;
+  const cob_ok  = cls.filter(d=>d.status==='coberto').length;
+  const deficit = cls.filter(d=>d.saldo<0).reduce((s,d)=>s+(-d.saldo),0);
+  const dem_tot = all.reduce((s,d)=>s+d.dem,0);
+  const pct = n => cls.length? Math.round(n/cls.length*100):0;
+  document.getElementById('kpi-turmas').textContent = cls.length;
+  document.getElementById('kpi-turmas-d').textContent = (all.length-cls.length)+' sem demanda (excluídas)';
+  document.getElementById('kpi-meta').textContent = pct(meta_ok)+'%';
+  document.getElementById('kpi-cob').textContent  = pct(cob_ok)+'%';
+  document.getElementById('kpi-def').textContent  = deficit;
+  document.getElementById('kpi-dem').textContent  = dem_tot.toLocaleString('pt-BR');
+  document.getElementById('kpi-dem-d').textContent = state.basis==='entrev'?'candidatos entrevistados':'candidatos no pool total';
+  document.getElementById('hs-cob').textContent = pct(cob_ok)+'%';
+  document.getElementById('hs-def').textContent = deficit;
 }}
 
-Chart.defaults.color='#8a8279';
-Chart.defaults.font.family="'Poppins',sans-serif";
-Chart.defaults.borderColor='#d8d2c8';
-let charts={{}};
-
-function buildCharts(data){{
-  Object.values(charts).forEach(c=>c&&c.destroy());
-  const sorted=[...data].sort((a,b)=>a.attend_rate-b.attend_rate).slice(0,20);
-
-  charts.bar=new Chart(document.getElementById('courseBarChart'),{{
-    type:'bar',
-    data:{{
-      labels:sorted.map(d=>d.course.length>32?d.course.substring(0,30)+'…':d.course),
-      datasets:[{{label:'Taxa %',data:sorted.map(d=>d.attend_rate),backgroundColor:sorted.map(d=>getColor(d.attend_rate)+'cc'),borderColor:sorted.map(d=>getColor(d.attend_rate)),borderWidth:1,borderRadius:0}}]
-    }},
-    options:{{indexAxis:'y',responsive:true,plugins:{{legend:{{display:false}},tooltip:{{backgroundColor:'#1a1612',borderColor:'#d8d2c8',borderWidth:1,callbacks:{{label:ctx=>{{const d=sorted[ctx.dataIndex];return[` ${{ctx.raw.toFixed(1)}}%  —  ${{d.unit}} · ${{d.period}}`,` Presença média: ${{d.freq_avg}} alunos/dia`];}}}}}}}},scales:{{x:{{min:0,max:120,grid:{{color:'rgba(216,210,200,.4)'}},ticks:{{font:{{size:10}},callback:v=>v+'%'}}}},y:{{grid:{{display:false}},ticks:{{font:{{size:10}}}}}}}}}}
-  }});
-
-  const bands=[
-    {{label:'> 90% (Ótimo)',min:90.0001,max:Infinity,color:'#2d7a4f'}},
-    {{label:'80–90% (Satisfatório)',min:80,max:90.0001,color:'#c97c1a'}},
-    {{label:'< 80% (Grave)',min:0,max:80,color:'#c84b31'}},
-  ];
-  charts.dist=new Chart(document.getElementById('distChart'),{{
+// ---------------- charts
+let donut, scatter, deficitC, eixoC, prontidaoC;
+function renderCharts(){{
+  const all = state.unit==='all' ? rows() : rows().filter(d=>d.unit===state.unit);
+  // donut
+  const counts = STATUS_DEF.map(s=>all.filter(d=>d.status===s.k).length);
+  if(donut) donut.destroy();
+  donut = new Chart(document.getElementById('donutChart'),{{
     type:'doughnut',
-    data:{{labels:bands.map(b=>b.label),datasets:[{{data:bands.map(b=>data.filter(d=>d.attend_rate>=b.min&&d.attend_rate<b.max).length),backgroundColor:bands.map(b=>b.color+'cc'),borderColor:bands.map(b=>b.color),borderWidth:2,hoverOffset:8}}]}},
-    options:{{responsive:true,cutout:'58%',plugins:{{legend:{{position:'right',labels:{{boxWidth:12,padding:12,font:{{size:11}},usePointStyle:true}}}},tooltip:{{backgroundColor:'#1a1612',borderColor:'#d8d2c8',borderWidth:1}}}}}}
+    data:{{labels:STATUS_DEF.map(s=>s.label),datasets:[{{data:counts,backgroundColor:STATUS_DEF.map(s=>s.color),borderWidth:2,borderColor:'#fff'}}]}},
+    options:{{plugins:{{legend:{{position:'bottom',labels:{{font:{{size:11}},padding:12,boxWidth:12}}}},
+      tooltip:{{callbacks:{{label:ctx=>` ${{ctx.label}}: ${{ctx.parsed}} turmas`}}}}}},cutout:'58%'}}
   }});
-
-  // Tendência de Frequência Semanal
-  const weekMap={{}};
-  data.forEach(d=>{{
-    if(!d.daily) return;
-    d.daily.forEach(([sd, dd, fr])=>{{
-      if(!sd) return;
-      const parts=sd.split('/');
-      if(parts.length<2) return;
-      const month=parseInt(parts[0]), day=parseInt(parts[1]);
-      const dt=new Date(2026, month-1, day);
-      const dow=dt.getDay()||7;
-      const weekStart=new Date(dt); weekStart.setDate(dt.getDate()-dow+1);
-      // Label: "Sem 1 Fev", "Sem 2 Fev" etc.
-      const MONTHS=['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
-      const m=weekStart.getMonth(); // 0-based
-      // Which week of the month? (1st day of month = week 1)
-      const firstDayOfMonth=new Date(weekStart.getFullYear(), m, 1);
-      const weekOfMonth=Math.ceil((weekStart.getDate()+firstDayOfMonth.getDay())/7);
-      const wk=`Sem ${{weekOfMonth}} ${{MONTHS[m]}}`;
-      const sk=`${{String(weekStart.getMonth()+1).padStart(2,'0')}}/${{String(weekStart.getDate()).padStart(2,'0')}}`;
-      if(!weekMap[wk]) weekMap[wk]={{sum:0,n:0,sortKey:sk}};
-      weekMap[wk].sum+=fr; weekMap[wk].n++;
-    }});
-  }});
-  // Sort by first date seen in each week bucket (stored as sortKey)
-  const weeks=Object.keys(weekMap).sort((a,b)=>{{
-    const ka=weekMap[a].sortKey||''; const kb=weekMap[b].sortKey||'';
-    return ka<kb?-1:ka>kb?1:0;
-  }});
-  const weekAvgs=weeks.map(w=>+(weekMap[w].sum/weekMap[w].n).toFixed(1));
-  const weekMeta=weeks.map(()=>{{
-    const tm=data.reduce((s,d)=>s+(d.meta||0),0);
-    return +((tm||0)/(data.length||1)).toFixed(1);
-  }});
-  const trendColor=weekAvgs.length<2||weekAvgs[weekAvgs.length-1]>=weekAvgs[0]?'#2d7a4f':'#c84b31';
-  charts.unit=new Chart(document.getElementById('trendChart'),{{
-    type:'line',
-    data:{{labels:weeks,datasets:[
-      {{label:'Presença média',data:weekAvgs,borderColor:trendColor,backgroundColor:trendColor+'22',borderWidth:2.5,pointRadius:4,pointHoverRadius:6,tension:0.35,fill:true,spanGaps:true}},
-      {{label:'Meta média',data:weekMeta,borderColor:'#c97c1a',backgroundColor:'transparent',borderWidth:1.5,borderDash:[6,4],pointRadius:0,tension:0,fill:false}}
-    ]}},
-    options:{{responsive:true,plugins:{{
-      legend:{{position:'top',labels:{{boxWidth:12,padding:14,font:{{size:10}}}}}},
-      tooltip:{{backgroundColor:'#1a1612',borderColor:'#d8d2c8',borderWidth:1,callbacks:{{
-        label:ctx=>ctx.datasetIndex===0?` Presença média: ${{ctx.raw}} alunos/dia`:` Meta média: ${{ctx.raw}} alunos/dia`
-      }}}}
-    }},scales:{{
-      x:{{grid:{{display:false}},ticks:{{font:{{size:10}}}}}},
-      y:{{
-          grid:{{color:'rgba(216,210,200,.4)'}},
-          ticks:{{font:{{size:10}}}},
-          min:weekAvgs.length?Math.floor(Math.min(...weekAvgs,...weekMeta)*0.95):0,
-          max:weekAvgs.length?Math.ceil(Math.max(...weekAvgs,...weekMeta)*1.05):100,
-        }}
-    }}}}
-  }});
-}}
-
-// ── EVASÃO ACUMULADA (desistências) ──
-let scatterChart;
-function buildScatter(data){{
-  if(scatterChart)scatterChart.destroy();
-  const pts=data.filter(d=>d.evasao_acum_pct!=null && d.attend_rate>0);
-  const color=d=>{{
-    const grave=d.attend_rate<80, evade=d.evasao_acum_pct>=35;
-    if(grave&&evade) return 'rgba(200,75,49,.9)';      // crítico: esvaziou e falta
-    if(grave||evade) return 'rgba(201,124,26,.85)';     // atenção
-    return 'rgba(45,122,79,.7)';                         // saudável
+  // scatter — quadrante crítico (evasão × demanda) com linhas de referência
+  const pts = all.filter(d=>d.acao!=='sem');
+  const yCap = Math.max(70, state.teto + 10);
+  const acaoColor = k => (ACAO_DEF.find(a=>a.k===k)||{{color:'#8a8279'}}).color;
+  const quadPlugin = {{
+    id:'quad',
+    beforeDraw(chart){{
+      const a=chart.chartArea; if(!a) return;
+      const ctx=chart.ctx, xs=chart.scales.x, ys=chart.scales.y;
+      const xL=xs.getPixelForValue(NET_EVA), yL=ys.getPixelForValue(state.teto);
+      ctx.save();
+      ctx.fillStyle='rgba(230,56,39,.06)';
+      ctx.fillRect(xL, yL, a.right-xL, a.bottom-yL);
+      ctx.strokeStyle='rgba(138,130,121,.55)'; ctx.lineWidth=1; ctx.setLineDash([4,4]);
+      ctx.beginPath();ctx.moveTo(xL,a.top);ctx.lineTo(xL,a.bottom);ctx.stroke();
+      ctx.beginPath();ctx.moveTo(a.left,yL);ctx.lineTo(a.right,yL);ctx.stroke();
+      ctx.setLineDash([]);
+      ctx.font='600 9px Poppins,sans-serif';
+      ctx.fillStyle='rgba(192,41,26,.78)';ctx.textAlign='right';
+      ctx.fillText('crítico — alta evasão, pouca demanda', a.right-8, a.bottom-8);
+      ctx.fillStyle='rgba(138,130,121,.75)';
+      ctx.fillText('teto '+state.teto, a.right-8, yL-4);
+      ctx.textAlign='center';
+      ctx.fillText('evasão média '+NET_EVA.toFixed(0)+'%', xL, a.top+10);
+      ctx.restore();
+    }}
   }};
-  scatterChart=new Chart(document.getElementById('scatterChart'),{{
+  if(scatter) scatter.destroy();
+  scatter = new Chart(document.getElementById('scatterChart'),{{
     type:'scatter',
     data:{{datasets:[{{
-      label:'Turmas',
-      data:pts.map(d=>({{x:d.attend_rate,y:d.evasao_acum_pct,c:d.course,u:d.unit,p:d.period,des:d.desistentes,ins:d.inseridos}})),
-      backgroundColor:pts.map(color),
-      borderColor:pts.map(color),
-      pointRadius:5,pointHoverRadius:7
+      data:pts.map(d=>({{x:d.eva, y:Math.min(d.dem_total,yCap-2), yReal:d.dem_total, ent:d.centr,
+        c:d.course,u:d.unit,p:d.period,need:d.need,acao:d.acao,clamp:d.dem_total>yCap-2}})),
+      backgroundColor:pts.map(d=>acaoColor(d.acao)+'cc'),
+      borderColor:pts.map(d=>acaoColor(d.acao)),
+      pointRadius:pts.map(d=>d.dem_total>yCap-2?6:5),pointHoverRadius:8,
+      pointStyle:pts.map(d=>d.dem_total>yCap-2?'triangle':'circle')
     }}]}},
-    options:{{
-      responsive:true,
-      plugins:{{
-        legend:{{display:false}},
-        tooltip:{{backgroundColor:'#1a1612',borderColor:'#d8d2c8',borderWidth:1,callbacks:{{
-          label:ctx=>{{const d=ctx.raw;return [` ${{d.c}} (${{d.u.replace('CEDESP ','C')}} · ${{d.p}})`,` Frequência: ${{d.x.toFixed(0)}}% · Evasão: ${{d.y.toFixed(0)}}% (${{d.des}}/${{d.ins}})`];}}
-        }}}}
-      }},
+    options:{{plugins:{{legend:{{display:false}},
+      tooltip:{{callbacks:{{label:ctx=>{{const d=ctx.raw;return [`${{d.c}} · ${{d.u}} ${{d.p}}`,
+        `demanda ${{d.yReal}} (entrev. ${{d.ent}}) · precisa ${{d.need}}`,
+        `evasão ${{d.x.toFixed(0)}}%`+(d.clamp?' · ▲ demanda fora da escala':'')];}}}}}}}},
       scales:{{
-        x:{{title:{{display:true,text:'Taxa de frequência (freq/meta) %',font:{{size:10}}}},grid:{{color:'rgba(216,210,200,.4)'}},ticks:{{font:{{size:10}},callback:v=>v+'%'}}}},
-        y:{{title:{{display:true,text:'Evasão acumulada %',font:{{size:10}}}},grid:{{color:'rgba(216,210,200,.4)'}},ticks:{{font:{{size:10}},callback:v=>v+'%'}},min:0}}
-      }}
-    }}
+        x:{{min:0,title:{{display:true,text:'Evasão observada (%)',font:{{size:10}}}},grid:{{color:'rgba(216,210,200,.4)'}},ticks:{{font:{{size:10}},callback:v=>v+'%'}}}},
+        y:{{min:0,max:yCap,title:{{display:true,text:'Demanda total captada',font:{{size:10}}}},grid:{{color:'rgba(216,210,200,.4)'}},ticks:{{font:{{size:10}}}}}}
+      }}}},
+    plugins:[quadPlugin]
   }});
-}}
-
-// ── EVASÃO ACUMULADA (desistências) ──
-let desistChart;
-function buildDesistChart(data){{
-  if(desistChart)desistChart.destroy();
-  const wd=data.filter(d=>d.desistentes!=null&&d.desistentes>0)
-               .sort((a,b)=>b.desistentes-a.desistentes).slice(0,20);
-  const labels=wd.map(d=>{{const n=d.course.length>30?d.course.substring(0,28)+'…':d.course;return n+' ('+d.unit.replace('CEDESP ','C')+')';}});
-  desistChart=new Chart(document.getElementById('desistChart'),{{
+  // prontidão por unidade (barras empilhadas por ação)
+  const units = [...new Set(all.map(d=>d.unit))].sort();
+  const byUnit = {{}};
+  units.forEach(u=>byUnit[u]={{matricula:0,entrevista:0,captacao:0,sem:0}});
+  all.forEach(d=>{{ byUnit[d.unit][d.acao]++; }});
+  if(prontidaoC) prontidaoC.destroy();
+  prontidaoC = new Chart(document.getElementById('prontidaoChart'),{{
     type:'bar',
-    data:{{labels,datasets:[{{
-      label:'Desistências',
-      data:wd.map(d=>d.desistentes),
-      backgroundColor:wd.map(d=>d.evasao_acum_pct>=40?'rgba(200,75,49,.85)':d.evasao_acum_pct>=25?'rgba(201,124,26,.85)':'rgba(125,133,144,.6)'),
-      borderColor:wd.map(d=>d.evasao_acum_pct>=40?'#c84b31':d.evasao_acum_pct>=25?'#c97c1a':'#7d8590'),
-      borderWidth:1,borderRadius:0
-    }}]}},
-    options:{{
-      indexAxis:'y',responsive:true,
-      plugins:{{
-        legend:{{display:false}},
-        tooltip:{{backgroundColor:'#1a1612',borderColor:'#d8d2c8',borderWidth:1,
-          callbacks:{{label:ctx=>{{const d=wd[ctx.dataIndex];return` ${{d.desistentes}} de ${{d.inseridos}} desistiram — ${{d.evasao_acum_pct.toFixed(1)}}% · ${{d.period}}`;}}}}
-        }}
-      }},
-      scales:{{
-        x:{{grid:{{color:'rgba(216,210,200,.3)'}},ticks:{{font:{{size:10}}}}}},
-        y:{{grid:{{display:false}},ticks:{{font:{{size:10}}}}}}
-      }}
-    }}
+    data:{{labels:units.map(u=>u.replace('CEDESP ','CEDESP ')),
+      datasets:ACAO_DEF.map(a=>({{label:a.label,data:units.map(u=>byUnit[u][a.k]),
+        backgroundColor:a.color+'d9',borderColor:a.color,borderWidth:1}}))}},
+    options:{{plugins:{{legend:{{position:'bottom',labels:{{font:{{size:11}},boxWidth:12}}}},
+      tooltip:{{callbacks:{{label:ctx=>` ${{ctx.dataset.label}}: ${{ctx.parsed.y}} turmas`}}}}}},
+      scales:{{x:{{stacked:true,grid:{{display:false}},ticks:{{font:{{size:11}}}}}},
+        y:{{stacked:true,grid:{{color:'rgba(216,210,200,.4)'}},ticks:{{font:{{size:10}},stepSize:2}}}}}}}}
   }});
-}}
-
-// ── FALTAS POR DIA ──
-let evasaoChart;
-function buildEvasaoChart(data){{
-  if(evasaoChart)evasaoChart.destroy();
-  const withEvasao=data.filter(d=>d.matr&&d.evasao!=null).sort((a,b)=>b.evasao_pct-a.evasao_pct).slice(0,20);
-  const labels=withEvasao.map(d=>{{const n=d.course.length>30?d.course.substring(0,28)+'…':d.course;return n+' ('+d.unit.replace('CEDESP ','C')+')';}});
-  evasaoChart=new Chart(document.getElementById('evasaoChart'),{{
+  // deficit bar
+  const def = all.filter(d=>d.status!=='sem' && d.saldo<0).sort((a,b)=>a.saldo-b.saldo).slice(0,22);
+  if(deficitC) deficitC.destroy();
+  deficitC = new Chart(document.getElementById('deficitChart'),{{
     type:'bar',
-    data:{{labels,datasets:[{{
-      label:'Ausência (alunos)',
-      data:withEvasao.map(d=>d.evasao),
-      backgroundColor:withEvasao.map(d=>d.evasao_pct>30?'rgba(200,75,49,.85)':d.evasao_pct>15?'rgba(201,124,26,.85)':'rgba(125,133,144,.6)'),
-      borderColor:withEvasao.map(d=>d.evasao_pct>30?'#c84b31':d.evasao_pct>15?'#c97c1a':'#7d8590'),
-      borderWidth:1,borderRadius:0
-    }}]}},
-    options:{{
-      indexAxis:'y',responsive:true,
-      plugins:{{
-        legend:{{display:false}},
-        tooltip:{{backgroundColor:'#1a1612',borderColor:'#d8d2c8',borderWidth:1,
-          callbacks:{{label:ctx=>{{const d=withEvasao[ctx.dataIndex];return` ${{d.evasao.toFixed(0)}} alunos faltam em média — ${{d.evasao_pct.toFixed(1)}}% · ${{d.period}}`;}}}}
-        }}
-      }},
-      scales:{{
-        x:{{grid:{{color:'rgba(216,210,200,.3)'}},ticks:{{font:{{size:10}}}}}},
-        y:{{grid:{{display:false}},ticks:{{font:{{size:10}}}}}}
-      }}
-    }}
+    data:{{labels:def.map(d=>`${{d.course.slice(0,22)}} · ${{d.unit.replace('CEDESP ','C')}} ${{d.period[0]}}`),
+      datasets:[{{label:'Candidatos faltantes',data:def.map(d=>-d.saldo),
+        backgroundColor:def.map(d=>d.status==='abaixo'?'rgba(230,56,39,.85)':'rgba(201,124,26,.85)'),
+        borderColor:def.map(d=>d.status==='abaixo'?'#e63827':'#c97c1a'),borderWidth:1}}]}},
+    options:{{indexAxis:'y',plugins:{{legend:{{display:false}},
+      tooltip:{{callbacks:{{label:ctx=>{{const d=def[ctx.dataIndex];return ` faltam ${{-d.saldo}} · demanda ${{d.dem}} / precisa ${{d.need}} · evasão ${{d.eva.toFixed(0)}}%`;}}}}}}}},
+      scales:{{x:{{grid:{{color:'rgba(216,210,200,.4)'}},ticks:{{font:{{size:10}}}}}},y:{{ticks:{{font:{{size:9.5}}}},grid:{{display:false}}}}}}}}
+  }});
+  // eixo bar (demanda x necessidade)
+  const eixoMap = {{}};
+  all.forEach(d=>{{ if(d.status==='sem')return; const k=d.eixo||'—'; (eixoMap[k]=eixoMap[k]||{{dem:0,need:0}}); eixoMap[k].dem+=d.dem; eixoMap[k].need+=d.need; }});
+  const eixoKeys = Object.keys(eixoMap).sort((a,b)=>eixoMap[b].dem-eixoMap[a].dem);
+  if(eixoC) eixoC.destroy();
+  eixoC = new Chart(document.getElementById('eixoChart'),{{
+    type:'bar',
+    data:{{labels:eixoKeys.map(k=>k.length>26?k.slice(0,26)+'…':k),
+      datasets:[
+        {{label:'Demanda captada',data:eixoKeys.map(k=>eixoMap[k].dem),backgroundColor:'rgba(243,127,31,.85)',borderColor:'#f37f1f',borderWidth:1}},
+        {{label:'Necessidade (meta+evasão)',data:eixoKeys.map(k=>eixoMap[k].need),backgroundColor:'rgba(33,67,142,.85)',borderColor:'#21438e',borderWidth:1}}
+      ]}},
+    options:{{plugins:{{legend:{{position:'bottom',labels:{{font:{{size:11}},boxWidth:12}}}}}},
+      scales:{{x:{{ticks:{{font:{{size:9.5}},maxRotation:35,minRotation:35}},grid:{{display:false}}}},y:{{grid:{{color:'rgba(216,210,200,.4)'}},ticks:{{font:{{size:10}}}}}}}}}}
   }});
 }}
 
-function buildTable(data){{
-  const tbody=document.getElementById('courseTableBody');
-  tbody.innerHTML='';
-  const sorted=getSorted(data);
-  document.getElementById('resultCount').textContent=sorted.length+' cursos';
-  document.getElementById('emptyState').style.display=sorted.length?'none':'block';
-  sorted.forEach(d=>{{
-    const st=getStatus(d.attend_rate);
-    const cap=Math.min(d.attend_rate,100);
-    const fc=getColor(d.attend_rate);
-    const pd=d.period.toLowerCase().replace('ã','a');
-    const tr=document.createElement('tr');
-    tr.innerHTML=`
-      <td><div class="course-name-cell">${{d.course}}</div></td>
-      <td><span class="unit-chip">${{d.unit.replace('CEDESP ','C')}}</span></td>
-      <td class="mono"><span class="period-dot ${{pd}}"></span>${{d.period}}</td>
-      <td class="right mono">${{d.inseridos||'—'}}</td>
-      <td class="right mono">${{d.matr||'—'}}</td>
-      <td class="right mono">${{d.freq_avg.toFixed(1)}}</td>
-      <td class="right mono">${{d.n_classes}}</td>
-      <td class="rate-cell"><div class="rate-wrap"><div class="rate-bar"><div class="rate-fill" style="width:${{cap}}%;background:${{fc}}"></div></div><div class="rate-pct" style="color:${{fc}}">${{d.attend_rate.toFixed(1)}}%</div></div></td>
-      <td class="right mono">${{d.desistentes!=null?'<span title="'+d.desistentes+' de '+d.inseridos+' que entraram desistiram" style="color:'+(d.evasao_acum_pct>=40?'#c84b31':d.evasao_acum_pct>=25?'#c97c1a':'#7d8590')+'">'+d.desistentes+' <span style="opacity:.7">('+d.evasao_acum_pct.toFixed(0)+'%)</span></span>':'—'}}</td>
-      <td class="right mono">${{d.evasao_pct!=null?(d.evasao_pct<0?'<span title="Frequência média acima da matrícula registrada — matrícula provavelmente desatualizada" style="color:#7d8590">0%*</span>':'<span style="color:'+(d.evasao_pct>30?'#c84b31':d.evasao_pct>15?'#c97c1a':'#7d8590')+'">'+d.evasao_pct.toFixed(1)+'%</span>'):'—'}}</td>
-      <td class="right">${{(()=>{{
-        const c=d.centr,s=d.sentr,t=d.dem_total;
-        if(!t)return'<span style="color:var(--text-muted)">—</span>';
-        const tag=c>0?'<span style="display:inline-flex;gap:3px;align-items:center">'
-          +'<span title="Com entrevista (aguardando vaga)" style="font-size:10px;padding:1px 5px;border-radius:2px;background:rgba(45,122,79,.15);color:#2d7a4f;font-family:JetBrains Mono,monospace">'+c+'✓</span>'
-          +(s>0?'<span title="Sem entrevista (só ficha)" style="font-size:10px;padding:1px 5px;border-radius:2px;background:rgba(88,166,255,.12);color:#58a6ff;font-family:JetBrains Mono,monospace">'+s+'~</span>':'')
-          +'</span>'
-          :'<span title="Só ficha, sem entrevista" style="font-size:10px;padding:1px 5px;border-radius:2px;background:rgba(88,166,255,.12);color:#58a6ff;font-family:JetBrains Mono,monospace">'+s+'~</span>';
-        return tag;
-      }})()}}</td>
-      <td><span class="status-flag ${{st.cls}}">${{st.label}}</span></td>
-    `;
-    tbody.appendChild(tr);
+// ---------------- table
+const BADGE = {{sem:['b-sem','Sem demanda'],abaixo:['b-abaixo','Abaixo da meta'],meta:['b-meta','Risco evasão'],coberto:['b-coberto','Coberto']}};
+const ACAO_BADGE = {{matricula:['#2d7a4f','Matrícula'],entrevista:['#f37f1f','Entrevistar'],captacao:['#e63827','Captar'],sem:['#8a8279','Verificar']}};
+function renderTable(){{
+  let r = filtered();
+  const k=state.sortKey, dir=state.sortDir;
+  r.sort((a,b)=>{{let x=a[k],y=b[k]; if(typeof x==='string'){{x=x||'';y=y||'';return dir*x.localeCompare(y);}} return dir*((x??-1)-(y??-1));}});
+  const tb=document.getElementById('tbl-body'); tb.innerHTML='';
+  r.forEach(d=>{{
+    const [cls,lbl]=BADGE[d.status];
+    const evaTxt = d.eva>0 ? d.eva.toFixed(0)+'%' : '<span title="matrícula = inseridos: sem evasão observada" style="color:#8a8279">0%*</span>';
+    const saldoColor = d.saldo<0?'#c0291a':(d.saldo===0?'#9a6a12':'#1f6b41');
+    const saldoTxt = d.status==='sem'?'—':(d.saldo>0?'+'+d.saldo:d.saldo);
+    tr = `<tr>
+      <td>${{d.unit}}</td><td>${{d.period}}</td>
+      <td title="${{d.course}}">${{d.course.length>30?d.course.slice(0,30)+'…':d.course}}</td>
+      <td style="font-size:10.5px;color:var(--text-muted)" title="${{d.eixo}}">${{d.eixo.length>20?d.eixo.slice(0,20)+'…':d.eixo}}</td>
+      <td class="right mono">${{d.centr||'—'}}</td>
+      <td class="right mono">${{d.sentr||'—'}}</td>
+      <td class="right mono" style="font-weight:600">${{d.dem||'—'}}</td>
+      <td class="right mono">${{d.meta}}</td>
+      <td class="right mono">${{evaTxt}}</td>
+      <td class="right mono">${{d.status==='sem'?'—':(d.need + (d.capped?'<span title="necessidade matemática seria '+d.need_bruto+' — limitada ao teto" style="color:#c97c1a">⊤</span>':''))}}</td>
+      <td class="right mono" style="color:${{saldoColor}};font-weight:600">${{saldoTxt}}</td>
+      <td><span class="badge ${{cls}}">${{lbl}}</span></td>
+      <td><span class="badge" style="background:${{ACAO_BADGE[d.acao][0]}}22;color:${{ACAO_BADGE[d.acao][0]}}" title="${{ACAO_DEF.find(a=>a.k===d.acao).who}}">${{ACAO_BADGE[d.acao][1]}}</span></td>
+    </tr>`;
+    tb.insertAdjacentHTML('beforeend',tr);
   }});
+  document.getElementById('tbl-count').textContent = r.length+' turmas';
 }}
 
-function updateKPIs(data){{
-  document.getElementById('kpi-cursos').textContent=data.length;
-  const tm=data.reduce((s,d)=>s+(d.meta||0),0);
-  const wr=tm>0?(data.reduce((s,d)=>s+d.attend_rate*(d.meta||0),0)/tm).toFixed(1)+'%':'—';
-  document.getElementById('kpi-rate').textContent=wr;
-
-  document.getElementById('kpi-low').textContent=data.filter(d=>d.attend_rate<80).length;
-  // Ausência ponderada pela matrícula. freq_avg pode exceder matr (matrícula
-  // desatualizada) → 'ausentes' nunca é negativo (clamp em 0) para não falsear a média.
-  const withEv=data.filter(d=>d.matr);
-  const totalMatrEv=withEv.reduce((s,d)=>s+d.matr,0);
-  const totalAusentes=withEv.reduce((s,d)=>s+Math.max(0,d.matr-d.freq_avg),0);
-  const avgEv=totalMatrEv?(totalAusentes/totalMatrEv*100).toFixed(1):'—';
-  document.getElementById('kpi-evasao').textContent=avgEv!=='—'?avgEv+'%':'—';
-  // Evasão acumulada (desistências desde o início) = Σdesistentes / Σinseridos
-  const withDes=data.filter(d=>d.desistentes!=null && d.inseridos);
-  const totDesist=withDes.reduce((s,d)=>s+d.desistentes,0);
-  const totIns=withDes.reduce((s,d)=>s+d.inseridos,0);
-  const desistPct=totIns?(totDesist/totIns*100).toFixed(1):'—';
-  document.getElementById('kpi-desist').textContent=desistPct!=='—'?desistPct+'%':'—';
-  document.getElementById('kpi-desist-n').textContent=totDesist;
-  document.getElementById('hdr-cursos').textContent=data.length;
-  document.getElementById('hdr-avg').textContent=wr;
-  document.getElementById('hdr-matr').textContent=data.reduce((s,d)=>s+(d.matr||0),0);
-  document.getElementById('hdr-ins').textContent=data.reduce((s,d)=>s+(d.inseridos||0),0);
-
-  // ── Dados do Dia (ciente do calendário) ──
-  const unitLatest={{}};
-  data.forEach(d=>{{if(d.last_date&&(!unitLatest[d.unit]||d.last_date>unitLatest[d.unit]))unitLatest[d.unit]=d.last_date;}});
-  const totalLastFreq=data.reduce((s,d)=>d.last_date&&d.last_date===unitLatest[d.unit]?s+(d.last_freq||0):s,0);
-  const latestDate=Object.values(unitLatest).reduce((mx,d)=>d>mx?d:mx,'');
-  // Pendências reais (já descontados feriados/paradas, calculadas no Python)
-  const totPend=data.reduce((s,d)=>s+(d.pendentes||0),0);
-  const cursosPend=data.filter(d=>(d.pendentes||0)>0).length;
-  const diasSemAula=Object.keys(NO_CLASS||{{}}).length;
-  const panel=document.getElementById('snapshot-panel');
-  if(totalLastFreq>0||totPend>0||data.length){{
-    panel.style.display='block';
-    const latestDisplay=data.find(d=>d.last_date===latestDate)?.last_date_display||CUTOFF||'';
-    document.getElementById('snapshot-date').textContent=latestDisplay?'· '+latestDisplay:'';
-    document.getElementById('snap-last-freq').textContent=totalLastFreq||'—';
-    document.getElementById('snap-pendentes').textContent=totPend;
-    document.getElementById('snap-pend-cursos').textContent=cursosPend;
-    document.getElementById('snap-semaula').textContent=diasSemAula;
-  }} else {{
-    panel.style.display='none';
-  }}
-
-  // ── Lista de turmas com lançamentos pendentes (top 12) ──
-  const pendPanel=document.getElementById('pend-panel');
-  const pendList=document.getElementById('pend-list');
-  const comPend=data.filter(d=>(d.pendentes||0)>0)
-                    .sort((a,b)=>b.pendentes-a.pendentes).slice(0,12);
-  if(comPend.length){{
-    pendPanel.style.display='block';
-    pendList.innerHTML=comPend.map(d=>{{
-      const datas=(d.pendentes_datas||[]).join(' · ');
-      return `<div style="display:flex;align-items:flex-start;gap:10px;padding:7px 0;border-bottom:1px solid var(--surface2)">
-        <span style="flex-shrink:0;min-width:30px;text-align:center;font-family:'JetBrains Mono',monospace;font-weight:700;color:var(--orange)">${{d.pendentes}}</span>
-        <div style="flex:1">
-          <div style="font-size:13px;font-weight:600">${{d.course}} <span style="color:var(--text-muted);font-weight:400">· ${{d.unit.replace('CEDESP ','C')}} · ${{d.period}}</span></div>
-          <div style="font-size:11px;color:var(--text-muted);font-family:'JetBrains Mono',monospace;margin-top:2px">${{datas}}</div>
-        </div>
-      </div>`;
-    }}).join('');
-  }} else {{
-    pendPanel.style.display='none';
-  }}
+// ---------------- filtros UI
+function buildFilters(){{
+  const uf=document.getElementById('unit-filters');
+  const mk=(label,val,key)=>{{const b=document.createElement('button');b.className='filter-btn'+((state[key]===val)?' active':'');b.textContent=label;b.onclick=()=>{{state[key]=val;[...b.parentNode.children].forEach(c=>c.classList.remove('active'));b.classList.add('active');renderAll();}};return b;}};
+  uf.appendChild(mk('Todas','all','unit'));
+  UNITS.forEach(u=>uf.appendChild(mk(u.replace('CEDESP ','CEDESP '),u,'unit')));
+  const sf=document.getElementById('status-filters');
+  sf.appendChild(mk('Todos','all','status'));
+  STATUS_DEF.forEach(s=>{{const b=mk(s.label,s.k,'status');b.innerHTML=`<span class="dot" style="background:${{s.color}}"></span>${{s.label}}`;sf.appendChild(b);}});
 }}
 
-function update(){{
-  const f=getFiltered();
-  updateKPIs(f);
-  buildCharts(f);
-  buildEvasaoChart(f);
-  buildDesistChart(f);
-  buildScatter(f);
-  buildTable(f);
-}}
+function renderAll(){{ renderAcoes(); renderKPIs(); renderTable(); try{{ renderCharts(); }}catch(e){{ console.error('Chart.js indisponível:',e); }} }}
 
-document.querySelectorAll('[data-filter="unit"]').forEach(btn=>{{
-  btn.addEventListener('click',()=>{{
-    document.querySelectorAll('[data-filter="unit"]').forEach(b=>b.classList.remove('active'));
-    btn.classList.add('active');filterUnit=btn.dataset.value;update();
-  }});
+document.querySelectorAll('#basis-seg button').forEach(b=>b.onclick=()=>{{
+  state.basis=b.dataset.basis;document.querySelectorAll('#basis-seg button').forEach(x=>x.classList.remove('active'));b.classList.add('active');renderAll();
 }});
-document.querySelectorAll('[data-filter="period"]').forEach(btn=>{{
-  btn.addEventListener('click',()=>{{
-    document.querySelectorAll('[data-filter="period"]').forEach(b=>b.classList.remove('active'));
-    btn.classList.add('active');filterPeriod=btn.dataset.value;update();
-  }});
+document.getElementById('floor-chk').onchange=e=>{{state.floor=e.target.checked;renderAll();}};
+document.getElementById('teto-input').onchange=e=>{{let v=parseInt(e.target.value)||TETO_DEFAULT;v=Math.max(20,Math.min(80,v));e.target.value=v;state.teto=v;renderAll();}};
+document.getElementById('search').oninput=e=>{{state.search=e.target.value;renderTable();}};
+document.querySelectorAll('#tbl th').forEach(th=>th.onclick=()=>{{
+  const k=th.dataset.sort;if(!k)return;
+  if(state.sortKey===k)state.sortDir*=-1;else{{state.sortKey=k;state.sortDir=1;}}
+  renderTable();
 }});
-document.querySelectorAll('#courseTable thead th[data-sort]').forEach(th=>{{
-  th.addEventListener('click',()=>{{
-    const col=th.dataset.sort;
-    if(sortMode===col){{sortDir*=-1;}}else{{sortMode=col;sortDir=col==='attend_rate'?-1:1;}}
-    document.querySelectorAll('#courseTable thead th').forEach(t=>{{
-      t.classList.remove('sort-active');
-      const arr=t.querySelector('.sort-arrow');
-      if(arr)arr.textContent='↕';
-    }});
-    th.classList.add('sort-active');
-    const arr=th.querySelector('.sort-arrow');
-    if(arr)arr.textContent=sortDir===-1?'↓':'↑';
-    buildTable(getFiltered());
-  }});
-}});
-(()=>{{
-  const th=document.querySelector('#courseTable thead th[data-sort="attend_rate"]');
-  if(th){{th.classList.add('sort-active');const arr=th.querySelector('.sort-arrow');if(arr)arr.textContent='↓';}}
-}})();
-document.getElementById('searchInput').addEventListener('input',e=>{{searchQuery=e.target.value.toLowerCase().trim();update();}});
 
-// ── Exportação PDF (mesmo sistema do dashboard de atendimento) ──────────────
+buildFilters(); renderAll();
+
+// ---------------- PDF export
+async function loadScript(src){{return new Promise((res,rej)=>{{const s=document.createElement('script');s.src=src;s.onload=res;s.onerror=rej;document.head.appendChild(s);}});}}
 async function exportPDF(){{
-  const btn=document.getElementById('pdfBtn');
-  btn.textContent='⏳ Gerando...'; btn.disabled=true;
-  async function loadScript(src){{
-    return new Promise((res,rej)=>{{
-      if(document.querySelector(`script[src="${{src}}"]`)){{res();return;}}
-      const s=document.createElement('script'); s.src=src; s.onload=res; s.onerror=rej;
-      document.head.appendChild(s);
-    }});
-  }}
+  const btn=document.querySelector('.btn-pdf');const old=btn.textContent;btn.textContent='Gerando…';btn.disabled=true;
   try{{
-    await loadScript('https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js');
-    await loadScript('https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js');
-  }}catch(e){{
-    alert('Erro ao carregar bibliotecas de PDF. Verifique sua conexão.');
-    btn.textContent='⬇ Exportar PDF'; btn.disabled=false; return;
-  }}
-
-  const {{ jsPDF }}=window.jspdf;
-  const pdf=new jsPDF({{orientation:'portrait',unit:'mm',format:'a4'}});
-  const PW=210, PH=297, MARGIN=12, CONTENT_W=PW-MARGIN*2;
-  let pageNum=1;
-
-  // Rótulo de escopo a partir dos filtros ativos (nome, não "FILTRO ATIVO")
-  let parts=[];
-  if(filterUnit!=='all')   parts.push(filterUnit);
-  if(filterPeriod!=='all') parts.push(filterPeriod);
-  if(searchQuery)          parts.push('busca: "'+searchQuery+'"');
-  const filterLabel=parts.join('   ·   ');
-  const headerHeight=filterLabel?26:16;
-
-  function addPageHeader(pageNum){{
-    pdf.setFillColor(33,67,142);
-    pdf.rect(0,0,PW,14,'F');
-    const bars=[['#21438e',0],['#e63827',52.5],['#2bb19d',105],['#f37f1f',157.5]];
-    bars.forEach(([c,x])=>{{
-      const rgb=c.match(/[\\da-f]{{2}}/gi).map(h=>parseInt(h,16));
-      pdf.setFillColor(...rgb); pdf.rect(x,14,52.5,2,'F');
-    }});
-    pdf.setFont('helvetica','bold'); pdf.setFontSize(10); pdf.setTextColor(255,255,255);
-    pdf.text('CEDESP DOM BOSCO — Frequência por Curso', MARGIN, 9);
-    pdf.setFont('helvetica','normal'); pdf.setFontSize(8); pdf.setTextColor(180,190,210);
-    pdf.text(`{data_atualizacao}`, PW-MARGIN, 9, {{align:'right'}});
-    pdf.setFontSize(7); pdf.setTextColor(140,150,170);
-    pdf.text(`Página ${{pageNum}}`, PW-MARGIN, PH-4, {{align:'right'}});
-    if(filterLabel){{
-      pdf.setFillColor(245,248,255); pdf.rect(0,16,PW,10,'F');
-      pdf.setDrawColor(33,67,142); pdf.setLineWidth(0.4); pdf.line(0,16,PW,16);
-      pdf.setFont('helvetica','bold'); pdf.setFontSize(9.5); pdf.setTextColor(33,67,142);
-      pdf.text(filterLabel, MARGIN, 23);
-      pdf.setFont('helvetica','normal'); pdf.setFontSize(7); pdf.setTextColor(120,130,155);
-      pdf.text('RELATÓRIO FILTRADO', PW-MARGIN, 23, {{align:'right'}});
+    if(!window.html2canvas) await loadScript('https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js');
+    if(!window.jspdf) await loadScript('https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js');
+    const {{jsPDF}}=window.jspdf;const pdf=new jsPDF('p','mm','a4');
+    const W=210,H=297,M=12;let first=true;
+    const escopo = state.unit==='all'?'TODAS AS UNIDADES':state.unit;
+    function header(){{
+      pdf.setFillColor(33,67,142);pdf.rect(0,0,W,18,'F');
+      pdf.setTextColor(255,255,255);pdf.setFont('helvetica','bold');pdf.setFontSize(11);
+      pdf.text('Planejamento de Demanda · Próximo Semestre',M,8);
+      pdf.setFont('helvetica','normal');pdf.setFontSize(7);
+      pdf.text('CEDESP · OBRA SOCIAL DOM BOSCO ITAQUERA · 1º SEM 2026',M,13.5);
+      const cols=[[33,67,142],[230,56,39],[243,127,31],[43,177,157]];const cw=W/4;
+      cols.forEach((c,i)=>{{pdf.setFillColor(...c);pdf.rect(i*cw,18,cw,1.6,'F');}});
+      pdf.setTextColor(33,67,142);pdf.setFont('helvetica','bold');pdf.setFontSize(8);
+      pdf.text('ESCOPO: '+escopo,W-M,8,{{align:'right'}});
     }}
-  }}
-
-  // Coloca um canvas podendo fluir por várias páginas (tabela longa fica legível)
-  function placePaged(canvas, startY){{
-    const imgW=CONTENT_W;
-    const pxPerMm=canvas.width/imgW;
-    let srcY=0, y=startY;
-    let remainingPx=canvas.height;
-    while(remainingPx>0){{
-      let availMm=(PH-10)-y;
-      if(availMm<20){{ pdf.addPage(); pageNum++; addPageHeader(pageNum); y=headerHeight+2; availMm=(PH-10)-y; }}
-      const slicePx=Math.min(remainingPx, Math.floor(availMm*pxPerMm));
-      const sliceMm=slicePx/pxPerMm;
-      const c=document.createElement('canvas'); c.width=canvas.width; c.height=slicePx;
-      c.getContext('2d').drawImage(canvas,0,srcY,canvas.width,slicePx,0,0,canvas.width,slicePx);
-      pdf.addImage(c.toDataURL('image/png'),'PNG',MARGIN,y,imgW,sliceMm);
-      srcY+=slicePx; remainingPx-=slicePx; y+=sliceMm+5;
-      if(remainingPx>0){{ pdf.addPage(); pageNum++; addPageHeader(pageNum); y=headerHeight+2; }}
+    const secs=['acoes-section','kpis-section','donut-section','scatter-section','prontidao-section','deficit-section','eixo-section','tbl-section'];
+    let y=24;header();
+    for(const id of secs){{
+      const el=document.getElementById(id);if(!el)continue;
+      const canvas=await html2canvas(el,{{scale:2,backgroundColor:'#ffffff'}});
+      const imgW=W-2*M;const imgH=canvas.height*imgW/canvas.width;
+      if(y+imgH>H-M){{pdf.addPage();header();y=24;}}
+      pdf.addImage(canvas.toDataURL('image/png'),'PNG',M,y,imgW,Math.min(imgH,H-M-24));
+      y+=Math.min(imgH,H-M-24)+5;
     }}
-    return y;
-  }}
-
-  // Seções a capturar, na ordem da tela
-  const sections=[];
-  const kpis=document.querySelector('.kpi-row'); if(kpis) sections.push(kpis);
-  const snap=document.getElementById('snapshot-panel'); if(snap&&snap.style.display!=='none') sections.push(snap);
-  const tbl=document.querySelector('.course-table-wrap'); if(tbl) sections.push(tbl);
-  document.querySelectorAll('.chart-box').forEach(cb=>sections.push(cb));
-  const pend=document.getElementById('pend-panel'); if(pend&&pend.style.display!=='none') sections.push(pend);
-
-  let curY=headerHeight+2;
-  addPageHeader(pageNum);
-
-  for(const el of sections){{
-    const canvas=await html2canvas(el,{{scale:2,useCORS:true,backgroundColor:'#ffffff',logging:false,windowWidth:document.documentElement.scrollWidth}});
-    const imgW=CONTENT_W;
-    const imgH=(canvas.height/canvas.width)*imgW;
-    const pageContentH=(PH-10)-(headerHeight+2);
-    if(imgH>pageContentH){{
-      if(curY>headerHeight+4){{ pdf.addPage(); pageNum++; addPageHeader(pageNum); curY=headerHeight+2; }}
-      curY=placePaged(canvas, curY);
-    }} else {{
-      if(curY+imgH>PH-10){{ pdf.addPage(); pageNum++; addPageHeader(pageNum); curY=headerHeight+2; }}
-      pdf.addImage(canvas.toDataURL('image/png'),'PNG',MARGIN,curY,imgW,imgH);
-      curY+=imgH+5;
-    }}
-  }}
-
-  pdf.save(`dashboard_cursos_cedesp_${{new Date().toISOString().slice(0,10)}}.pdf`);
-  btn.textContent='✅ PDF gerado!';
-  setTimeout(()=>{{btn.textContent='⬇ Exportar PDF'; btn.disabled=false;}}, 3000);
+    pdf.save('planejamento_demanda_cedesp.pdf');
+  }}catch(e){{alert('Erro ao gerar PDF: '+e.message);}}
+  btn.textContent=old;btn.disabled=false;
 }}
-
-update();
 </script>
 </body>
 </html>"""
-
     return html
 
-
+# ---------------------------------------------------------------- main
 def main():
-    caminho = sys.argv[1] if len(sys.argv) > 1 else PLANILHA_PADRAO
-    data_atualizacao = datetime.now(timezone(timedelta(hours=-3))).strftime("%d/%m/%Y às %H:%M")
+    print("📂  Dashboard de Planejamento de Demanda — CEDESP OSDB")
+    planilha = achar_planilha()
+    sheets   = carregar_planilha(planilha)
+    dados    = extrair_demanda(sheets)
 
-    print(f"\n{'='*55}")
-    print(f"  Dashboard CEDESP — Gerador Automático")
-    print(f"  {data_atualizacao}")
-    print(f"{'='*55}\n")
+    # Resumo no console
+    from collections import Counter
+    def cls(d, basis="dem_total", floor=False):
+        meta = d["meta"] or META_PADRAO
+        dem = d["dem_total"] if basis == "dem_total" else d["centr"]
+        eva = d["eva"] or 0
+        if floor and eva <= 0: eva = NET_EVA
+        e = min(max(eva, 0) / 100, EVA_CAP)
+        need = math.ceil(meta / (1 - e)) if meta else 0
+        need = min(need, TETO_INSERIDOS)
+        if dem <= 0: return "sem", 0
+        if dem < meta: return "abaixo", need - dem
+        if dem < need: return "meta", need - dem
+        return "coberto", 0
+    cont = Counter(); deficit = 0
+    for d in dados:
+        s, falta = cls(d)
+        cont[s] += 1
+        if s in ("abaixo", "meta"): deficit += falta
+    print(f"  ✅  {len(dados)} turmas | abaixo:{cont['abaixo']} risco:{cont['meta']} "
+          f"coberto:{cont['coberto']} sem:{cont['sem']} | déficit:{deficit}")
 
-    sheets  = carregar_planilha(caminho)
-    totais  = extrair_totais(sheets)
-    cursos, period_dates = extrair_cursos(sheets)
+    data_atualizacao = datetime.now().strftime("%d/%m/%Y")
+    html = gerar_html(dados, data_atualizacao)
 
-    # Filtra apenas cursos com dados válidos
-    cursos_validos = [c for c in cursos if c["attend_rate"] > 0 and c["matr"] and c["matr"] > 0]
-
-    # ── Pendências honestas (ciente de feriados/paradas) ──────────────────────
-    cutoff, no_class, resumo = calcular_pendencias(cursos_validos, period_dates)
-
-    # ── Diagnósticos de integridade ───────────────────────────────────────────
-    print(f"\n{'─'*55}")
-    print("  🔎  AUDITORIA DE INTEGRIDADE")
-    print(f"{'─'*55}")
-
-    # 1) Prováveis erros de digitação: freq > 1.5×matr num dia
-    typos = []
-    for c in cursos_validos:
-        for (sd, dd, fr) in c["daily"]:
-            if c["matr"] and fr > 1.5 * c["matr"]:
-                typos.append((c["unit"], c["period"], c["course"], dd, fr, c["matr"]))
-    print(f"  • Prováveis erros de digitação (freq > 1,5×matr): {len(typos)}")
-    for t in typos[:12]:
-        print(f"      {t[0]} | {t[1]:>5} | {t[2][:30]:<30} {t[3]}: freq={t[4]:.0f} vs matr={t[5]:.0f}")
-    if len(typos) > 12:
-        print(f"      … e mais {len(typos)-12}")
-
-    # 2) Ausência negativa (freq_avg > matr → matrícula provavelmente desatualizada)
-    neg = [c for c in cursos_validos if c.get("evasao") is not None and c["evasao"] < 0]
-    print(f"  • Turmas com 'ausência' negativa (freq_avg > matr): {len(neg)}")
-    for c in neg:
-        print(f"      {c['unit']} | {c['period']:>5} | {c['course'][:30]:<30} "
-              f"freq_avg={c['freq_avg']:.1f} > matr={c['matr']:.0f}")
-
-    # 3) Datas a confirmar
-    if PARADAS_A_CONFIRMAR:
-        print("  • Datas anômalas a CLASSIFICAR manualmente:")
-        for iso, motivo in PARADAS_A_CONFIRMAR.items():
-            print(f"      {iso}: {motivo}")
-
-    print(f"\n  • Cutoff (última data lançada): {cutoff}")
-    print(f"  • Pendências reais de lançamento: {resumo['total_pendentes']} "
-          f"em {resumo['cursos_com_pendencia']} turmas")
-    print(f"  • Dias sem aula no calendário (feriado/parada): {resumo['dias_sem_aula']}")
-    print(f"{'─'*55}\n")
-
-    print(f"✅  {len(cursos_validos)} turmas com frequência registrada")
-    print(f"✅  {len(totais)} unidades no resumo\n")
-
-    # Gera dashboard de cursos
-    html_cursos = gerar_html_cursos(cursos_validos, data_atualizacao, cutoff, no_class, resumo)
-    with open(SAIDA_CURSOS, "w", encoding="utf-8") as f:
-        f.write(html_cursos)
-    print(f"📄  Gerado: {SAIDA_CURSOS}")
-
-    print(f"\n{'='*55}")
-    print(f"  ✅  Concluído! Arquivos prontos para publicar.")
-    print(f"{'='*55}\n")
-
+    # Saída SEMPRE na mesma pasta deste script
+    out_dir = os.path.dirname(os.path.abspath(__file__))
+    out = os.path.join(out_dir, SAIDA_HTML)
+    with open(out, "w", encoding="utf-8") as f:
+        f.write(html)
+    print(f"  💾  Gerado: {out}")
+    return out
 
 if __name__ == "__main__":
     main()
-
-
-
-
-
-
 
