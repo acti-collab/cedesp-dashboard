@@ -123,7 +123,7 @@ footer{border-top:1px solid var(--border);padding:20px 48px;display:flex;justify
     <button class="filter-btn noite" data-filter="period" data-value="Noite">🌙 Noite</button>
   </div>
   <div class="controls-spacer"></div>
-  <span class="update-badge">📅 Atualizado em: 10/06/2026 às 10:15</span>
+  <span class="update-badge">📅 Atualizado em: 11/06/2026 às 10:15</span>
   <div style="display:flex;align-items:center;gap:6px">
     <button class="pdf-btn" id="pdfBtn" onclick="exportPDF()">⬇ Exportar PDF</button>
   </div>
@@ -266,7 +266,7 @@ footer{border-top:1px solid var(--border);padding:20px 48px;display:flex;justify
 
 <footer>
   <div class="footer-text">CEDESP Dom Bosco Itaquera · Dashboard gerado automaticamente</div>
-  <div class="footer-text">Atualizado em 10/06/2026 às 10:15</div>
+  <div class="footer-text">Atualizado em 11/06/2026 às 10:15</div>
 </footer>
 
 <script>
@@ -37261,10 +37261,10 @@ const RAW = [
     "meta": 20.0,
     "matr": 39.0,
     "inseridos": 39.0,
-    "freq_avg": 21.7,
-    "n_classes": 64,
-    "attend_rate": 108.5,
-    "evasao": 17.3,
+    "freq_avg": 21.8,
+    "n_classes": 67,
+    "attend_rate": 109.0,
+    "evasao": 17.2,
     "daily": [
       [
         "02/03",
@@ -37585,9 +37585,24 @@ const RAW = [
         "05/15",
         "15/05",
         19
+      ],
+      [
+        "05/18",
+        "18/05",
+        21
+      ],
+      [
+        "05/19",
+        "19/05",
+        23
+      ],
+      [
+        "05/20",
+        "20/05",
+        23
       ]
     ],
-    "last_freq": 19,
+    "last_freq": 23,
     "week_avgs": {
       "02/02": 21.5,
       "09/02": 23.0,
@@ -37603,11 +37618,12 @@ const RAW = [
       "20/04": 18.7,
       "27/04": 20.2,
       "04/05": 22.0,
-      "11/05": 18.6
+      "11/05": 18.6,
+      "18/05": 22.3
     },
-    "last_date": "05/15",
-    "last_date_display": "15/05",
-    "evasao_pct": 44.4,
+    "last_date": "05/20",
+    "last_date_display": "20/05",
+    "evasao_pct": 44.1,
     "desistentes": 0,
     "evasao_acum_pct": 0.0,
     "centr": 38,
@@ -37626,10 +37642,10 @@ const RAW = [
     "meta": 20.0,
     "matr": 37.0,
     "inseridos": 37.0,
-    "freq_avg": 20.1,
-    "n_classes": 64,
-    "attend_rate": 100.5,
-    "evasao": 16.9,
+    "freq_avg": 19.8,
+    "n_classes": 73,
+    "attend_rate": 99.0,
+    "evasao": 17.2,
     "daily": [
       [
         "02/03",
@@ -37950,9 +37966,54 @@ const RAW = [
         "05/15",
         "15/05",
         20
+      ],
+      [
+        "05/18",
+        "18/05",
+        20
+      ],
+      [
+        "05/19",
+        "19/05",
+        21
+      ],
+      [
+        "05/20",
+        "20/05",
+        14
+      ],
+      [
+        "05/21",
+        "21/05",
+        21
+      ],
+      [
+        "05/22",
+        "22/05",
+        19
+      ],
+      [
+        "05/25",
+        "25/05",
+        18
+      ],
+      [
+        "05/26",
+        "26/05",
+        20
+      ],
+      [
+        "05/27",
+        "27/05",
+        17
+      ],
+      [
+        "05/28",
+        "28/05",
+        12
       ]
     ],
-    "last_freq": 20,
+    "last_freq": 12,
     "week_avgs": {
       "02/02": 19.8,
       "09/02": 21.2,
@@ -37968,11 +38029,13 @@ const RAW = [
       "20/04": 19.3,
       "27/04": 20.5,
       "04/05": 20.8,
-      "11/05": 21.0
+      "11/05": 21.0,
+      "18/05": 19.0,
+      "25/05": 16.8
     },
-    "last_date": "05/15",
-    "last_date_display": "15/05",
-    "evasao_pct": 45.7,
+    "last_date": "05/28",
+    "last_date_display": "28/05",
+    "evasao_pct": 46.5,
     "desistentes": 0,
     "evasao_acum_pct": 0.0,
     "centr": 10,
@@ -39908,7 +39971,7 @@ async function exportPDF(){
     pdf.setFont('helvetica','bold'); pdf.setFontSize(10); pdf.setTextColor(255,255,255);
     pdf.text('CEDESP DOM BOSCO — Frequência por Curso', MARGIN, 9);
     pdf.setFont('helvetica','normal'); pdf.setFontSize(8); pdf.setTextColor(180,190,210);
-    pdf.text(`10/06/2026 às 10:15`, PW-MARGIN, 9, {align:'right'});
+    pdf.text(`11/06/2026 às 10:15`, PW-MARGIN, 9, {align:'right'});
     pdf.setFontSize(7); pdf.setTextColor(140,150,170);
     pdf.text(`Página ${pageNum}`, PW-MARGIN, PH-4, {align:'right'});
     if(filterLabel){
