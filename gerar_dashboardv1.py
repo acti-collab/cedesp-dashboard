@@ -296,6 +296,28 @@ tbody tr:hover{{background:var(--surface2)}}
   <div class="acao-hint">Clique num cartão para filtrar a tabela. A recomendação cruza a demanda total com a demanda já entrevistada (C/ENTR).</div>
   <div id="acoes-section" class="acao-grid"></div>
 
+  <div class="section-row"><span class="section-title">Análise curso a curso</span><span class="section-rule"></span><span class="section-count" id="tbl-count"></span></div>
+  <div id="tbl-section" style="overflow-x:auto">
+    <table id="tbl">
+      <thead><tr>
+        <th data-sort="unit">Unidade <span class="sort-arrow">↕</span></th>
+        <th data-sort="period">Turno <span class="sort-arrow">↕</span></th>
+        <th data-sort="course">Curso <span class="sort-arrow">↕</span></th>
+        <th data-sort="eixo">Eixo <span class="sort-arrow">↕</span></th>
+        <th class="right" data-sort="centr" title="Demanda com entrevista">C/Entr <span class="sort-arrow">↕</span></th>
+        <th class="right" data-sort="sentr" title="Demanda sem entrevista">S/Entr <span class="sort-arrow">↕</span></th>
+        <th class="right" data-sort="dem" title="Demanda usada na classificação">Demanda <span class="sort-arrow">↕</span></th>
+        <th class="right" data-sort="meta">Meta <span class="sort-arrow">↕</span></th>
+        <th class="right" data-sort="eva" title="Evasão acumulada observada neste semestre">Evasão <span class="sort-arrow">↕</span></th>
+        <th class="right" data-sort="need" title="Candidatos necessários = meta ÷ (1 − evasão)">Necessário <span class="sort-arrow">↕</span></th>
+        <th class="right" data-sort="saldo" title="Demanda − necessário (negativo = déficit)">Saldo <span class="sort-arrow">↕</span></th>
+        <th data-sort="status">Status <span class="sort-arrow">↕</span></th>
+        <th data-sort="acao" title="Ação recomendada cruzando demanda total e entrevistados">Ação <span class="sort-arrow">↕</span></th>
+      </tr></thead>
+      <tbody id="tbl-body"></tbody>
+    </table>
+  </div>
+
   <div class="section-row"><span class="section-title">Panorama de cobertura</span><span class="section-rule"></span></div>
   <div class="charts-grid">
     <div class="chart-box" id="donut-section">
@@ -332,28 +354,6 @@ tbody tr:hover{{background:var(--surface2)}}
       <div class="chart-box-sub">Soma da demanda captada versus soma da necessidade ajustada por eixo — mostra onde sobra e onde falta candidato.</div>
       <canvas id="eixoChart" height="150"></canvas>
     </div>
-  </div>
-
-  <div class="section-row"><span class="section-title">Análise curso a curso</span><span class="section-rule"></span><span class="section-count" id="tbl-count"></span></div>
-  <div id="tbl-section" style="overflow-x:auto">
-    <table id="tbl">
-      <thead><tr>
-        <th data-sort="unit">Unidade <span class="sort-arrow">↕</span></th>
-        <th data-sort="period">Turno <span class="sort-arrow">↕</span></th>
-        <th data-sort="course">Curso <span class="sort-arrow">↕</span></th>
-        <th data-sort="eixo">Eixo <span class="sort-arrow">↕</span></th>
-        <th class="right" data-sort="centr" title="Demanda com entrevista">C/Entr <span class="sort-arrow">↕</span></th>
-        <th class="right" data-sort="sentr" title="Demanda sem entrevista">S/Entr <span class="sort-arrow">↕</span></th>
-        <th class="right" data-sort="dem" title="Demanda usada na classificação">Demanda <span class="sort-arrow">↕</span></th>
-        <th class="right" data-sort="meta">Meta <span class="sort-arrow">↕</span></th>
-        <th class="right" data-sort="eva" title="Evasão acumulada observada neste semestre">Evasão <span class="sort-arrow">↕</span></th>
-        <th class="right" data-sort="need" title="Candidatos necessários = meta ÷ (1 − evasão)">Necessário <span class="sort-arrow">↕</span></th>
-        <th class="right" data-sort="saldo" title="Demanda − necessário (negativo = déficit)">Saldo <span class="sort-arrow">↕</span></th>
-        <th data-sort="status">Status <span class="sort-arrow">↕</span></th>
-        <th data-sort="acao" title="Ação recomendada cruzando demanda total e entrevistados">Ação <span class="sort-arrow">↕</span></th>
-      </tr></thead>
-      <tbody id="tbl-body"></tbody>
-    </table>
   </div>
 
   <div class="note" id="metodo">
@@ -675,7 +675,7 @@ async function exportPDF(){{
       pdf.setTextColor(33,67,142);pdf.setFont('helvetica','bold');pdf.setFontSize(8);
       pdf.text('ESCOPO: '+escopo,W-M,8,{{align:'right'}});
     }}
-    const secs=['acoes-section','kpis-section','donut-section','scatter-section','prontidao-section','deficit-section','eixo-section','tbl-section'];
+    const secs=['kpis-section','acoes-section','tbl-section','donut-section','scatter-section','prontidao-section','deficit-section','eixo-section'];
     let y=24;header();
     for(const id of secs){{
       const el=document.getElementById(id);if(!el)continue;
@@ -736,4 +736,5 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
