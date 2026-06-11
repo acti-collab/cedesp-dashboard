@@ -1,0 +1,727 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+"""
+Dashboard de PLANEJAMENTO DE DEMANDA — CEDESP / Obra Social Dom Bosco Itaquera
+================================================================================
+Analisa os dados de DEMANDA INICIAL (colunas A=C/ENTR, B=S/ENTR, C=TOTAL, sob o
+cabeçalho "DEMANDA / SOCIAL") da planilha do semestre, cruzando-os com a META do
+convênio (col F = 20) e com a EVASÃO observada no semestre corrente, para planejar
+o preenchimento das turmas do PRÓXIMO semestre.
+
+Pergunta central: a demanda captada para cada turma é suficiente para fechar a
+meta do convênio MESMO depois da evasão histórica daquele curso?
+
+Necessidade ajustada = ceil( meta / (1 - evasão) )
+  ex.: meta 20 com evasão de 30%  ->  20 / 0,70  ≈  29 candidatos.
+
+Classificação por turma (4 estados):
+  ⚪ SEM DEMANDA   — demanda = 0 (provável lançamento na turma-irmã do mesmo curso);
+                     excluída do denominador de cobertura (honestidade de cobertura).
+  🔴 ABAIXO DA META — 0 < demanda < meta.
+  🟡 RISCO DE EVASÃO — meta ≤ demanda < necessidade ajustada (fecha hoje, esvazia depois).
+  🟢 COBERTO        — demanda ≥ necessidade ajustada (margem segura).
+
+FONTE ÚNICA DE EXTRAÇÃO: este script importa dinamicamente o gerador de frequência
+(qualquer .py no diretório que contenha extrair_cursos + carregar_planilha), de
+modo que a leitura da planilha permaneça em um único lugar.
+"""
+import os, sys, glob, json, math, importlib.util
+from datetime import datetime
+
+# ---------------------------------------------------------------- constantes
+META_PADRAO   = 20      # meta do convênio (fallback se a célula vier vazia)
+EVA_CAP       = 0.95    # teto técnico de evasão só para não dividir por zero
+TETO_INSERIDOS = 30     # teto realista de inseridos no início do semestre (editável na UI)
+NET_EVA       = 32.4    # evasão média da rede (piso opcional) — calculada do arquivo
+OUT_DIR       = "/mnt/user-data/outputs"
+
+# Normalização de rótulos de eixo (corrige typo de origem; não altera a planilha)
+EIXO_FIX = {
+    "CONTROLE E PROCESSOS INDUSTRAIIS": "CONTROLE E PROCESSOS INDUSTRIAIS",
+}
+
+# ---------------------------------------------------------------- engine loader
+def carregar_engine():
+    """Importa dinamicamente o gerador de frequência (fonte única de extração)."""
+    aqui = os.path.dirname(os.path.abspath(__file__))
+    candidatos = []
+    for pasta in (aqui, os.getcwd(), "/mnt/user-data/uploads"):
+        candidatos += glob.glob(os.path.join(pasta, "*.py"))
+    for caminho in candidatos:
+        if os.path.abspath(caminho) == os.path.abspath(__file__):
+            continue
+        try:
+            src = open(caminho, encoding="utf-8").read()
+        except Exception:
+            continue
+        if "def extrair_cursos" in src and "def carregar_planilha" in src:
+            spec = importlib.util.spec_from_file_location("osdb_engine", caminho)
+            mod  = importlib.util.module_from_spec(spec)
+            spec.loader.exec_module(mod)
+            print(f"  🔌  Motor de extração: {os.path.basename(caminho)}")
+            return mod
+    raise RuntimeError("Nenhum gerador com extrair_cursos+carregar_planilha encontrado.")
+
+def achar_planilha():
+    for pasta in (os.getcwd(), "/mnt/user-data/uploads", os.path.dirname(os.path.abspath(__file__))):
+        achados = [f for f in glob.glob(os.path.join(pasta, "*.xlsx"))
+                   if not os.path.basename(f).startswith("~$")]
+        if achados:
+            achados.sort(key=os.path.getmtime, reverse=True)
+            return achados[0]
+    raise FileNotFoundError("Nenhum .xlsx encontrado.")
+
+# ---------------------------------------------------------------- eixo (re-walk fiel à ordem do engine)
+def eixo_lookup(sheets):
+    import pandas as pd
+    out = []
+    for i in range(1, 9):
+        sn = f"CEDESP {i}"; df = sheets.get(sn)
+        if df is None:
+            continue
+        period_rows = {}
+        for idx in range(len(df)):
+            row = df.iloc[idx]
+            for c in range(len(row)):
+                v = row.iloc[c]
+                if pd.notna(v) and isinstance(v, str):
+                    u = v.strip().upper()
+                    if "CURSO" not in u:
+                        continue
+                    if "MANH" in u:   period_rows[idx] = "Manhã"; break
+                    elif "TARDE" in u: period_rows[idx] = "Tarde"; break
+                    elif "NOITE" in u: period_rows[idx] = "Noite"; break
+        layouts = {}
+        for pidx, per in period_rows.items():
+            row = df.iloc[pidx]; lay = {}
+            for c in range(len(row)):
+                v = row.iloc[c]
+                if pd.notna(v) and isinstance(v, str):
+                    u = v.strip().upper()
+                    if "CURSO" in u and any(p in u for p in ["MANH", "TARDE", "NOITE"]):
+                        lay["name"] = c
+                    elif "EIXO" in u:
+                        lay["eixo"] = c
+            layouts[pidx] = (per, lay)
+        plist = sorted(layouts.keys())
+        for pi, pidx in enumerate(plist):
+            per, lay = layouts[pidx]
+            nxt = plist[pi + 1] if pi + 1 < len(plist) else len(df)
+            nc = lay.get("name", 3); ec = lay.get("eixo", 4)
+            for ridx in range(pidx + 2, nxt):
+                row = df.iloc[ridx]
+                val = row.iloc[nc] if nc < len(row) else None
+                if pd.notna(val) and isinstance(val, str):
+                    v = val.strip()
+                    skip = ["TOTAL", "SALDO", "PLANEJAMENTO", "NÃO FEZ", "ANTES DA",
+                            "ELETROTÉCNICA", "GUIA PRONATEC", "PARADA PEDAGÓGICA", "CURSOS ABAIXO"]
+                    if v and not any(s in v.upper() for s in skip) and len(v) > 2:
+                        eixo = row.iloc[ec] if ec < len(row) and pd.notna(row.iloc[ec]) else ""
+                        eixo = str(eixo).strip().upper()
+                        eixo = EIXO_FIX.get(eixo, eixo)
+                        out.append(eixo)
+    return out
+
+# ---------------------------------------------------------------- monta registros de planejamento
+def montar_dados(cursos, eixos):
+    dados = []
+    for k, c in enumerate(cursos):
+        eixo = eixos[k] if k < len(eixos) else ""
+        dados.append({
+            "unit":      c["unit"],
+            "period":    c["period"],
+            "course":    c["course"],
+            "eixo":      eixo,
+            "centr":     int(c.get("centr") or 0),
+            "sentr":     int(c.get("sentr") or 0),
+            "dem_total": int(c.get("dem_total") or 0),
+            "meta":      int(c["meta"]) if c.get("meta") else META_PADRAO,
+            "inseridos": int(c["inseridos"]) if c.get("inseridos") else None,
+            "matr":      int(c["matr"]) if c.get("matr") else None,
+            "eva":       c.get("evasao_acum_pct"),   # evasão acumulada observada (%)
+        })
+    return dados
+
+# ---------------------------------------------------------------- HTML
+def gerar_html(dados, data_atualizacao):
+    dados_js = json.dumps(dados, ensure_ascii=False)
+    html = f"""<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Planejamento de Demanda — CEDESP Dom Bosco Itaquera</title>
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js"></script>
+<style>
+:root {{
+  --bg:#f5f2ee;--surface:#fff;--surface2:#ede9e3;--border:#d8d2c8;
+  --text:#1a1612;--text-muted:#8a8279;--ink:#21438e;--ink2:#1a3475;
+  --red:#e63827;--orange:#f37f1f;--teal:#2bb19d;--green:#2d7a4f;
+  --yellow:#e8c547;--amber:#c97c1a;
+}}
+*{{box-sizing:border-box;margin:0;padding:0}}
+body{{background:var(--bg);color:var(--text);font-family:'Poppins',sans-serif;min-height:100vh}}
+header{{background:var(--ink);color:#f5f2ee;padding:0 48px;display:flex;align-items:stretch;justify-content:space-between;height:80px;position:sticky;top:0;z-index:100}}
+.header-left{{display:flex;align-items:center;gap:20px}}
+.header-accent{{width:4px;height:40px;background:var(--red);border-radius:2px}}
+.header-title{{font-weight:800;font-size:17px;letter-spacing:-0.3px;line-height:1.25}}
+.header-sub{{font-family:'JetBrains Mono',monospace;font-size:10px;color:rgba(245,242,238,.45);margin-top:3px;letter-spacing:.5px}}
+.header-right{{display:flex;align-items:center;gap:32px}}
+.header-stat{{text-align:right}}
+.hs-val{{font-size:22px;font-weight:700;letter-spacing:-.5px;color:var(--yellow)}}
+.hs-label{{font-family:'JetBrains Mono',monospace;font-size:10px;color:rgba(245,242,238,.45);letter-spacing:.5px}}
+.brandbar{{height:5px;display:flex}}
+.brandbar i{{flex:1}}
+.brandbar i:nth-child(1){{background:var(--ink)}}.brandbar i:nth-child(2){{background:var(--red)}}
+.brandbar i:nth-child(3){{background:var(--orange)}}.brandbar i:nth-child(4){{background:var(--teal)}}
+.controls{{background:var(--surface);border-bottom:1px solid var(--border);padding:12px 48px;display:flex;align-items:center;gap:10px;flex-wrap:wrap;position:sticky;top:80px;z-index:99}}
+.filter-label{{font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--text-muted);letter-spacing:.5px;text-transform:uppercase}}
+.filter-btn{{display:inline-flex;align-items:center;padding:5px 13px;border-radius:2px;border:1px solid var(--border);background:transparent;color:var(--text-muted);font-size:12px;cursor:pointer;transition:all .15s}}
+.filter-btn:hover{{border-color:var(--ink);color:var(--ink)}}
+.filter-btn.active{{background:var(--ink);color:var(--bg);border-color:var(--ink)}}
+.seg{{display:inline-flex;border:1px solid var(--border);border-radius:2px;overflow:hidden}}
+.seg button{{padding:5px 13px;border:0;background:transparent;color:var(--text-muted);font-family:'Poppins',sans-serif;font-size:12px;cursor:pointer}}
+.seg button.active{{background:var(--ink);color:#fff}}
+.chk{{display:inline-flex;align-items:center;gap:6px;font-size:12px;color:var(--text-muted);cursor:pointer;user-select:none}}
+.chk input{{accent-color:var(--ink);width:14px;height:14px}}
+.controls-spacer{{flex:1}}
+.search-wrap{{position:relative}}
+.search-input{{padding:6px 12px 6px 30px;border:1px solid var(--border);background:var(--bg);font-size:12px;color:var(--text);border-radius:2px;width:200px;outline:none}}
+.search-input:focus{{border-color:var(--ink)}}
+.search-icon{{position:absolute;left:10px;top:50%;transform:translateY(-50%);color:var(--text-muted);font-size:12px}}
+.btn-pdf{{padding:6px 14px;border:1px solid var(--ink);background:var(--ink);color:#fff;font-size:12px;border-radius:2px;cursor:pointer;font-family:'Poppins',sans-serif}}
+.btn-pdf:hover{{background:var(--ink2)}}
+main{{padding:30px 48px 70px;max-width:1480px;margin:0 auto}}
+.kpi-row{{display:grid;grid-template-columns:repeat(5,1fr);gap:1px;background:var(--border);border:1px solid var(--border);margin-bottom:32px}}
+.kpi-cell{{background:var(--surface);padding:22px 26px}}
+.kpi-label{{font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--text-muted);letter-spacing:.8px;text-transform:uppercase;margin-bottom:9px}}
+.kpi-val{{font-size:38px;font-weight:800;letter-spacing:-2px;line-height:1;margin-bottom:4px}}
+.kpi-desc{{font-size:11.5px;color:var(--text-muted)}}
+.section-row{{display:flex;align-items:baseline;gap:12px;margin:40px 0 18px}}
+.section-title{{font-size:13px;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:var(--text-muted)}}
+.section-rule{{flex:1;height:1px;background:var(--border)}}
+.section-count{{font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--text-muted)}}
+.charts-grid{{display:grid;grid-template-columns:1fr 1.3fr;gap:20px;margin-bottom:20px}}
+.chart-box{{background:var(--surface);border:1px solid var(--border);padding:22px}}
+.chart-box-title{{font-size:13px;font-weight:700;letter-spacing:-.2px;margin-bottom:3px}}
+.chart-box-sub{{font-size:11px;color:var(--text-muted);margin-bottom:16px;line-height:1.4}}
+table{{width:100%;border-collapse:collapse;background:var(--surface);border:1px solid var(--border);font-size:12.5px}}
+th,td{{padding:9px 10px;text-align:left;border-bottom:1px solid var(--border);white-space:nowrap}}
+th{{background:var(--ink);color:#fff;font-size:10px;letter-spacing:.5px;text-transform:uppercase;font-weight:600;cursor:pointer;position:sticky;top:0}}
+th.right,td.right{{text-align:right}}
+td.mono,th.right{{font-family:'JetBrains Mono',monospace}}
+tbody tr:hover{{background:var(--surface2)}}
+.sort-arrow{{opacity:.5;font-size:9px;margin-left:3px}}
+.badge{{display:inline-block;padding:2px 9px;border-radius:10px;font-size:10.5px;font-weight:600;font-family:'JetBrains Mono',monospace}}
+.b-sem{{background:#eceae6;color:#8a8279}}
+.b-abaixo{{background:#fde2df;color:#c0291a}}
+.b-meta{{background:#fdf0d8;color:#9a6a12}}
+.b-coberto{{background:#dcefe3;color:#1f6b41}}
+.dot{{display:inline-block;width:9px;height:9px;border-radius:50%;margin-right:6px;vertical-align:middle}}
+.note{{font-size:11.5px;color:var(--text-muted);line-height:1.6;margin-top:14px}}
+.note b{{color:var(--text)}}
+.acao-grid{{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:8px}}
+.acao-card{{background:var(--surface);border:1px solid var(--border);border-top:3px solid var(--ink);padding:18px 20px;cursor:pointer;transition:all .15s}}
+.acao-card:hover{{box-shadow:0 2px 14px rgba(0,0,0,.07)}}
+.acao-card.sel{{background:var(--surface2);box-shadow:inset 0 0 0 2px var(--ink)}}
+.acao-who{{font-family:'JetBrains Mono',monospace;font-size:10px;letter-spacing:.6px;text-transform:uppercase;color:var(--text-muted)}}
+.acao-n{{font-size:34px;font-weight:800;letter-spacing:-1.5px;line-height:1.1;margin:6px 0 2px}}
+.acao-lbl{{font-size:13px;font-weight:600}}
+.acao-extra{{font-size:11px;color:var(--text-muted);margin-top:3px;line-height:1.35}}
+.acao-hint{{font-size:11px;color:var(--text-muted);margin:-2px 0 6px}}
+@media(max-width:980px){{.acao-grid{{grid-template-columns:1fr 1fr}}header,.controls,main{{padding-left:18px;padding-right:18px}}.charts-grid{{grid-template-columns:1fr}}.kpi-row{{grid-template-columns:1fr 1fr}}}}
+</style>
+</head>
+<body>
+<header id="hdr">
+  <div class="header-left">
+    <div class="header-accent"></div>
+    <div>
+      <div class="header-title">Planejamento de Demanda · Próximo Semestre</div>
+      <div class="header-sub">CEDESP · OBRA SOCIAL DOM BOSCO ITAQUERA · 1º SEM 2026</div>
+    </div>
+  </div>
+  <div class="header-right">
+    <div class="header-stat"><div class="hs-val" id="hs-cob">—</div><div class="hs-label">COBREM A EVASÃO</div></div>
+    <div class="header-stat"><div class="hs-val" id="hs-def">—</div><div class="hs-label">CANDIDATOS FALTANTES</div></div>
+  </div>
+</header>
+<div class="brandbar"><i></i><i></i><i></i><i></i></div>
+
+<div class="controls">
+  <span class="filter-label">Unidade</span>
+  <div id="unit-filters" style="display:flex;gap:6px;flex-wrap:wrap"></div>
+  <span class="filter-label" style="margin-left:8px">Status</span>
+  <div id="status-filters" style="display:flex;gap:6px;flex-wrap:wrap"></div>
+  <div class="controls-spacer"></div>
+  <span class="filter-label">Base</span>
+  <div class="seg" id="basis-seg">
+    <button data-basis="total" class="active">Demanda total</button>
+    <button data-basis="entrev">Só entrevistados</button>
+  </div>
+  <label class="chk"><input type="checkbox" id="floor-chk"> Piso de evasão da rede ({NET_EVA:.0f}%)</label>
+  <span class="filter-label">Teto inseridos</span>
+  <input type="number" id="teto-input" value="{TETO_INSERIDOS}" min="20" max="80" step="1"
+    style="width:56px;padding:5px 8px;border:1px solid var(--border);background:var(--bg);font-family:'JetBrains Mono',monospace;font-size:12px;color:var(--text);border-radius:2px;outline:none" title="Teto realista de inseridos no início do semestre">
+  <div class="search-wrap"><span class="search-icon">⌕</span><input class="search-input" id="search" placeholder="Buscar curso…"></div>
+  <button class="btn-pdf" onclick="exportPDF()">⬇ Exportar PDF</button>
+</div>
+
+<main>
+  <div id="kpis-section" class="kpi-row">
+    <div class="kpi-cell"><div class="kpi-label">Turmas analisáveis</div><div class="kpi-val" id="kpi-turmas" style="color:var(--ink)">—</div><div class="kpi-desc" id="kpi-turmas-d">com demanda registrada</div></div>
+    <div class="kpi-cell"><div class="kpi-label">Cobrem a meta (20)</div><div class="kpi-val" id="kpi-meta" style="color:var(--teal)">—</div><div class="kpi-desc">demanda ≥ meta do convênio</div></div>
+    <div class="kpi-cell"><div class="kpi-label">Cobrem a evasão</div><div class="kpi-val" id="kpi-cob" style="color:var(--green)">—</div><div class="kpi-desc">demanda ≥ necessidade ajustada</div></div>
+    <div class="kpi-cell"><div class="kpi-label">Déficit de candidatos</div><div class="kpi-val" id="kpi-def" style="color:var(--red)">—</div><div class="kpi-desc">faltam p/ cobrir meta + evasão</div></div>
+    <div class="kpi-cell"><div class="kpi-label">Demanda registrada</div><div class="kpi-val" id="kpi-dem" style="color:var(--orange)">—</div><div class="kpi-desc" id="kpi-dem-d">candidatos no pool</div></div>
+  </div>
+
+  <div class="section-row"><span class="section-title">Plano de ação por área</span><span class="section-rule"></span></div>
+  <div class="acao-hint">Clique num cartão para filtrar a tabela. A recomendação cruza a demanda total com a demanda já entrevistada (C/ENTR).</div>
+  <div id="acoes-section" class="acao-grid"></div>
+
+  <div class="section-row"><span class="section-title">Panorama de cobertura</span><span class="section-rule"></span></div>
+  <div class="charts-grid">
+    <div class="chart-box" id="donut-section">
+      <div class="chart-box-title">Distribuição das turmas</div>
+      <div class="chart-box-sub">Cada turma classificada pela demanda captada frente à meta e à necessidade ajustada pela evasão.</div>
+      <canvas id="donutChart" height="220"></canvas>
+    </div>
+    <div class="chart-box" id="scatter-section">
+      <div class="chart-box-title">Demanda × Evasão — quadrante crítico</div>
+      <div class="chart-box-sub">Eixo X: evasão observada · Eixo Y: demanda total captada. Linhas tracejadas marcam a evasão média da rede e o teto de inseridos. O quadrante inferior direito (sombreado) reúne turmas com alta evasão e demanda abaixo do teto — prioridade de captação. ▲ = demanda fora da escala (muito alta).</div>
+      <canvas id="scatterChart" height="220"></canvas>
+    </div>
+  </div>
+
+  <div class="charts-grid" style="grid-template-columns:1fr" id="prontidao-section">
+    <div class="chart-box">
+      <div class="chart-box-title">Prontidão por unidade</div>
+      <div class="chart-box-sub">Quantas turmas de cada CEDESP estão prontas para matrícula, esperando entrevista ou precisando de captação — leitura rápida para a gerência.</div>
+      <canvas id="prontidaoChart" height="150"></canvas>
+    </div>
+  </div>
+
+  <div class="charts-grid" style="grid-template-columns:1fr" id="deficit-section">
+    <div class="chart-box">
+      <div class="chart-box-title">Maiores déficits de candidatos</div>
+      <div class="chart-box-sub">Quantos candidatos faltam em cada turma para cobrir a meta já descontada a evasão · top 22.</div>
+      <canvas id="deficitChart" height="150"></canvas>
+    </div>
+  </div>
+
+  <div class="charts-grid" style="grid-template-columns:1fr" id="eixo-section">
+    <div class="chart-box">
+      <div class="chart-box-title">Demanda × necessidade por eixo tecnológico</div>
+      <div class="chart-box-sub">Soma da demanda captada versus soma da necessidade ajustada por eixo — mostra onde sobra e onde falta candidato.</div>
+      <canvas id="eixoChart" height="150"></canvas>
+    </div>
+  </div>
+
+  <div class="section-row"><span class="section-title">Análise curso a curso</span><span class="section-rule"></span><span class="section-count" id="tbl-count"></span></div>
+  <div id="tbl-section" style="overflow-x:auto">
+    <table id="tbl">
+      <thead><tr>
+        <th data-sort="unit">Unidade <span class="sort-arrow">↕</span></th>
+        <th data-sort="period">Turno <span class="sort-arrow">↕</span></th>
+        <th data-sort="course">Curso <span class="sort-arrow">↕</span></th>
+        <th data-sort="eixo">Eixo <span class="sort-arrow">↕</span></th>
+        <th class="right" data-sort="centr" title="Demanda com entrevista">C/Entr <span class="sort-arrow">↕</span></th>
+        <th class="right" data-sort="sentr" title="Demanda sem entrevista">S/Entr <span class="sort-arrow">↕</span></th>
+        <th class="right" data-sort="dem" title="Demanda usada na classificação">Demanda <span class="sort-arrow">↕</span></th>
+        <th class="right" data-sort="meta">Meta <span class="sort-arrow">↕</span></th>
+        <th class="right" data-sort="eva" title="Evasão acumulada observada neste semestre">Evasão <span class="sort-arrow">↕</span></th>
+        <th class="right" data-sort="need" title="Candidatos necessários = meta ÷ (1 − evasão)">Necessário <span class="sort-arrow">↕</span></th>
+        <th class="right" data-sort="saldo" title="Demanda − necessário (negativo = déficit)">Saldo <span class="sort-arrow">↕</span></th>
+        <th data-sort="status">Status <span class="sort-arrow">↕</span></th>
+        <th data-sort="acao" title="Ação recomendada cruzando demanda total e entrevistados">Ação <span class="sort-arrow">↕</span></th>
+      </tr></thead>
+      <tbody id="tbl-body"></tbody>
+    </table>
+  </div>
+
+  <div class="note" id="metodo">
+    <b>Metodologia.</b> A demanda inicial vem das colunas A (C/ENTR — com entrevista), B (S/ENTR — sem entrevista)
+    e C (TOTAL), sob o cabeçalho <b>DEMANDA / SOCIAL</b>. A <b>necessidade</b> de cada turma é
+    <b>meta ÷ (1 − evasão)</b> usando a evasão acumulada observada no semestre corrente
+    (inseridos − matrícula ÷ inseridos), <b>limitada ao teto de {TETO_INSERIDOS} inseridos no início do semestre</b>
+    (editável na barra). O teto evita pedir números irreais: um curso com evasão de 70% "precisaria" de ~67
+    candidatos, o que é inviável para o social — na prática a turma começa com no máximo ~30 e a alta evasão
+    permanece como sinal de alerta, não como meta de captação. Turmas com demanda zero (provável lançamento
+    na turma-irmã do mesmo curso) entram como <b>Sem demanda</b> e ficam fora do denominador de cobertura.
+    Onde a evasão observada é 0 (matrícula = inseridos), o piso opcional de {NET_EVA:.0f}% (média da rede) pode
+    ser aplicado. O símbolo <b>⊤</b> marca turmas cuja necessidade matemática foi limitada pelo teto.
+    A <b>Ação recomendada</b> cruza as duas bases de demanda: se os entrevistados (C/ENTR) já cobrem a turma,
+    é caso de <b>matrícula</b> (Secretaria); se a demanda total cobre mas os entrevistados ainda não, é caso de
+    <b>entrevistar a fila</b> de S/ENTR (Social); se nem o total cobre, falta procura e o caso é de
+    <b>captação/divulgação</b> (Social/Gerência).
+    Dados de origem não são corrigidos — anomalias apenas sinalizadas.
+  </div>
+</main>
+
+<script>
+const DADOS = {dados_js};
+const NET_EVA = {NET_EVA};
+const EVA_CAP = {EVA_CAP};
+const TETO_DEFAULT = {TETO_INSERIDOS};
+const DATA_ATUALIZACAO = "{data_atualizacao}";
+
+const UNITS = [...new Set(DADOS.map(d=>d.unit))].sort();
+const STATUS_DEF = [
+  {{k:'abaixo',  label:'Abaixo da meta', color:'#e63827'}},
+  {{k:'meta',    label:'Risco de evasão',color:'#c97c1a'}},
+  {{k:'coberto', label:'Coberto',        color:'#2d7a4f'}},
+  {{k:'sem',     label:'Sem demanda',    color:'#8a8279'}},
+];
+
+let state = {{ unit:'all', status:'all', acao:'all', basis:'total', floor:false, teto:TETO_DEFAULT, search:'', sortKey:'saldo', sortDir:1 }};
+
+const ACAO_DEF = [
+  {{k:'matricula', who:'Secretaria',         label:'Pronto p/ matrícula', color:'#2d7a4f'}},
+  {{k:'entrevista',who:'Social · entrevistas',label:'Entrevistar a fila',  color:'#f37f1f'}},
+  {{k:'captacao',  who:'Social / Gerência',   label:'Captar demanda',      color:'#e63827'}},
+  {{k:'sem',       who:'Verificar',           label:'Sem demanda lançada', color:'#8a8279'}},
+];
+
+function classifyDem(dem, meta, need){{
+  if(dem<=0) return 'sem';
+  if(dem<meta) return 'abaixo';
+  if(dem<need) return 'meta';
+  return 'coberto';
+}}
+
+function classify(d){{
+  const meta = d.meta || {META_PADRAO};
+  let eva = (d.eva==null) ? 0 : d.eva;
+  if(state.floor && eva<=0) eva = NET_EVA;
+  const e = Math.min(Math.max(eva,0)/100, EVA_CAP);
+  let need = meta>0 ? Math.ceil(meta/(1-e)) : 0;
+  const need_bruto = need;                 // necessidade matemática sem teto
+  need = Math.min(need, state.teto);       // teto realista de inseridos no início
+  const capped = need_bruto > need;        // turma que precisaria de mais que o teto
+
+  const dem = state.basis==='entrev' ? d.centr : d.dem_total;   // base exibida
+  const status   = classifyDem(dem, meta, need);
+  const st_total = classifyDem(d.dem_total, meta, need);        // demanda total
+  const st_entr  = classifyDem(d.centr,     meta, need);        // só entrevistados
+
+  // Ação recomendada — cruza as duas bases (independe do toggle):
+  //   entrevistados já cobrem            -> Secretaria pode matricular
+  //   total cobre mas entrevistados não  -> Social entrevista a fila (S/ENTR)
+  //   nem o total cobre                  -> falta procura, captar/divulgar
+  let acao;
+  if(d.dem_total<=0)            acao='sem';
+  else if(st_entr==='coberto')  acao='matricula';
+  else if(st_total==='coberto') acao='entrevista';
+  else                          acao='captacao';
+
+  return {{dem, eva, need, need_bruto, capped, saldo:dem-need,
+           status, st_total, st_entr, acao, meta, backlog:(d.sentr||0)}};
+}}
+
+function rows(){{
+  return DADOS.map(d=>({{...d, ...classify(d)}}));
+}}
+
+function filtered(){{
+  let r = rows();
+  if(state.unit!=='all') r = r.filter(d=>d.unit===state.unit);
+  if(state.status!=='all') r = r.filter(d=>d.status===state.status);
+  if(state.acao!=='all') r = r.filter(d=>d.acao===state.acao);
+  if(state.search){{ const q=state.search.toLowerCase(); r=r.filter(d=>d.course.toLowerCase().includes(q)||d.eixo.toLowerCase().includes(q)); }}
+  return r;
+}}
+
+// ---------------- Plano de ação (cards por área)
+function renderAcoes(){{
+  const all = state.unit==='all' ? rows() : rows().filter(d=>d.unit===state.unit);
+  const grid = document.getElementById('acoes-section'); grid.innerHTML='';
+  ACAO_DEF.forEach(a=>{{
+    const list = all.filter(d=>d.acao===a.k);
+    let extra='';
+    if(a.k==='matricula')      extra='demanda confirmada cobre a turma';
+    else if(a.k==='entrevista'){{const fila=list.reduce((s,d)=>s+(d.backlog||0),0);extra=`${{fila}} candidatos na fila de entrevista`;}}
+    else if(a.k==='captacao')  {{const def=list.reduce((s,d)=>s+Math.max(0,d.need-d.dem_total),0);extra=`faltam ~${{def}} candidatos · divulgar`;}}
+    else                       extra='demanda zero (provável turma-irmã)';
+    const card=document.createElement('div');
+    card.className='acao-card'+(state.acao===a.k?' sel':'');
+    card.style.borderTopColor=a.color;
+    card.innerHTML=`<div class="acao-who">${{a.who}}</div><div class="acao-n" style="color:${{a.color}}">${{list.length}}</div><div class="acao-lbl">${{a.label}}</div><div class="acao-extra">${{extra}}</div>`;
+    card.onclick=()=>{{ state.acao = (state.acao===a.k?'all':a.k); renderAll(); document.getElementById('tbl-section').scrollIntoView({{behavior:'smooth',block:'start'}}); }};
+    grid.appendChild(card);
+  }});
+}}
+
+// ---------------- KPIs
+function renderKPIs(){{
+  const all = state.unit==='all' ? rows() : rows().filter(d=>d.unit===state.unit);
+  const cls = all.filter(d=>d.status!=='sem');
+  const meta_ok = cls.filter(d=>d.dem>=d.meta).length;
+  const cob_ok  = cls.filter(d=>d.status==='coberto').length;
+  const deficit = cls.filter(d=>d.saldo<0).reduce((s,d)=>s+(-d.saldo),0);
+  const dem_tot = all.reduce((s,d)=>s+d.dem,0);
+  const pct = n => cls.length? Math.round(n/cls.length*100):0;
+  document.getElementById('kpi-turmas').textContent = cls.length;
+  document.getElementById('kpi-turmas-d').textContent = (all.length-cls.length)+' sem demanda (excluídas)';
+  document.getElementById('kpi-meta').textContent = pct(meta_ok)+'%';
+  document.getElementById('kpi-cob').textContent  = pct(cob_ok)+'%';
+  document.getElementById('kpi-def').textContent  = deficit;
+  document.getElementById('kpi-dem').textContent  = dem_tot.toLocaleString('pt-BR');
+  document.getElementById('kpi-dem-d').textContent = state.basis==='entrev'?'candidatos entrevistados':'candidatos no pool total';
+  document.getElementById('hs-cob').textContent = pct(cob_ok)+'%';
+  document.getElementById('hs-def').textContent = deficit;
+}}
+
+// ---------------- charts
+let donut, scatter, deficitC, eixoC, prontidaoC;
+function renderCharts(){{
+  const all = state.unit==='all' ? rows() : rows().filter(d=>d.unit===state.unit);
+  // donut
+  const counts = STATUS_DEF.map(s=>all.filter(d=>d.status===s.k).length);
+  if(donut) donut.destroy();
+  donut = new Chart(document.getElementById('donutChart'),{{
+    type:'doughnut',
+    data:{{labels:STATUS_DEF.map(s=>s.label),datasets:[{{data:counts,backgroundColor:STATUS_DEF.map(s=>s.color),borderWidth:2,borderColor:'#fff'}}]}},
+    options:{{plugins:{{legend:{{position:'bottom',labels:{{font:{{size:11}},padding:12,boxWidth:12}}}},
+      tooltip:{{callbacks:{{label:ctx=>` ${{ctx.label}}: ${{ctx.parsed}} turmas`}}}}}},cutout:'58%'}}
+  }});
+  // scatter — quadrante crítico (evasão × demanda) com linhas de referência
+  const pts = all.filter(d=>d.acao!=='sem');
+  const yCap = Math.max(70, state.teto + 10);
+  const acaoColor = k => (ACAO_DEF.find(a=>a.k===k)||{{color:'#8a8279'}}).color;
+  const quadPlugin = {{
+    id:'quad',
+    beforeDraw(chart){{
+      const a=chart.chartArea; if(!a) return;
+      const ctx=chart.ctx, xs=chart.scales.x, ys=chart.scales.y;
+      const xL=xs.getPixelForValue(NET_EVA), yL=ys.getPixelForValue(state.teto);
+      ctx.save();
+      ctx.fillStyle='rgba(230,56,39,.06)';
+      ctx.fillRect(xL, yL, a.right-xL, a.bottom-yL);
+      ctx.strokeStyle='rgba(138,130,121,.55)'; ctx.lineWidth=1; ctx.setLineDash([4,4]);
+      ctx.beginPath();ctx.moveTo(xL,a.top);ctx.lineTo(xL,a.bottom);ctx.stroke();
+      ctx.beginPath();ctx.moveTo(a.left,yL);ctx.lineTo(a.right,yL);ctx.stroke();
+      ctx.setLineDash([]);
+      ctx.font='600 9px Poppins,sans-serif';
+      ctx.fillStyle='rgba(192,41,26,.78)';ctx.textAlign='right';
+      ctx.fillText('crítico — alta evasão, pouca demanda', a.right-8, a.bottom-8);
+      ctx.fillStyle='rgba(138,130,121,.75)';
+      ctx.fillText('teto '+state.teto, a.right-8, yL-4);
+      ctx.textAlign='center';
+      ctx.fillText('evasão média '+NET_EVA.toFixed(0)+'%', xL, a.top+10);
+      ctx.restore();
+    }}
+  }};
+  if(scatter) scatter.destroy();
+  scatter = new Chart(document.getElementById('scatterChart'),{{
+    type:'scatter',
+    data:{{datasets:[{{
+      data:pts.map(d=>({{x:d.eva, y:Math.min(d.dem_total,yCap-2), yReal:d.dem_total, ent:d.centr,
+        c:d.course,u:d.unit,p:d.period,need:d.need,acao:d.acao,clamp:d.dem_total>yCap-2}})),
+      backgroundColor:pts.map(d=>acaoColor(d.acao)+'cc'),
+      borderColor:pts.map(d=>acaoColor(d.acao)),
+      pointRadius:pts.map(d=>d.dem_total>yCap-2?6:5),pointHoverRadius:8,
+      pointStyle:pts.map(d=>d.dem_total>yCap-2?'triangle':'circle')
+    }}]}},
+    options:{{plugins:{{legend:{{display:false}},
+      tooltip:{{callbacks:{{label:ctx=>{{const d=ctx.raw;return [`${{d.c}} · ${{d.u}} ${{d.p}}`,
+        `demanda ${{d.yReal}} (entrev. ${{d.ent}}) · precisa ${{d.need}}`,
+        `evasão ${{d.x.toFixed(0)}}%`+(d.clamp?' · ▲ demanda fora da escala':'')];}}}}}}}},
+      scales:{{
+        x:{{min:0,title:{{display:true,text:'Evasão observada (%)',font:{{size:10}}}},grid:{{color:'rgba(216,210,200,.4)'}},ticks:{{font:{{size:10}},callback:v=>v+'%'}}}},
+        y:{{min:0,max:yCap,title:{{display:true,text:'Demanda total captada',font:{{size:10}}}},grid:{{color:'rgba(216,210,200,.4)'}},ticks:{{font:{{size:10}}}}}}
+      }}}},
+    plugins:[quadPlugin]
+  }});
+  // prontidão por unidade (barras empilhadas por ação)
+  const units = [...new Set(all.map(d=>d.unit))].sort();
+  const byUnit = {{}};
+  units.forEach(u=>byUnit[u]={{matricula:0,entrevista:0,captacao:0,sem:0}});
+  all.forEach(d=>{{ byUnit[d.unit][d.acao]++; }});
+  if(prontidaoC) prontidaoC.destroy();
+  prontidaoC = new Chart(document.getElementById('prontidaoChart'),{{
+    type:'bar',
+    data:{{labels:units.map(u=>u.replace('CEDESP ','CEDESP ')),
+      datasets:ACAO_DEF.map(a=>({{label:a.label,data:units.map(u=>byUnit[u][a.k]),
+        backgroundColor:a.color+'d9',borderColor:a.color,borderWidth:1}}))}},
+    options:{{plugins:{{legend:{{position:'bottom',labels:{{font:{{size:11}},boxWidth:12}}}},
+      tooltip:{{callbacks:{{label:ctx=>` ${{ctx.dataset.label}}: ${{ctx.parsed.y}} turmas`}}}}}},
+      scales:{{x:{{stacked:true,grid:{{display:false}},ticks:{{font:{{size:11}}}}}},
+        y:{{stacked:true,grid:{{color:'rgba(216,210,200,.4)'}},ticks:{{font:{{size:10}},stepSize:2}}}}}}}}
+  }});
+  // deficit bar
+  const def = all.filter(d=>d.status!=='sem' && d.saldo<0).sort((a,b)=>a.saldo-b.saldo).slice(0,22);
+  if(deficitC) deficitC.destroy();
+  deficitC = new Chart(document.getElementById('deficitChart'),{{
+    type:'bar',
+    data:{{labels:def.map(d=>`${{d.course.slice(0,22)}} · ${{d.unit.replace('CEDESP ','C')}} ${{d.period[0]}}`),
+      datasets:[{{label:'Candidatos faltantes',data:def.map(d=>-d.saldo),
+        backgroundColor:def.map(d=>d.status==='abaixo'?'rgba(230,56,39,.85)':'rgba(201,124,26,.85)'),
+        borderColor:def.map(d=>d.status==='abaixo'?'#e63827':'#c97c1a'),borderWidth:1}}]}},
+    options:{{indexAxis:'y',plugins:{{legend:{{display:false}},
+      tooltip:{{callbacks:{{label:ctx=>{{const d=def[ctx.dataIndex];return ` faltam ${{-d.saldo}} · demanda ${{d.dem}} / precisa ${{d.need}} · evasão ${{d.eva.toFixed(0)}}%`;}}}}}}}},
+      scales:{{x:{{grid:{{color:'rgba(216,210,200,.4)'}},ticks:{{font:{{size:10}}}}}},y:{{ticks:{{font:{{size:9.5}}}},grid:{{display:false}}}}}}}}
+  }});
+  // eixo bar (demanda x necessidade)
+  const eixoMap = {{}};
+  all.forEach(d=>{{ if(d.status==='sem')return; const k=d.eixo||'—'; (eixoMap[k]=eixoMap[k]||{{dem:0,need:0}}); eixoMap[k].dem+=d.dem; eixoMap[k].need+=d.need; }});
+  const eixoKeys = Object.keys(eixoMap).sort((a,b)=>eixoMap[b].dem-eixoMap[a].dem);
+  if(eixoC) eixoC.destroy();
+  eixoC = new Chart(document.getElementById('eixoChart'),{{
+    type:'bar',
+    data:{{labels:eixoKeys.map(k=>k.length>26?k.slice(0,26)+'…':k),
+      datasets:[
+        {{label:'Demanda captada',data:eixoKeys.map(k=>eixoMap[k].dem),backgroundColor:'rgba(243,127,31,.85)',borderColor:'#f37f1f',borderWidth:1}},
+        {{label:'Necessidade (meta+evasão)',data:eixoKeys.map(k=>eixoMap[k].need),backgroundColor:'rgba(33,67,142,.85)',borderColor:'#21438e',borderWidth:1}}
+      ]}},
+    options:{{plugins:{{legend:{{position:'bottom',labels:{{font:{{size:11}},boxWidth:12}}}}}},
+      scales:{{x:{{ticks:{{font:{{size:9.5}},maxRotation:35,minRotation:35}},grid:{{display:false}}}},y:{{grid:{{color:'rgba(216,210,200,.4)'}},ticks:{{font:{{size:10}}}}}}}}}}
+  }});
+}}
+
+// ---------------- table
+const BADGE = {{sem:['b-sem','Sem demanda'],abaixo:['b-abaixo','Abaixo da meta'],meta:['b-meta','Risco evasão'],coberto:['b-coberto','Coberto']}};
+const ACAO_BADGE = {{matricula:['#2d7a4f','Matrícula'],entrevista:['#f37f1f','Entrevistar'],captacao:['#e63827','Captar'],sem:['#8a8279','Verificar']}};
+function renderTable(){{
+  let r = filtered();
+  const k=state.sortKey, dir=state.sortDir;
+  r.sort((a,b)=>{{let x=a[k],y=b[k]; if(typeof x==='string'){{x=x||'';y=y||'';return dir*x.localeCompare(y);}} return dir*((x??-1)-(y??-1));}});
+  const tb=document.getElementById('tbl-body'); tb.innerHTML='';
+  r.forEach(d=>{{
+    const [cls,lbl]=BADGE[d.status];
+    const evaTxt = d.eva>0 ? d.eva.toFixed(0)+'%' : '<span title="matrícula = inseridos: sem evasão observada" style="color:#8a8279">0%*</span>';
+    const saldoColor = d.saldo<0?'#c0291a':(d.saldo===0?'#9a6a12':'#1f6b41');
+    const saldoTxt = d.status==='sem'?'—':(d.saldo>0?'+'+d.saldo:d.saldo);
+    tr = `<tr>
+      <td>${{d.unit}}</td><td>${{d.period}}</td>
+      <td title="${{d.course}}">${{d.course.length>30?d.course.slice(0,30)+'…':d.course}}</td>
+      <td style="font-size:10.5px;color:var(--text-muted)" title="${{d.eixo}}">${{d.eixo.length>20?d.eixo.slice(0,20)+'…':d.eixo}}</td>
+      <td class="right mono">${{d.centr||'—'}}</td>
+      <td class="right mono">${{d.sentr||'—'}}</td>
+      <td class="right mono" style="font-weight:600">${{d.dem||'—'}}</td>
+      <td class="right mono">${{d.meta}}</td>
+      <td class="right mono">${{evaTxt}}</td>
+      <td class="right mono">${{d.status==='sem'?'—':(d.need + (d.capped?'<span title="necessidade matemática seria '+d.need_bruto+' — limitada ao teto" style="color:#c97c1a">⊤</span>':''))}}</td>
+      <td class="right mono" style="color:${{saldoColor}};font-weight:600">${{saldoTxt}}</td>
+      <td><span class="badge ${{cls}}">${{lbl}}</span></td>
+      <td><span class="badge" style="background:${{ACAO_BADGE[d.acao][0]}}22;color:${{ACAO_BADGE[d.acao][0]}}" title="${{ACAO_DEF.find(a=>a.k===d.acao).who}}">${{ACAO_BADGE[d.acao][1]}}</span></td>
+    </tr>`;
+    tb.insertAdjacentHTML('beforeend',tr);
+  }});
+  document.getElementById('tbl-count').textContent = r.length+' turmas';
+}}
+
+// ---------------- filtros UI
+function buildFilters(){{
+  const uf=document.getElementById('unit-filters');
+  const mk=(label,val,key)=>{{const b=document.createElement('button');b.className='filter-btn'+((state[key]===val)?' active':'');b.textContent=label;b.onclick=()=>{{state[key]=val;[...b.parentNode.children].forEach(c=>c.classList.remove('active'));b.classList.add('active');renderAll();}};return b;}};
+  uf.appendChild(mk('Todas','all','unit'));
+  UNITS.forEach(u=>uf.appendChild(mk(u.replace('CEDESP ','CEDESP '),u,'unit')));
+  const sf=document.getElementById('status-filters');
+  sf.appendChild(mk('Todos','all','status'));
+  STATUS_DEF.forEach(s=>{{const b=mk(s.label,s.k,'status');b.innerHTML=`<span class="dot" style="background:${{s.color}}"></span>${{s.label}}`;sf.appendChild(b);}});
+}}
+
+function renderAll(){{ renderAcoes(); renderKPIs(); renderTable(); try{{ renderCharts(); }}catch(e){{ console.error('Chart.js indisponível:',e); }} }}
+
+document.querySelectorAll('#basis-seg button').forEach(b=>b.onclick=()=>{{
+  state.basis=b.dataset.basis;document.querySelectorAll('#basis-seg button').forEach(x=>x.classList.remove('active'));b.classList.add('active');renderAll();
+}});
+document.getElementById('floor-chk').onchange=e=>{{state.floor=e.target.checked;renderAll();}};
+document.getElementById('teto-input').onchange=e=>{{let v=parseInt(e.target.value)||TETO_DEFAULT;v=Math.max(20,Math.min(80,v));e.target.value=v;state.teto=v;renderAll();}};
+document.getElementById('search').oninput=e=>{{state.search=e.target.value;renderTable();}};
+document.querySelectorAll('#tbl th').forEach(th=>th.onclick=()=>{{
+  const k=th.dataset.sort;if(!k)return;
+  if(state.sortKey===k)state.sortDir*=-1;else{{state.sortKey=k;state.sortDir=1;}}
+  renderTable();
+}});
+
+buildFilters(); renderAll();
+
+// ---------------- PDF export
+async function loadScript(src){{return new Promise((res,rej)=>{{const s=document.createElement('script');s.src=src;s.onload=res;s.onerror=rej;document.head.appendChild(s);}});}}
+async function exportPDF(){{
+  const btn=document.querySelector('.btn-pdf');const old=btn.textContent;btn.textContent='Gerando…';btn.disabled=true;
+  try{{
+    if(!window.html2canvas) await loadScript('https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js');
+    if(!window.jspdf) await loadScript('https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js');
+    const {{jsPDF}}=window.jspdf;const pdf=new jsPDF('p','mm','a4');
+    const W=210,H=297,M=12;let first=true;
+    const escopo = state.unit==='all'?'TODAS AS UNIDADES':state.unit;
+    function header(){{
+      pdf.setFillColor(33,67,142);pdf.rect(0,0,W,18,'F');
+      pdf.setTextColor(255,255,255);pdf.setFont('helvetica','bold');pdf.setFontSize(11);
+      pdf.text('Planejamento de Demanda · Próximo Semestre',M,8);
+      pdf.setFont('helvetica','normal');pdf.setFontSize(7);
+      pdf.text('CEDESP · OBRA SOCIAL DOM BOSCO ITAQUERA · 1º SEM 2026',M,13.5);
+      const cols=[[33,67,142],[230,56,39],[243,127,31],[43,177,157]];const cw=W/4;
+      cols.forEach((c,i)=>{{pdf.setFillColor(...c);pdf.rect(i*cw,18,cw,1.6,'F');}});
+      pdf.setTextColor(33,67,142);pdf.setFont('helvetica','bold');pdf.setFontSize(8);
+      pdf.text('ESCOPO: '+escopo,W-M,8,{{align:'right'}});
+    }}
+    const secs=['acoes-section','kpis-section','donut-section','scatter-section','prontidao-section','deficit-section','eixo-section','tbl-section'];
+    let y=24;header();
+    for(const id of secs){{
+      const el=document.getElementById(id);if(!el)continue;
+      const canvas=await html2canvas(el,{{scale:2,backgroundColor:'#ffffff'}});
+      const imgW=W-2*M;const imgH=canvas.height*imgW/canvas.width;
+      if(y+imgH>H-M){{pdf.addPage();header();y=24;}}
+      pdf.addImage(canvas.toDataURL('image/png'),'PNG',M,y,imgW,Math.min(imgH,H-M-24));
+      y+=Math.min(imgH,H-M-24)+5;
+    }}
+    pdf.save('planejamento_demanda_cedesp.pdf');
+  }}catch(e){{alert('Erro ao gerar PDF: '+e.message);}}
+  btn.textContent=old;btn.disabled=false;
+}}
+</script>
+</body>
+</html>"""
+    return html
+
+# ---------------------------------------------------------------- main
+def main():
+    print("📂  Dashboard de Planejamento de Demanda — CEDESP OSDB")
+    engine = carregar_engine()
+    planilha = achar_planilha()
+    print(f"  📄  Planilha: {os.path.basename(planilha)}")
+    sheets = engine.carregar_planilha(planilha)
+    cursos, _ = engine.extrair_cursos(sheets)
+    eixos = eixo_lookup(sheets)
+    if len(eixos) != len(cursos):
+        print(f"  ⚠️  Eixos ({len(eixos)}) != turmas ({len(cursos)}) — eixo pode desalinhar.")
+    dados = montar_dados(cursos, eixos)
+
+    # Resumo no console
+    from collections import Counter
+    def cls(d, basis="dem_total", floor=False):
+        meta = d["meta"] or META_PADRAO
+        dem = d["dem_total"] if basis == "dem_total" else d["centr"]
+        eva = d["eva"] or 0
+        if floor and eva <= 0: eva = NET_EVA
+        e = min(max(eva, 0) / 100, EVA_CAP)
+        need = math.ceil(meta / (1 - e)) if meta else 0
+        need = min(need, TETO_INSERIDOS)
+        if dem <= 0: return "sem", 0
+        if dem < meta: return "abaixo", need - dem
+        if dem < need: return "meta", need - dem
+        return "coberto", 0
+    cont = Counter(); deficit = 0
+    for d in dados:
+        s, falta = cls(d)
+        cont[s] += 1
+        if s in ("abaixo", "meta"): deficit += falta
+    print(f"  ✅  {len(dados)} turmas | abaixo:{cont['abaixo']} risco:{cont['meta']} "
+          f"coberto:{cont['coberto']} sem:{cont['sem']} | déficit:{deficit}")
+
+    data_atualizacao = datetime.now().strftime("%d/%m/%Y")
+    html = gerar_html(dados, data_atualizacao)
+    os.makedirs(OUT_DIR, exist_ok=True)
+    out = os.path.join(OUT_DIR, "dashboard_demanda.html")
+    with open(out, "w", encoding="utf-8") as f:
+        f.write(html)
+    print(f"  💾  Gerado: {out}")
+    return out
+
+if __name__ == "__main__":
+    main()
