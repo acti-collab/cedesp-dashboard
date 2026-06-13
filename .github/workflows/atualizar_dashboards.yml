@@ -44,9 +44,9 @@ jobs:
       - name: Gerar dashboard — Resumo Institucional (CEDESP)
         run: python gerar_dashboard_resumo_institucional.py "1º_Sem__-__2026.xlsx"
 
-      - name: Gerar dashboard Demanda —  (CEDESP)
-        run: python gerar_dashboard_demanda.py 
-        
+      - name: Gerar dashboard — Demanda (CEDESP)
+        run: python gerar_dashboard_demanda.py "1º_Sem__-__2026.xlsx"
+
       - name: Gerar dashboard — Grade Complementar
         run: python gerar_dashboard_complementar.py .
 
@@ -57,6 +57,7 @@ jobs:
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git add dashboard_cursos_frequencia.html
           git add dashboard_cedesp_2026.html
+          git add dashboard_demanda.html
           git add dashboard_complementar.html
           sleep 10
           DATA=$(python3 -c "from datetime import datetime, timezone, timedelta; print(datetime.now(timezone(timedelta(hours=-3))).strftime('%d/%m/%Y %H:%M'))")
