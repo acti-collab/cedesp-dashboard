@@ -21,64 +21,58 @@ Classificação por turma (4 estados):
   🟡 RISCO DE EVASÃO — meta ≤ demanda < necessidade ajustada (fecha hoje, esvazia depois).
   🟢 COBERTO        — demanda ≥ necessidade ajustada (margem segura).
 
-FONTE ÚNICA DE EXTRAÇÃO: este script importa dinamicamente o gerador de frequência
-(qualquer .py no diretório que contenha extrair_cursos + carregar_planilha), de
-modo que a leitura da planilha permaneça em um único lugar.
+ARQUIVO AUTOSSUFICIENTE: o motor de extração está embutido neste próprio script
+(função extrair_demanda) — não depende de nenhum outro .py na pasta. Basta ter a
+planilha .xlsx no mesmo diretório e rodar; o HTML é gerado ao lado do script.
 """
-import os, sys, glob, json, math, importlib.util
+import os, sys, glob, json, math
 from datetime import datetime
+import pandas as pd
 
 # ---------------------------------------------------------------- constantes
-META_PADRAO   = 20      # meta do convênio (fallback se a célula vier vazia)
-EVA_CAP       = 0.95    # teto técnico de evasão só para não dividir por zero
-TETO_INSERIDOS = 30     # teto realista de inseridos no início do semestre (editável na UI)
-NET_EVA       = 32.4    # evasão média da rede (piso opcional) — calculada do arquivo
-OUT_DIR       = "/mnt/user-data/outputs"
+META_PADRAO    = 20      # meta do convênio (fallback se a célula vier vazia)
+EVA_CAP        = 0.95    # teto técnico de evasão só para não dividir por zero
+TETO_INSERIDOS = 30      # teto realista de inseridos no início do semestre (editável na UI)
+NET_EVA        = 32.4    # evasão média da rede (piso opcional)
+SAIDA_HTML     = "dashboard_demanda.html"
 
 # Normalização de rótulos de eixo (corrige typo de origem; não altera a planilha)
 EIXO_FIX = {
     "CONTROLE E PROCESSOS INDUSTRAIIS": "CONTROLE E PROCESSOS INDUSTRIAIS",
 }
 
-# ---------------------------------------------------------------- engine loader
-def carregar_engine():
-    """Importa dinamicamente o gerador de frequência (fonte única de extração)."""
-    aqui = os.path.dirname(os.path.abspath(__file__))
-    candidatos = []
-    for pasta in (aqui, os.getcwd(), "/mnt/user-data/uploads"):
-        candidatos += glob.glob(os.path.join(pasta, "*.py"))
-    for caminho in candidatos:
-        if os.path.abspath(caminho) == os.path.abspath(__file__):
-            continue
-        try:
-            src = open(caminho, encoding="utf-8").read()
-        except Exception:
-            continue
-        if "def extrair_cursos" in src and "def carregar_planilha" in src:
-            spec = importlib.util.spec_from_file_location("osdb_engine", caminho)
-            mod  = importlib.util.module_from_spec(spec)
-            spec.loader.exec_module(mod)
-            print(f"  🔌  Motor de extração: {os.path.basename(caminho)}")
-            return mod
-    raise RuntimeError("Nenhum gerador com extrair_cursos+carregar_planilha encontrado.")
+# Palavras que NÃO são nomes de curso (linhas de total, planejamento etc.)
+SKIP_WORDS = ["TOTAL", "SALDO", "PLANEJAMENTO", "NÃO FEZ", "ANTES DA", "ELETROTÉCNICA",
+              "GUIA PRONATEC", "PARADA PEDAGÓGICA", "CURSOS ABAIXO"]
 
-def achar_planilha():
-    for pasta in (os.getcwd(), "/mnt/user-data/uploads", os.path.dirname(os.path.abspath(__file__))):
-        achados = [f for f in glob.glob(os.path.join(pasta, "*.xlsx"))
-                   if not os.path.basename(f).startswith("~$")]
-        if achados:
-            achados.sort(key=os.path.getmtime, reverse=True)
-            return achados[0]
-    raise FileNotFoundError("Nenhum .xlsx encontrado.")
 
-# ---------------------------------------------------------------- eixo (re-walk fiel à ordem do engine)
-def eixo_lookup(sheets):
-    import pandas as pd
-    out = []
+# ================================================================ MOTOR DE EXTRAÇÃO (EMBUTIDO)
+def carregar_planilha(caminho):
+    """Lê todas as abas da planilha sem cabeçalho fixo."""
+    print(f"  📄  Planilha: {os.path.basename(caminho)}")
+    if not os.path.exists(caminho):
+        print(f"  ❌  Arquivo não encontrado: {caminho}"); sys.exit(1)
+    return pd.read_excel(caminho, sheet_name=None, header=None)
+
+
+def extrair_demanda(sheets):
+    """Extrator embutido e autossuficiente.
+
+    Para cada turma das abas CEDESP 1..8 lê, detectando as colunas pelo cabeçalho
+    (mesma lógica do gerador de frequência):
+      • demanda  — col A (C/ENTR), col B (S/ENTR), total = A + B
+      • eixo tecnológico, meta (META CONVÊNIO), inseridos, matrícula
+      • evasão acumulada = (inseridos − matrícula) ÷ inseridos, quando inseridos ≥ matrícula
+    Retorna a lista de dicionários já pronta para o dashboard.
+    """
+    dados = []
     for i in range(1, 9):
-        sn = f"CEDESP {i}"; df = sheets.get(sn)
+        sn = f"CEDESP {i}"
+        df = sheets.get(sn)
         if df is None:
-            continue
+            print(f"  ⚠️  Aba '{sn}' não encontrada, pulando."); continue
+
+        # 1) linhas de cabeçalho de período: célula com "CURSO" + identificador do turno
         period_rows = {}
         for idx in range(len(df)):
             row = df.iloc[idx]
@@ -88,9 +82,11 @@ def eixo_lookup(sheets):
                     u = v.strip().upper()
                     if "CURSO" not in u:
                         continue
-                    if "MANH" in u:   period_rows[idx] = "Manhã"; break
-                    elif "TARDE" in u: period_rows[idx] = "Tarde"; break
-                    elif "NOITE" in u: period_rows[idx] = "Noite"; break
+                    if "MANHÃ" in u or "MANHA" in u: period_rows[idx] = "Manhã"; break
+                    elif "TARDE" in u:               period_rows[idx] = "Tarde"; break
+                    elif "NOITE" in u:               period_rows[idx] = "Noite"; break
+
+        # 2) layout de colunas por período (detecção por palavra-chave do cabeçalho)
         layouts = {}
         for pidx, per in period_rows.items():
             row = df.iloc[pidx]; lay = {}
@@ -98,49 +94,68 @@ def eixo_lookup(sheets):
                 v = row.iloc[c]
                 if pd.notna(v) and isinstance(v, str):
                     u = v.strip().upper()
-                    if "CURSO" in u and any(p in u for p in ["MANH", "TARDE", "NOITE"]):
+                    if "CURSO" in u and any(p in u for p in ["MANHÃ", "MANHA", "TARDE", "NOITE"]):
                         lay["name"] = c
-                    elif "EIXO" in u:
-                        lay["eixo"] = c
+                    elif "EIXO" in u:                  lay["eixo"] = c
+                    elif "META" in u and "CONV" in u:  lay["meta"] = c
+                    elif "INSERIDO" in u:              lay["ins"]  = c
+                    elif "MATR" in u:                  lay["matr"] = c
             layouts[pidx] = (per, lay)
-        plist = sorted(layouts.keys())
+
+        # 3) extrai linhas de curso de cada bloco de período
+        plist = sorted(layouts.keys()); achados = 0
         for pi, pidx in enumerate(plist):
             per, lay = layouts[pidx]
             nxt = plist[pi + 1] if pi + 1 < len(plist) else len(df)
             nc = lay.get("name", 3); ec = lay.get("eixo", 4)
+            mc = lay.get("meta", 5); ic = lay.get("ins", 7); tc = lay.get("matr", 8)
+
             for ridx in range(pidx + 2, nxt):
                 row = df.iloc[ridx]
                 val = row.iloc[nc] if nc < len(row) else None
-                if pd.notna(val) and isinstance(val, str):
-                    v = val.strip()
-                    skip = ["TOTAL", "SALDO", "PLANEJAMENTO", "NÃO FEZ", "ANTES DA",
-                            "ELETROTÉCNICA", "GUIA PRONATEC", "PARADA PEDAGÓGICA", "CURSOS ABAIXO"]
-                    if v and not any(s in v.upper() for s in skip) and len(v) > 2:
-                        eixo = row.iloc[ec] if ec < len(row) and pd.notna(row.iloc[ec]) else ""
-                        eixo = str(eixo).strip().upper()
-                        eixo = EIXO_FIX.get(eixo, eixo)
-                        out.append(eixo)
-    return out
+                if not (pd.notna(val) and isinstance(val, str)):
+                    continue
+                nome = val.strip()
+                if not nome or len(nome) <= 2 or any(s in nome.upper() for s in SKIP_WORDS):
+                    continue
 
-# ---------------------------------------------------------------- monta registros de planejamento
-def montar_dados(cursos, eixos):
-    dados = []
-    for k, c in enumerate(cursos):
-        eixo = eixos[k] if k < len(eixos) else ""
-        dados.append({
-            "unit":      c["unit"],
-            "period":    c["period"],
-            "course":    c["course"],
-            "eixo":      eixo,
-            "centr":     int(c.get("centr") or 0),
-            "sentr":     int(c.get("sentr") or 0),
-            "dem_total": int(c.get("dem_total") or 0),
-            "meta":      int(c["meta"]) if c.get("meta") else META_PADRAO,
-            "inseridos": int(c["inseridos"]) if c.get("inseridos") else None,
-            "matr":      int(c["matr"]) if c.get("matr") else None,
-            "eva":       c.get("evasao_acum_pct"),   # evasão acumulada observada (%)
-        })
+                def num(c):
+                    if c >= len(row): return None
+                    v = row.iloc[c]
+                    return float(v) if pd.notna(v) and isinstance(v, (int, float)) else None
+
+                meta = num(mc); matr = num(tc); ins = num(ic)
+                centr = int(row.iloc[0]) if len(row) > 0 and pd.notna(row.iloc[0]) and isinstance(row.iloc[0], (int, float)) else 0
+                sentr = int(row.iloc[1]) if len(row) > 1 and pd.notna(row.iloc[1]) and isinstance(row.iloc[1], (int, float)) else 0
+                eva = round((ins - matr) / ins * 100, 1) if (ins and matr and ins >= matr) else None
+                eixo = row.iloc[ec] if ec < len(row) and pd.notna(row.iloc[ec]) else ""
+                eixo = EIXO_FIX.get(str(eixo).strip().upper(), str(eixo).strip().upper())
+
+                dados.append({
+                    "unit": sn, "period": per, "course": nome, "eixo": eixo,
+                    "centr": centr, "sentr": sentr, "dem_total": centr + sentr,
+                    "meta": int(meta) if meta else META_PADRAO,
+                    "inseridos": int(ins) if ins else None,
+                    "matr": int(matr) if matr else None,
+                    "eva": eva,
+                })
+                achados += 1
+        print(f"  📊  {sn}: {achados} turmas")
     return dados
+
+
+def achar_planilha():
+    """Procura o .xlsx mais recente na pasta do script e na pasta atual."""
+    aqui = os.path.dirname(os.path.abspath(__file__))
+    vistos = []
+    for pasta in (aqui, os.getcwd()):
+        for f in glob.glob(os.path.join(pasta, "*.xlsx")):
+            if not os.path.basename(f).startswith("~$") and f not in vistos:
+                vistos.append(f)
+    if not vistos:
+        raise FileNotFoundError("Nenhum arquivo .xlsx encontrado na pasta do script ou na pasta atual.")
+    vistos.sort(key=os.path.getmtime, reverse=True)
+    return vistos[0]
 
 # ---------------------------------------------------------------- HTML
 def gerar_html(dados, data_atualizacao):
@@ -281,6 +296,28 @@ tbody tr:hover{{background:var(--surface2)}}
   <div class="acao-hint">Clique num cartão para filtrar a tabela. A recomendação cruza a demanda total com a demanda já entrevistada (C/ENTR).</div>
   <div id="acoes-section" class="acao-grid"></div>
 
+  <div class="section-row"><span class="section-title">Análise curso a curso</span><span class="section-rule"></span><span class="section-count" id="tbl-count"></span></div>
+  <div id="tbl-section" style="overflow-x:auto">
+    <table id="tbl">
+      <thead><tr>
+        <th data-sort="unit">Unidade <span class="sort-arrow">↕</span></th>
+        <th data-sort="period">Turno <span class="sort-arrow">↕</span></th>
+        <th data-sort="course">Curso <span class="sort-arrow">↕</span></th>
+        <th data-sort="eixo">Eixo <span class="sort-arrow">↕</span></th>
+        <th class="right" data-sort="centr" title="Demanda com entrevista">C/Entr <span class="sort-arrow">↕</span></th>
+        <th class="right" data-sort="sentr" title="Demanda sem entrevista">S/Entr <span class="sort-arrow">↕</span></th>
+        <th class="right" data-sort="dem" title="Demanda usada na classificação">Demanda <span class="sort-arrow">↕</span></th>
+        <th class="right" data-sort="meta">Meta <span class="sort-arrow">↕</span></th>
+        <th class="right" data-sort="eva" title="Evasão acumulada observada neste semestre">Evasão <span class="sort-arrow">↕</span></th>
+        <th class="right" data-sort="need" title="Candidatos necessários = meta ÷ (1 − evasão)">Necessário <span class="sort-arrow">↕</span></th>
+        <th class="right" data-sort="saldo" title="Demanda − necessário (negativo = déficit)">Saldo <span class="sort-arrow">↕</span></th>
+        <th data-sort="status">Status <span class="sort-arrow">↕</span></th>
+        <th data-sort="acao" title="Ação recomendada cruzando demanda total e entrevistados">Ação <span class="sort-arrow">↕</span></th>
+      </tr></thead>
+      <tbody id="tbl-body"></tbody>
+    </table>
+  </div>
+
   <div class="section-row"><span class="section-title">Panorama de cobertura</span><span class="section-rule"></span></div>
   <div class="charts-grid">
     <div class="chart-box" id="donut-section">
@@ -317,28 +354,6 @@ tbody tr:hover{{background:var(--surface2)}}
       <div class="chart-box-sub">Soma da demanda captada versus soma da necessidade ajustada por eixo — mostra onde sobra e onde falta candidato.</div>
       <canvas id="eixoChart" height="150"></canvas>
     </div>
-  </div>
-
-  <div class="section-row"><span class="section-title">Análise curso a curso</span><span class="section-rule"></span><span class="section-count" id="tbl-count"></span></div>
-  <div id="tbl-section" style="overflow-x:auto">
-    <table id="tbl">
-      <thead><tr>
-        <th data-sort="unit">Unidade <span class="sort-arrow">↕</span></th>
-        <th data-sort="period">Turno <span class="sort-arrow">↕</span></th>
-        <th data-sort="course">Curso <span class="sort-arrow">↕</span></th>
-        <th data-sort="eixo">Eixo <span class="sort-arrow">↕</span></th>
-        <th class="right" data-sort="centr" title="Demanda com entrevista">C/Entr <span class="sort-arrow">↕</span></th>
-        <th class="right" data-sort="sentr" title="Demanda sem entrevista">S/Entr <span class="sort-arrow">↕</span></th>
-        <th class="right" data-sort="dem" title="Demanda usada na classificação">Demanda <span class="sort-arrow">↕</span></th>
-        <th class="right" data-sort="meta">Meta <span class="sort-arrow">↕</span></th>
-        <th class="right" data-sort="eva" title="Evasão acumulada observada neste semestre">Evasão <span class="sort-arrow">↕</span></th>
-        <th class="right" data-sort="need" title="Candidatos necessários = meta ÷ (1 − evasão)">Necessário <span class="sort-arrow">↕</span></th>
-        <th class="right" data-sort="saldo" title="Demanda − necessário (negativo = déficit)">Saldo <span class="sort-arrow">↕</span></th>
-        <th data-sort="status">Status <span class="sort-arrow">↕</span></th>
-        <th data-sort="acao" title="Ação recomendada cruzando demanda total e entrevistados">Ação <span class="sort-arrow">↕</span></th>
-      </tr></thead>
-      <tbody id="tbl-body"></tbody>
-    </table>
   </div>
 
   <div class="note" id="metodo">
@@ -660,7 +675,7 @@ async function exportPDF(){{
       pdf.setTextColor(33,67,142);pdf.setFont('helvetica','bold');pdf.setFontSize(8);
       pdf.text('ESCOPO: '+escopo,W-M,8,{{align:'right'}});
     }}
-    const secs=['acoes-section','kpis-section','donut-section','scatter-section','prontidao-section','deficit-section','eixo-section','tbl-section'];
+    const secs=['kpis-section','acoes-section','tbl-section','donut-section','scatter-section','prontidao-section','deficit-section','eixo-section'];
     let y=24;header();
     for(const id of secs){{
       const el=document.getElementById(id);if(!el)continue;
@@ -682,15 +697,15 @@ async function exportPDF(){{
 # ---------------------------------------------------------------- main
 def main():
     print("📂  Dashboard de Planejamento de Demanda — CEDESP OSDB")
-    engine = carregar_engine()
-    planilha = achar_planilha()
-    print(f"  📄  Planilha: {os.path.basename(planilha)}")
-    sheets = engine.carregar_planilha(planilha)
-    cursos, _ = engine.extrair_cursos(sheets)
-    eixos = eixo_lookup(sheets)
-    if len(eixos) != len(cursos):
-        print(f"  ⚠️  Eixos ({len(eixos)}) != turmas ({len(cursos)}) — eixo pode desalinhar.")
-    dados = montar_dados(cursos, eixos)
+    # Aceita o nome da planilha como argumento (igual aos outros scripts);
+    # se não vier um .xlsx válido, descobre automaticamente na pasta.
+    arg = sys.argv[1] if len(sys.argv) > 1 else None
+    if arg and arg.lower().endswith(".xlsx") and os.path.exists(arg):
+        planilha = arg
+    else:
+        planilha = achar_planilha()
+    sheets   = carregar_planilha(planilha)
+    dados    = extrair_demanda(sheets)
 
     # Resumo no console
     from collections import Counter
@@ -716,8 +731,10 @@ def main():
 
     data_atualizacao = datetime.now().strftime("%d/%m/%Y")
     html = gerar_html(dados, data_atualizacao)
-    os.makedirs(OUT_DIR, exist_ok=True)
-    out = os.path.join(OUT_DIR, "dashboard_demanda.html")
+
+    # Saída SEMPRE na mesma pasta deste script
+    out_dir = os.path.dirname(os.path.abspath(__file__))
+    out = os.path.join(out_dir, SAIDA_HTML)
     with open(out, "w", encoding="utf-8") as f:
         f.write(html)
     print(f"  💾  Gerado: {out}")
