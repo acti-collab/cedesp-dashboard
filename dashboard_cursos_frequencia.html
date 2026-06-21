@@ -123,7 +123,7 @@ footer{border-top:1px solid var(--border);padding:20px 48px;display:flex;justify
     <button class="filter-btn noite" data-filter="period" data-value="Noite">🌙 Noite</button>
   </div>
   <div class="controls-spacer"></div>
-  <span class="update-badge">📅 Atualizado em: 20/06/2026 às 10:15</span>
+  <span class="update-badge">📅 Atualizado em: 21/06/2026 às 10:15</span>
   <div style="display:flex;align-items:center;gap:6px">
     <button class="pdf-btn" id="pdfBtn" onclick="exportPDF()">⬇ Exportar PDF</button>
   </div>
@@ -266,7 +266,7 @@ footer{border-top:1px solid var(--border);padding:20px 48px;display:flex;justify
 
 <footer>
   <div class="footer-text">CEDESP Dom Bosco Itaquera · Dashboard gerado automaticamente</div>
-  <div class="footer-text">Atualizado em 20/06/2026 às 10:15</div>
+  <div class="footer-text">Atualizado em 21/06/2026 às 10:15</div>
 </footer>
 
 <script>
@@ -43722,7 +43722,7 @@ const RAW = [
     "dias_sem_aula": 11
   }
 ];
-const NO_CLASS = {"16/02": "Carnaval", "17/02": "Carnaval", "18/02": "Quarta-feira de Cinzas", "03/04": "Sexta-feira Santa", "04/06": "Corpus Christi", "21/04": "Tiradentes", "01/05": "Dia do Trabalho", "10/04": "Parada pedagógica", "29/05": "Parada pedagógica", "20/04": "Sem aula (emenda/parada)", "05/06": "Sem aula (emenda/parada)"};   // {DD/MM: motivo} feriados/paradas de dia inteiro
+const NO_CLASS = {"16/02": "Carnaval", "17/02": "Carnaval", "18/02": "Quarta-feira de Cinzas", "03/04": "Sexta-feira Santa", "04/06": "Corpus Christi", "21/04": "Tiradentes", "01/05": "Dia do Trabalho", "10/04": "Parada pedagógica", "29/05": "Parada pedagógica", "05/06": "Sem aula (emenda/parada)", "20/04": "Sem aula (emenda/parada)"};   // {DD/MM: motivo} feriados/paradas de dia inteiro
 const RESUMO   = {"cutoff": "18/06", "total_pendentes": 332, "cursos_com_pendencia": 73, "dias_sem_aula": 11};     // {cutoff, total_pendentes, cursos_com_pendencia, dias_sem_aula}
 const CUTOFF   = "18/06";     // última data lançada (DD/MM)
 
@@ -44133,7 +44133,7 @@ async function exportPDF(){
     pdf.setFont('helvetica','bold'); pdf.setFontSize(10); pdf.setTextColor(255,255,255);
     pdf.text('CEDESP DOM BOSCO — Frequência por Curso', MARGIN, 9);
     pdf.setFont('helvetica','normal'); pdf.setFontSize(8); pdf.setTextColor(180,190,210);
-    pdf.text(`20/06/2026 às 10:15`, PW-MARGIN, 9, {align:'right'});
+    pdf.text(`21/06/2026 às 10:15`, PW-MARGIN, 9, {align:'right'});
     pdf.setFontSize(7); pdf.setTextColor(140,150,170);
     pdf.text(`Página ${pageNum}`, PW-MARGIN, PH-4, {align:'right'});
     if(filterLabel){
