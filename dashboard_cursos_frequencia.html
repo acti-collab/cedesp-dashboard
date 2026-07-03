@@ -123,7 +123,7 @@ footer{border-top:1px solid var(--border);padding:20px 48px;display:flex;justify
     <button class="filter-btn noite" data-filter="period" data-value="Noite">🌙 Noite</button>
   </div>
   <div class="controls-spacer"></div>
-  <span class="update-badge">📅 Atualizado em: 02/07/2026 às 10:15</span>
+  <span class="update-badge">📅 Atualizado em: 03/07/2026 às 10:15</span>
   <div style="display:flex;align-items:center;gap:6px">
     <button class="pdf-btn" id="pdfBtn" onclick="exportPDF()">⬇ Exportar PDF</button>
   </div>
@@ -266,7 +266,7 @@ footer{border-top:1px solid var(--border);padding:20px 48px;display:flex;justify
 
 <footer>
   <div class="footer-text">CEDESP Dom Bosco Itaquera · Dashboard gerado automaticamente</div>
-  <div class="footer-text">Atualizado em 02/07/2026 às 10:15</div>
+  <div class="footer-text">Atualizado em 03/07/2026 às 10:15</div>
 </footer>
 
 <script>
@@ -5860,9 +5860,9 @@ const RAW = [
     "evasao_pct": 12.5,
     "desistentes": 7,
     "evasao_acum_pct": 22.6,
-    "centr": 10,
+    "centr": 11,
     "sentr": 6,
-    "dem_total": 16,
+    "dem_total": 17,
     "pendentes": 0,
     "pendentes_datas": [],
     "dias_sem_aula": 12
@@ -23633,9 +23633,9 @@ const RAW = [
     "evasao_pct": 9.0,
     "desistentes": 10,
     "evasao_acum_pct": 32.3,
-    "centr": 52,
+    "centr": 53,
     "sentr": 34,
-    "dem_total": 86,
+    "dem_total": 87,
     "pendentes": 3,
     "pendentes_datas": [
       "30/04",
@@ -31377,9 +31377,9 @@ const RAW = [
     "evasao_pct": 22.0,
     "desistentes": 10,
     "evasao_acum_pct": 28.6,
-    "centr": 18,
+    "centr": 19,
     "sentr": 30,
-    "dem_total": 48,
+    "dem_total": 49,
     "pendentes": 17,
     "pendentes_datas": [
       "04/05",
@@ -35519,9 +35519,9 @@ const RAW = [
     "evasao_pct": 36.1,
     "desistentes": 6,
     "evasao_acum_pct": 20.7,
-    "centr": 28,
+    "centr": 35,
     "sentr": 119,
-    "dem_total": 147,
+    "dem_total": 154,
     "pendentes": 8,
     "pendentes_datas": [
       "12/03",
@@ -39471,9 +39471,9 @@ const RAW = [
     "evasao_pct": 18.6,
     "desistentes": 8,
     "evasao_acum_pct": 27.6,
-    "centr": 19,
+    "centr": 21,
     "sentr": 7,
-    "dem_total": 26,
+    "dem_total": 28,
     "pendentes": 12,
     "pendentes_datas": [
       "02/03",
@@ -46487,7 +46487,7 @@ const RAW = [
     "dias_sem_aula": 12
   }
 ];
-const NO_CLASS = {"16/02": "Carnaval", "17/02": "Carnaval", "18/02": "Quarta-feira de Cinzas", "03/04": "Sexta-feira Santa", "04/06": "Corpus Christi", "21/04": "Tiradentes", "01/05": "Dia do Trabalho", "10/04": "Parada pedagógica", "29/05": "Parada pedagógica", "05/06": "Sem aula (emenda/parada)", "26/06": "Sem aula (emenda/parada)", "20/04": "Sem aula (emenda/parada)"};   // {DD/MM: motivo} feriados/paradas de dia inteiro
+const NO_CLASS = {"16/02": "Carnaval", "17/02": "Carnaval", "18/02": "Quarta-feira de Cinzas", "03/04": "Sexta-feira Santa", "04/06": "Corpus Christi", "21/04": "Tiradentes", "01/05": "Dia do Trabalho", "10/04": "Parada pedagógica", "29/05": "Parada pedagógica", "26/06": "Sem aula (emenda/parada)", "20/04": "Sem aula (emenda/parada)", "05/06": "Sem aula (emenda/parada)"};   // {DD/MM: motivo} feriados/paradas de dia inteiro
 const RESUMO   = {"cutoff": "01/07", "total_pendentes": 448, "cursos_com_pendencia": 80, "dias_sem_aula": 12};     // {cutoff, total_pendentes, cursos_com_pendencia, dias_sem_aula}
 const CUTOFF   = "01/07";     // última data lançada (DD/MM)
 
@@ -46898,7 +46898,7 @@ async function exportPDF(){
     pdf.setFont('helvetica','bold'); pdf.setFontSize(10); pdf.setTextColor(255,255,255);
     pdf.text('CEDESP DOM BOSCO — Frequência por Curso', MARGIN, 9);
     pdf.setFont('helvetica','normal'); pdf.setFontSize(8); pdf.setTextColor(180,190,210);
-    pdf.text(`02/07/2026 às 10:15`, PW-MARGIN, 9, {align:'right'});
+    pdf.text(`03/07/2026 às 10:15`, PW-MARGIN, 9, {align:'right'});
     pdf.setFontSize(7); pdf.setTextColor(140,150,170);
     pdf.text(`Página ${pageNum}`, PW-MARGIN, PH-4, {align:'right'});
     if(filterLabel){
